@@ -1,0 +1,21 @@
+data/
+  ├── input/                          # 输入文档
+  │   ├── 项目A/                      # 项目A 的输入
+  │   │   └── 需求文档.pdf
+  │   └── 项目B/                      # 项目B 的输入
+  │       └── 需求.docx
+  │
+  ├── 项目A/                          # 项目A 的输出
+  │   ├── gpt-5.2/                    # GPT-5.2 模型输出
+  │   │   ├── workspace/
+  │   │   │   ├── 01_global/
+  │   │   │   └── 02_modules/
+  │   │   └── output/
+  │   │       └── final_design_document.md
+  │   └── deepseek-v3.2/              # DeepSeek 模型输出
+  │       ├── workspace/
+  │       └── output/
+  │
+  └── 项目B/
+      └── gpt-5.1/
+          └── ...

@@ -1,0 +1,39 @@
+[project]
+name = "docuflow-ai"
+version = "0.1.0"
+description = "将软件需求文档转换为结构化设计文档的 AI 系统"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # 核心依赖
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "pyyaml>=6.0",
+    "networkx>=3.0",
+    # CLI
+    "typer>=0.9.0",
+    "rich>=13.0",
+    # LLM 集成 (仅 Azure OpenAI)
+    "openai>=1.0",
+    "langchain-core>=0.1.0",
+    "langchain-openai>=0.0.5",
+    "langchain-community>=0.0.20",
+    "langchain-text-splitters>=0.0.1",
+    # 文档解析
+    "pypdf>=3.0",
+    "docx2txt>=0.8",
+    # 向量搜索
+    "faiss-cpu>=1.7.4",
+    # 工具
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+docuflow = "docuflow.cli.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["docuflow"]

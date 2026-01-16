@@ -1,0 +1,97 @@
+project_name: DocuFlow-AI Project
+created_at: '2026-01-16T16:42:36.812377'
+last_run: '2026-01-16T16:59:01.986399'
+current_phase: completed
+modules:
+- name: 账户系统
+  status: completed
+  file_path: data\天财分账需求\deepseek-v3.2\workspace\02_modules\module_账户系统.md
+  dependencies: []
+  started_at: '2026-01-16T16:42:56.573029'
+  completed_at: '2026-01-16T16:43:48.650239'
+  error_message: null
+  retry_count: 0
+- name: 三代系统
+  status: completed
+  file_path: data\天财分账需求\deepseek-v3.2\workspace\02_modules\module_三代系统.md
+  dependencies: []
+  started_at: '2026-01-16T16:43:48.654254'
+  completed_at: '2026-01-16T16:44:49.318975'
+  error_message: null
+  retry_count: 0
+- name: 认证系统
+  status: completed
+  file_path: data\天财分账需求\deepseek-v3.2\workspace\02_modules\module_认证系统.md
+  dependencies: []
+  started_at: '2026-01-16T16:44:49.324215'
+  completed_at: '2026-01-16T16:46:01.621710'
+  error_message: null
+  retry_count: 0
+- name: 电子签约平台
+  status: completed
+  file_path: data\天财分账需求\deepseek-v3.2\workspace\02_modules\module_电子签约平台.md
+  dependencies:
+  - 认证系统
+  started_at: '2026-01-16T16:49:59.523850'
+  completed_at: '2026-01-16T16:51:25.779396'
+  error_message: null
+  retry_count: 0
+- name: 行业钱包系统
+  status: completed
+  file_path: data\天财分账需求\deepseek-v3.2\workspace\02_modules\module_行业钱包系统.md
+  dependencies:
+  - 账户系统
+  - 三代系统
+  - 电子签约平台
+  started_at: '2026-01-16T16:51:25.783815'
+  completed_at: '2026-01-16T16:53:01.103750'
+  error_message: null
+  retry_count: 0
+- name: 清结算系统
+  status: completed
+  file_path: data\天财分账需求\deepseek-v3.2\workspace\02_modules\module_清结算系统.md
+  dependencies:
+  - 账户系统
+  started_at: '2026-01-16T16:46:45.594181'
+  completed_at: '2026-01-16T16:48:05.641908'
+  error_message: null
+  retry_count: 0
+- name: 计费中台
+  status: completed
+  file_path: data\天财分账需求\deepseek-v3.2\workspace\02_modules\module_计费中台.md
+  dependencies:
+  - 三代系统
+  started_at: '2026-01-16T16:48:05.646926'
+  completed_at: '2026-01-16T16:49:04.810220'
+  error_message: null
+  retry_count: 0
+- name: 业务核心
+  status: completed
+  file_path: data\天财分账需求\deepseek-v3.2\workspace\02_modules\module_业务核心.md
+  dependencies: []
+  started_at: '2026-01-16T16:46:01.626238'
+  completed_at: '2026-01-16T16:46:45.588685'
+  error_message: null
+  retry_count: 0
+- name: 对账单系统
+  status: completed
+  file_path: data\天财分账需求\deepseek-v3.2\workspace\02_modules\module_对账单系统.md
+  dependencies:
+  - 账户系统
+  - 清结算系统
+  - 行业钱包系统
+  - 业务核心
+  - 三代系统
+  started_at: '2026-01-16T16:53:01.107861'
+  completed_at: '2026-01-16T16:54:29.859085'
+  error_message: null
+  retry_count: 0
+- name: 钱包APP/商服平台
+  status: completed
+  file_path: data\天财分账需求\deepseek-v3.2\workspace\02_modules\module_钱包APP_商服平台.md
+  dependencies:
+  - 三代系统
+  started_at: '2026-01-16T16:49:04.815208'
+  completed_at: '2026-01-16T16:49:59.512415'
+  error_message: null
+  retry_count: 0

@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# claude
+.claude/
+
+.env
+
+# # 忽略 data 文件夹下的所有内容 
+# data/*
+
+# 但是不要忽略 .gitkeep 文件 
+!.gitkeep
+sheji.md
