@@ -1,5 +1,5 @@
 """LangGraph 编排器"""
-from typing import Optional
+from typing import Optional, Callable
 
 import networkx as nx
 from langgraph.checkpoint.memory import MemorySaver
@@ -25,6 +25,25 @@ class WorkflowOrchestrator:
         self.config = config
         self.logger = get_logger()
         self.checkpointer = MemorySaver()
+        self._progress_callback: Optional[Callable[[dict], None]] = None
+
+    def set_progress_callback(self, callback: Callable[[dict], None]):
+        """设置进度回调函数
+
+        Args:
+            callback: 回调函数，接收一个 dict 参数，包含:
+                - type: 事件类型 (phase_change, module_start, module_complete, error, etc.)
+                - data: 事件数据
+        """
+        self._progress_callback = callback
+
+    def _emit_progress(self, event_type: str, data: dict):
+        """发送进度事件"""
+        if self._progress_callback:
+            self._progress_callback({
+                "type": event_type,
+                "data": data
+            })
 
     def _build_initial_state(self) -> DocuFlowState:
         """构建初始状态"""
@@ -87,6 +106,7 @@ class WorkflowOrchestrator:
     def run_init(self) -> bool:
         """阶段 1：初始化"""
         self.logger.info("=== 阶段 1：初始化 ===")
+        self._emit_progress("phase_change", {"phase": "init", "message": "正在初始化..."})
 
         graph = build_init_graph()
         app = graph.compile(checkpointer=self.checkpointer)
@@ -99,12 +119,21 @@ class WorkflowOrchestrator:
 
             if result.get("error"):
                 self.logger.error(f"初始化失败: {result['error']}")
+                self._emit_progress("error", {"phase": "init", "message": str(result['error'])})
                 return False
 
+            # 发送模块总数
+            if result.get("dag"):
+                dag_data = result["dag"]
+                module_count = len(dag_data.get("modules", []))
+                self._emit_progress("total_modules", {"count": module_count})
+
             self.logger.info("阶段 1 完成！")
+            self._emit_progress("phase_complete", {"phase": "init", "message": "初始化完成"})
             return True
         except Exception as e:
             self.logger.error(f"初始化失败: {e}")
+            self._emit_progress("error", {"phase": "init", "message": str(e)})
             return False
 
     def run_generation(self, step_by_step: Optional[bool] = None) -> bool:
@@ -116,10 +145,12 @@ class WorkflowOrchestrator:
         - 循环直到所有模块完成
         """
         self.logger.info("=== 阶段 2：并行拓扑生成 ===")
+        self._emit_progress("phase_change", {"phase": "generation", "message": "正在生成模块设计..."})
 
         state = self._load_existing_state()
         if not state.get("dag"):
             self.logger.error("请先运行 'init' 命令")
+            self._emit_progress("error", {"phase": "generation", "message": "请先运行 init 命令"})
             return False
 
         state["step_by_step_mode"] = step_by_step or False
@@ -135,6 +166,7 @@ class WorkflowOrchestrator:
 
             if result.get("error") and result.get("error_type") == "permanent":
                 self.logger.error(f"生成失败: {result['error']}")
+                self._emit_progress("error", {"phase": "generation", "message": str(result['error'])})
                 return False
 
             # 重新加载状态检查完成情况
@@ -144,6 +176,13 @@ class WorkflowOrchestrator:
             total = len(status.modules)
 
             self.logger.info(f"模块处理完成: {completed}/{total} 成功, {failed} 失败")
+            self._emit_progress("phase_complete", {
+                "phase": "generation",
+                "message": f"模块处理完成: {completed}/{total} 成功, {failed} 失败",
+                "completed": completed,
+                "failed": failed,
+                "total": total
+            })
 
             # 更新阶段
             status.current_phase = "overview"
@@ -153,15 +192,18 @@ class WorkflowOrchestrator:
 
         except Exception as e:
             self.logger.error(f"生成失败: {e}")
+            self._emit_progress("error", {"phase": "generation", "message": str(e)})
             return False
 
     def run_overview(self) -> bool:
         """阶段 3：生成系统概述"""
         self.logger.info("=== 阶段 3：系统概述生成 ===")
+        self._emit_progress("phase_change", {"phase": "overview", "message": "正在生成系统概述..."})
 
         state = self._load_existing_state()
         if not state.get("dag"):
             self.logger.error("请先运行 'init' 命令")
+            self._emit_progress("error", {"phase": "overview", "message": "请先运行 init 命令"})
             return False
 
         # 检查是否有待处理模块
@@ -169,6 +211,7 @@ class WorkflowOrchestrator:
         pending_count = sum(1 for m in status.modules if m.status == ModuleStatus.PENDING)
         if pending_count > 0:
             self.logger.error("还有模块待处理，请先运行 'run' 命令")
+            self._emit_progress("error", {"phase": "overview", "message": "还有模块待处理"})
             return False
 
         graph = build_overview_graph()
@@ -180,6 +223,7 @@ class WorkflowOrchestrator:
 
             if result.get("error") and result.get("error_type") == "permanent":
                 self.logger.error(f"概述生成失败: {result['error']}")
+                self._emit_progress("error", {"phase": "overview", "message": str(result['error'])})
                 return False
 
             # 更新阶段
@@ -187,18 +231,22 @@ class WorkflowOrchestrator:
             safe_write_yaml(self.config.status_file, status)
 
             self.logger.info("阶段 3 完成！")
+            self._emit_progress("phase_complete", {"phase": "overview", "message": "系统概述生成完成"})
             return True
         except Exception as e:
             self.logger.error(f"概述生成失败: {e}")
+            self._emit_progress("error", {"phase": "overview", "message": str(e)})
             return False
 
     def run_assembly(self) -> bool:
         """阶段 4：组装最终文档"""
         self.logger.info("=== 阶段 4：组装 ===")
+        self._emit_progress("phase_change", {"phase": "assembly", "message": "正在组装最终文档..."})
 
         state = self._load_existing_state()
         if not state.get("dag"):
             self.logger.error("请先运行 'init' 命令")
+            self._emit_progress("error", {"phase": "assembly", "message": "请先运行 init 命令"})
             return False
 
         graph = build_assembly_graph()
@@ -210,12 +258,20 @@ class WorkflowOrchestrator:
 
             if result.get("error"):
                 self.logger.error(f"组装失败: {result['error']}")
+                self._emit_progress("error", {"phase": "assembly", "message": str(result['error'])})
                 return False
 
-            self.logger.info(f"最终文档: {result.get('final_document_path')}")
+            final_path = result.get('final_document_path')
+            self.logger.info(f"最终文档: {final_path}")
+            self._emit_progress("phase_complete", {
+                "phase": "assembly",
+                "message": "文档组装完成",
+                "output_path": final_path
+            })
             return True
         except Exception as e:
             self.logger.error(f"组装失败: {e}")
+            self._emit_progress("error", {"phase": "assembly", "message": str(e)})
             return False
 
     def display_status(self) -> dict:

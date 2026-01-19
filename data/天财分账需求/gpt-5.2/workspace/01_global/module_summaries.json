@@ -1,695 +1,664 @@
 [
   {
     "module_name": "账户系统",
-    "purpose": "为支付平台提供底层账户的全生命周期管理、状态控制及资金记账服务，是支撑分账业务流程的基石。",
+    "purpose": "为天财分账业务提供专用的账户创建、管理、关系绑定、账务处理及能力控制的核心底层服务。",
     "interfaces": [
       {
         "method": "POST",
-        "path": "/api/v1/accounts",
-        "description": "创建账户"
-      },
-      {
-        "method": "PUT",
-        "path": "/api/v1/accounts/{accountNo}/status",
-        "description": "更新账户状态"
-      },
-      {
-        "method": "GET",
-        "path": "/api/v1/accounts/{accountNo}",
-        "description": "查询账户详情"
+        "path": "/api/v1/tiancai/accounts",
+        "description": "创建天财专用账户"
       },
       {
         "method": "POST",
-        "path": "/api/v1/accounts/batch-query",
-        "description": "批量查询账户信息"
+        "path": "/api/v1/tiancai/accounts/{tiancai_account_id}/relationships",
+        "description": "建立天财账户间的关系绑定"
       },
       {
         "method": "POST",
-        "path": "/api/v1/accounts/transfer",
-        "description": "账户间转账（内部调用）"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/accounts/adjust",
-        "description": "账户调账（内部调用）"
+        "path": "/api/v1/accounts/{account_no}/ledger/entries",
+        "description": "执行原子化的账务记账（内部调用）"
       },
       {
         "method": "GET",
-        "path": "/api/v1/accounts/{accountNo}/balance",
-        "description": "查询账户余额"
+        "path": "/api/v1/tiancai/accounts/{tiancai_account_id}",
+        "description": "查询天财账户详情"
       },
       {
         "method": "GET",
-        "path": "/api/v1/accounts/{accountNo}/transactions",
-        "description": "查询账户流水"
+        "path": "/api/v1/tiancai/accounts",
+        "description": "根据条件查询天财账户列表"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/tiancai/accounts/{tiancai_account_id}/relationships",
+        "description": "查询账户关系"
       }
     ],
     "database_tables": [
       {
+        "name": "tiancai_account",
+        "description": "天财专用账户表，存储账户的业务属性、状态及与底层账户的关联。"
+      },
+      {
+        "name": "account_relationship",
+        "description": "账户关系表，记录天财账户间的授权绑定关系，用于分账前置校验。"
+      },
+      {
         "name": "account",
-        "description": "账户主表，存储账户核心信息"
-      },
-      {
-        "name": "account_transaction",
-        "description": "账户流水表，记录所有资金变动"
-      },
-      {
-        "name": "internal_account",
-        "description": "内部账户表，管理如待结算账户等内部账户"
+        "description": "底层标准账户表（已存在，需扩展），存储资金余额、状态和能力标记。"
       }
     ],
     "dependencies": [
-      "行业钱包系统",
-      "清结算系统",
       "三代系统",
-      "对账单系统"
+      "行业钱包系统",
+      "清结算系统"
     ],
     "key_features": [
-      "账户创建与状态管理",
-      "资金记账与内部转账",
-      "幂等控制与乐观锁",
-      "事件发布（如账户创建、余额变动）"
+      "天财专用账户生命周期管理",
+      "账户关系绑定与校验",
+      "原子化账务处理与余额管理",
+      "通过事件驱动与上下游系统解耦"
     ]
   },
   {
-    "module_name": "电子签约平台",
-    "purpose": "为分账关系建立提供合法、合规、可追溯的授权基础，负责电子协议签署、身份认证及证据链留存。",
+    "module_name": "认证系统",
+    "purpose": "为支付平台提供安全、合规的身份与账户所有权验证能力，确保资金流转方的身份真实性和账户控制权。",
     "interfaces": [
       {
         "method": "POST",
-        "path": "/api/v1/contract/initiate",
-        "description": "行业钱包系统发起签约认证，创建签约任务"
+        "path": "/api/v1/verification/transfer-payment",
+        "description": "发起打款验证，向指定银行卡打入随机金额以验证账户控制权。"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/verification/transfer-payment/{verificationId}/confirm",
+        "description": "提交用户回填的打款金额，以完成验证。"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/verification/face",
+        "description": "发起人脸识别验证请求，验证个人身份真实性。"
       },
       {
         "method": "GET",
-        "path": "/api/v1/contract/task/{signTaskId}",
-        "description": "查询签约任务状态"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/contract/open-payment-auth",
-        "description": "为付方（总部）发起代付协议签署"
-      },
-      {
-        "method": "GET",
-        "path": "/h5/v1/contract/data",
-        "description": "H5页面获取签约数据"
-      },
-      {
-        "method": "POST",
-        "path": "/h5/v1/contract/verify-sms",
-        "description": "H5页面提交短信验证码"
-      },
-      {
-        "method": "POST",
-        "path": "/h5/v1/contract/confirm-sign",
-        "description": "H5页面确认签署协议"
+        "path": "/api/v1/verification/{verificationId}",
+        "description": "同步查询某次验证的详细状态和结果。"
       }
     ],
     "database_tables": [
       {
-        "name": "t_sign_task",
-        "description": "签约任务主表，记录任务核心信息与状态"
+        "name": "verification_record",
+        "description": "验证记录表，存储每一次验证请求的完整信息与状态。"
       },
       {
-        "name": "t_contract_record",
-        "description": "协议签署记录表，记录每份协议的签署详情"
+        "name": "transfer_payment_detail",
+        "description": "打款验证明细表，为打款验证场景扩展存储打款执行细节。"
+      }
+    ],
+    "dependencies": [
+      "清结算系统",
+      "电子签约平台",
+      "消息队列(Kafka)",
+      "行业钱包系统"
+    ],
+    "key_features": [
+      "打款验证（对公/对私银行卡）",
+      "人脸验证（姓名、身份证、人脸比对）",
+      "认证状态管理与证据链追溯",
+      "与电子签约平台集成完成关系绑定核验"
+    ]
+  },
+  {
+    "module_name": "计费中台",
+    "purpose": "作为天财分账系统的核心计费引擎，负责对各类分账交易、账户操作进行精确的费用计算、冻结和结算处理。",
+    "interfaces": [
+      {
+        "method": "POST",
+        "path": "/v1/billing/calculate",
+        "description": "计费试算接口，在业务发起前预先计算并返回费用明细。"
       },
       {
-        "name": "t_auth_record",
-        "description": "身份认证记录表，记录打款/人脸认证过程与结果"
+        "method": "POST",
+        "path": "/v1/billing/confirm",
+        "description": "费用确认与冻结接口，在业务正式执行前确认并冻结费用。"
       },
       {
-        "name": "t_sms_record",
-        "description": "短信验证记录表，管理短信验证码的发送与使用"
+        "method": "POST",
+        "path": "/internal/v1/billing/settle",
+        "description": "费用结算指令生成接口（内部），由调度任务触发，对已冻结费用生成结算指令。"
+      }
+    ],
+    "database_tables": [
+      {
+        "name": "billing_rule",
+        "description": "计费规则表，存储不同业务场景、角色的差异化计费规则。"
+      },
+      {
+        "name": "billing_order",
+        "description": "计费订单表，记录每笔业务产生的费用订单及状态。"
+      },
+      {
+        "name": "billing_detail",
+        "description": "计费明细表，记录费用订单的详细计算构成。"
+      },
+      {
+        "name": "settlement_instruction",
+        "description": "结算指令表，存储驱动资金划转的结算指令。"
       }
     ],
     "dependencies": [
       "行业钱包系统",
       "账户系统",
-      "外部认证服务",
-      "短信服务平台",
-      "文件存储服务"
+      "清结算系统",
+      "对账单系统",
+      "三代系统"
     ],
     "key_features": [
-      "标准化电子协议签署流程",
-      "集成打款与人脸双重身份认证",
-      "全流程证据链固化与留存",
-      "提供H5页面与API供上游集成"
-    ]
-  },
-  {
-    "module_name": "认证系统",
-    "purpose": "为分账业务的付方与收方建立合法、可信的授权关系，构建分账业务的法律与风控基础。",
-    "interfaces": [
-      {
-        "method": "POST",
-        "path": "/api/v1/auth/bindings",
-        "description": "发起付方与收方的关系绑定流程"
-      },
-      {
-        "method": "GET",
-        "path": "/api/v1/auth/bindings/{bindingId}",
-        "description": "查询绑定关系的详细状态"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/auth/callback/esign",
-        "description": "接收电子签约平台的签约/认证结果回调"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/auth/payment-enable",
-        "description": "为总部商户开通批量付款与会员结算权限"
-      }
-    ],
-    "database_tables": [
-      {
-        "name": "auth_binding",
-        "description": "关系绑定主表，记录付方与收方的授权关系及状态"
-      },
-      {
-        "name": "payment_enable",
-        "description": "付款开通表，记录总部开通批量付款/会员结算权限的状态"
-      },
-      {
-        "name": "auth_evidence",
-        "description": "认证证据链表，留存协议、认证记录等法律证据"
-      }
-    ],
-    "dependencies": [
-      "三代系统",
-      "电子签约平台",
-      "行业钱包系统"
-    ],
-    "key_features": [
-      "关系绑定与状态机管理",
-      "电子协议签署与身份认证集成",
-      "付款权限开通管理",
-      "全流程证据链留存"
+      "费率规则管理：支持为不同场景、角色、账户类型配置差异化计费规则。",
+      "实时计费：在关键业务节点实时计算并冻结/扣除费用。",
+      "批量结算：按周期汇总费用并生成结算指令，驱动资金划转。",
+      "费用对账：生成详细的计费明细和汇总账单。",
+      "计费豁免与优惠：支持基于特定条件的费用减免。"
     ]
   },
   {
     "module_name": "三代系统",
-    "purpose": "作为“天财商龙”分账业务的核心入口和流程编排中枢，管理商户进件、关系绑定、分账指令发起等全流程业务。",
+    "purpose": "作为天财分账业务的入口和协调中枢，负责接收业务请求、协调下游系统、管理业务流程并返回结果。",
     "interfaces": [
       {
         "method": "POST",
-        "path": "/api/v1/tiancai/merchants/onboarding",
-        "description": "天财业务商户进件"
+        "path": "/api/v1/tiancai/merchants/{merchant_no}/enable",
+        "description": "为指定收单商户开通天财分账业务能力，触发天财专用账户创建流程。"
       },
       {
         "method": "POST",
-        "path": "/api/v1/tiancai/bindings",
-        "description": "发起关系绑定（签约与认证）"
+        "path": "/api/v1/tiancai/split-orders",
+        "description": "天财发起分账指令的统一入口，接收后转发给行业钱包系统处理。"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/tiancai/split-orders/{split_order_id}",
+        "description": "查询分账指令处理状态。"
       },
       {
         "method": "POST",
-        "path": "/api/v1/tiancai/split-orders/collection",
-        "description": "发起资金归集"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/tiancai/split-orders/batch-payment",
-        "description": "发起批量付款"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/tiancai/split-orders/member-settlement",
-        "description": "发起会员结算"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/tiancai/merchants/{merchantNo}/enable-payment",
-        "description": "为总部商户发起“开通付款”流程"
+        "path": "/api/internal/tiancai/callback/process",
+        "description": "供下游系统回调，通知异步流程状态变更。"
       }
     ],
     "database_tables": [
       {
         "name": "tiancai_merchant_config",
-        "description": "天财商户配置表，存储商户类型、结算模式、状态等信息"
+        "description": "天财商户配置表，存储商户的天财业务开通状态和配置。"
       },
       {
-        "name": "tiancai_account",
-        "description": "天财账户关联表，关联商户与底层账户及钱包账户"
+        "name": "tiancai_account_mapping",
+        "description": "天财账户映射表，维护商户号与天财账户ID的映射关系。"
       },
       {
-        "name": "binding_relationship",
-        "description": "绑定关系表，存储付方与收方在各种业务场景下的授权关系"
+        "name": "tiancai_split_order",
+        "description": "天财分账订单表，记录分账指令的请求、状态和处理结果。"
       },
       {
-        "name": "split_order",
-        "description": "分账指令表，记录归集、付款、结算等分账指令"
+        "name": "tiancai_process_flow",
+        "description": "天财业务流程表，管理账户开通、关系绑定等异步流程的状态。"
       }
     ],
     "dependencies": [
+      "天财系统",
+      "账户系统",
       "行业钱包系统",
-      "电子签约平台",
-      "账户系统",
-      "清结算系统",
-      "对账单系统"
+      "电子签约平台"
     ],
     "key_features": [
-      "商户进件与账户配置",
-      "关系绑定流程编排",
-      "分账业务发起与状态管理",
-      "开通付款授权"
-    ]
-  },
-  {
-    "module_name": "账务核心系统",
-    "purpose": "作为“天财商龙”分账业务的核心处理引擎，负责处理归集、批量付款、会员结算等分账流程的核心业务逻辑与资金划转。",
-    "interfaces": [
-      {
-        "method": "POST",
-        "path": "/api/v1/split/execute",
-        "description": "执行单笔分账"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/split/batch-execute",
-        "description": "执行批量分账"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/split/{splitOrderNo}/reverse",
-        "description": "分账冲正"
-      },
-      {
-        "method": "GET",
-        "path": "/api/v1/split/orders/{splitOrderNo}",
-        "description": "查询分账订单详情"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/split/validate-relationship",
-        "description": "校验分账关系"
-      },
-      {
-        "method": "GET",
-        "path": "/api/v1/split/fee-calculate",
-        "description": "试算手续费"
-      }
-    ],
-    "database_tables": [
-      {
-        "name": "split_order",
-        "description": "分账订单主表，记录核心交易信息"
-      },
-      {
-        "name": "split_order_item",
-        "description": "分账订单明细表，用于批量付款场景"
-      },
-      {
-        "name": "split_relationship_cache",
-        "description": "分账关系缓存表，存储付方与收方的绑定及授权状态"
-      },
-      {
-        "name": "split_account_trans_rel",
-        "description": "分账与底层账户流水关联表"
-      }
-    ],
-    "dependencies": [
-      "行业钱包系统",
-      "账户系统",
-      "计费中台",
-      "清结算系统",
-      "业务核心",
-      "对账单系统"
-    ],
-    "key_features": [
-      "分账交易处理与状态机管理",
-      "手续费计算与扣收",
-      "关系绑定与业务规则校验",
-      "异常处理与冲正机制",
-      "事件驱动与数据同步"
-    ]
-  },
-  {
-    "module_name": "行业钱包系统",
-    "purpose": "作为“天财商龙”分账业务的核心资金处理与业务逻辑中枢，负责管理钱包账户、校验分账关系、执行分账指令并驱动底层账户完成资金划转。",
-    "interfaces": [
-      {
-        "method": "POST",
-        "path": "/api/v1/wallet/accounts",
-        "description": "创建天财专用钱包账户"
-      },
-      {
-        "method": "GET",
-        "path": "/api/v1/wallet/accounts/{walletAccountId}",
-        "description": "查询钱包账户详情"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/wallet/bindings/validate",
-        "description": "校验绑定关系有效性（分账前置调用）"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/wallet/transfer",
-        "description": "执行分账（资金划转）"
-      },
-      {
-        "method": "GET",
-        "path": "/api/v1/wallet/transfer-orders/{walletOrderNo}",
-        "description": "查询分账指令状态"
-      },
-      {
-        "method": "POST",
-        "path": "/internal/api/v1/wallet/callback/account-transfer",
-        "description": "账户系统转账结果回调接口"
-      }
-    ],
-    "database_tables": [
-      {
-        "name": "wallet_account",
-        "description": "钱包账户表，存储钱包层级的账户信息，与底层账户映射"
-      },
-      {
-        "name": "wallet_binding_cache",
-        "description": "绑定关系缓存表，存储用于分账校验的付方与收方关系"
-      },
-      {
-        "name": "wallet_transfer_order",
-        "description": "钱包分账指令表，记录分账指令的完整状态流转"
-      },
-      {
-        "name": "split_trade_sync_record",
-        "description": "分账交易同步记录表，记录向业务核心同步数据的进度与状态"
-      }
-    ],
-    "dependencies": [
-      "三代系统",
-      "账户系统",
-      "业务核心",
-      "消息队列(MQ)"
-    ],
-    "key_features": [
-      "钱包账户管理：为商户开立并管理钱包账户，与底层账户系统关联",
-      "分账指令处理：执行复杂的业务校验、状态流转，并调用账户系统完成资金划转",
-      "绑定关系校验：在分账前对支付关系进行最终的业务逻辑校验",
-      "数据同步与状态机：将交易数据同步至业务核心，并维护分账指令的完整状态流转"
+      "商户天财业务开通与流程协调",
+      "分账指令的统一接收与路由转发",
+      "多系统异步流程的状态管理与协调"
     ]
   },
   {
     "module_name": "清结算系统",
-    "purpose": "支付平台的资金处理中枢，负责为“天财商龙”业务场景提供交易资金的清算、结算、计费以及退货资金处理服务。",
+    "purpose": "作为支付体系的资金处理核心，负责天财分账业务的交易清算、资金结算、计费及退货资金处理。",
     "interfaces": [
       {
-        "method": "PUT",
-        "path": "/internal/api/v1/settlement/config",
-        "description": "更新商户结算配置（由三代系统调用）"
+        "method": "POST",
+        "path": "/api/v1/settlement/instructions",
+        "description": "接收结算指令，将资金从待结算账户结算至目标天财收款账户。"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/refund/fund-adjustments",
+        "description": "处理天财场景的退货资金调拨。"
       },
       {
         "method": "GET",
-        "path": "/internal/api/v1/settlement/config/{merchantNo}",
-        "description": "查询商户结算配置"
+        "path": "/api/v1/settlement/instructions/{instruction_id}",
+        "description": "查询结算指令状态。"
       },
       {
-        "method": "POST",
-        "path": "/internal/api/v1/settlement/execute",
-        "description": "执行指定批次或商户的结算（可由定时任务或手动触发）"
+        "method": "GET",
+        "path": "/api/v1/settlement/records",
+        "description": "查询结算记录。"
       },
       {
-        "method": "POST",
-        "path": "/internal/api/v1/refund/process",
-        "description": "处理从天财收款账户发起的退货（由业务核心或退货网关调用）"
-      },
-      {
-        "method": "POST",
-        "path": "/internal/api/v1/fee/calculate",
-        "description": "计算并扣划分账交易手续费（由行业钱包系统在分账成功后异步调用）"
+        "method": "GET",
+        "path": "/api/v1/refund/adjustments",
+        "description": "查询退货资金调拨记录。"
       }
     ],
     "database_tables": [
       {
-        "name": "settlement_config",
-        "description": "商户结算配置表，存储商户的结算模式与结算账户配置"
+        "name": "settlement_instruction",
+        "description": "结算指令表，记录结算指令的元数据和整体状态。"
       },
       {
-        "name": "settlement_task",
-        "description": "结算任务表，记录每个结算批次下每个商户的结算任务执行情况"
+        "name": "settlement_record",
+        "description": "结算记录表，记录每笔具体的结算明细和结果。"
       },
       {
-        "name": "settlement_detail",
-        "description": "结算动账明细表，记录每笔交易结算的详细资金变动"
+        "name": "refund_fund_adjustment",
+        "description": "退货资金调拨表，记录退货相关的资金流转。"
       },
       {
-        "name": "refund_order",
-        "description": "退货订单表，记录从天财收款账户发起的退货处理状态"
-      },
-      {
-        "name": "fee_order",
-        "description": "手续费订单表，记录分账交易的手续费计算与扣划情况"
+        "name": "settlement_route",
+        "description": "结算路由表，关联商户、待结算账户与天财收款账户。"
       }
     ],
     "dependencies": [
-      "三代系统",
+      "支付核心（三代系统）",
       "账户系统",
-      "行业钱包系统",
-      "业务核心",
-      "计费中台",
-      "对账单系统"
+      "对账单系统",
+      "行业钱包系统"
     ],
     "key_features": [
-      "资金结算（主动/被动）",
-      "退货资金处理",
-      "分账手续费计算与扣划",
-      "为对账提供动账明细数据"
+      "天财收款账户主动结算",
+      "天财场景退货资金处理",
+      "计费与清算文件生成",
+      "与分账业务协同（事件驱动）"
     ]
   },
   {
-    "module_name": "计费中台",
-    "purpose": "负责精确计算分账交易（归集、批量付款、会员结算）产生的手续费，并提供灵活的计费策略管理能力。",
+    "module_name": "账务核心系统",
+    "purpose": "处理天财分账业务中所有与天财专用账户相关的资金流转、记账、结算、分账等核心账务操作，确保资金变动的准确性、一致性和可追溯性。",
     "interfaces": [
       {
         "method": "POST",
-        "path": "/api/v1/fee/calculate-and-charge",
-        "description": "计算并执行手续费扣划（主要入口）"
+        "path": "/api/v1/tiancai/split-orders",
+        "description": "接收并执行天财分账指令（归集、批量付款、会员结算）"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/tiancai/settlement-trigger",
+        "description": "由清结算系统调用，触发将待结算账户资金结算至天财收款账户"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/tiancai/refund-adjustment",
+        "description": "处理涉及天财收款账户的退货资金调整"
       },
       {
         "method": "GET",
-        "path": "/api/v1/fee/orders/{feeOrderNo}",
-        "description": "查询计费指令状态"
+        "path": "/api/v1/tiancai/split-orders/{split_order_no}",
+        "description": "查询分账指令状态及详情"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/tiancai/accounts/{tiancai_account_id}/transactions",
+        "description": "查询账户交易流水"
       },
       {
         "method": "POST",
-        "path": "/internal/api/v1/fee/sync/config",
-        "description": "接收从三代系统同步的费率配置"
-      },
-      {
-        "method": "POST",
-        "path": "/internal/api/v1/fee/callback/charge-result",
-        "description": "清结算系统回调手续费扣划结果"
+        "path": "/api/v1/tiancai/internal/reconciliation",
+        "description": "内部对账接口（日终批处理）"
       }
     ],
     "database_tables": [
       {
-        "name": "fee_config",
-        "description": "费率配置表，存储商户/业务维度的分账手续费费率规则"
+        "name": "tiancai_split_order",
+        "description": "天财分账订单表，记录分账指令核心信息"
       },
       {
-        "name": "fee_order",
-        "description": "计费指令表，记录每笔计费请求的详细信息与状态"
+        "name": "account_transaction",
+        "description": "账户交易流水表，记录所有资金变动的明细流水"
       },
       {
-        "name": "fee_charge_detail",
-        "description": "手续费扣费明细表，记录每笔手续费的实际扣款详情"
+        "name": "settlement_instruction",
+        "description": "结算指令记录表，记录结算触发指令"
       },
       {
-        "name": "fee_reconciliation",
-        "description": "计费对账表，用于生成每日计费对账文件"
+        "name": "internal_reconciliation",
+        "description": "内部对账表，支持日终对账与差错处理"
       }
     ],
     "dependencies": [
-      "三代系统",
       "行业钱包系统",
       "清结算系统",
-      "账户系统",
-      "对账单系统"
+      "账户系统"
     ],
     "key_features": [
-      "费率配置管理",
-      "实时计费计算",
-      "计费指令生成与执行",
-      "计费规则引擎",
-      "计费对账与查询"
+      "分账指令处理与资金划转",
+      "结算资金处理",
+      "退货资金调整",
+      "账务流水生成与内部对账",
+      "严格的资金操作校验与事务一致性保障"
     ]
   },
   {
-    "module_name": "钱包APP/商服平台",
-    "purpose": "作为三代系统与底层账户系统的核心桥梁，负责处理天财专用账户的开户、分账指令执行与资金划转等钱包层核心业务逻辑。",
+    "module_name": "电子签约平台",
+    "purpose": "为“天财分账”业务提供安全、合规、便捷的电子协议签署与身份认证集成服务。",
     "interfaces": [
       {
         "method": "POST",
-        "path": "/api/v1/wallet/accounts/create",
-        "description": "创建天财专用钱包账户"
+        "path": "/api/v1/contracts/processes",
+        "description": "创建签约流程"
       },
       {
         "method": "GET",
-        "path": "/api/v1/wallet/accounts/{walletAccountId}",
-        "description": "查询钱包账户详情"
+        "path": "/api/v1/contracts/processes/{processId}",
+        "description": "查询签约流程状态"
       },
       {
         "method": "POST",
-        "path": "/api/v1/wallet/transfers/execute",
-        "description": "执行分账（转账）"
+        "path": "/api/v1/webhook/verification",
+        "description": "接收认证系统回调"
       },
       {
         "method": "GET",
-        "path": "/api/v1/wallet/transfers/{requestId}",
-        "description": "查询分账执行状态"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/wallet/bindings/validate",
-        "description": "校验绑定关系有效性"
-      },
-      {
-        "method": "POST",
-        "path": "/internal/api/v1/wallet/callback/account-status",
-        "description": "接收账户系统回调的账户状态变更"
+        "path": "/api/v1/contracts/templates/preview",
+        "description": "生成协议预览"
       }
     ],
     "database_tables": [
       {
-        "name": "wallet_account",
-        "description": "钱包账户表，存储钱包账户与底层账户的映射关系及状态"
+        "name": "contract_process",
+        "description": "签约流程主表"
       },
       {
-        "name": "wallet_transfer_order",
-        "description": "钱包分账指令表，记录分账请求与执行状态"
+        "name": "contract_party",
+        "description": "签约参与方信息与进度表"
       },
       {
-        "name": "binding_validation_cache",
-        "description": "绑定关系校验缓存表，加速分账前的绑定关系校验"
+        "name": "contract_template",
+        "description": "协议模板表"
       },
       {
-        "name": "wallet_account_balance_log",
-        "description": "钱包账户余额变更日志表，记录余额变动流水"
+        "name": "contract_document",
+        "description": "已签署协议文件表"
+      },
+      {
+        "name": "evidence_package",
+        "description": "签约过程证据包表"
+      }
+    ],
+    "dependencies": [
+      "行业钱包系统",
+      "认证系统",
+      "短信网关",
+      "对象存储",
+      "时间戳服务"
+    ],
+    "key_features": [
+      "法律合规的电子签约流程",
+      "协议模板管理与渲染",
+      "签约流程状态机管理",
+      "完整的证据链留存",
+      "与认证系统无缝集成"
+    ]
+  },
+  {
+    "module_name": "钱包APP/商服平台模块",
+    "purpose": "作为天财分账业务的用户交互层，为天财机构、总部、门店等角色提供账户管理、关系绑定、分账业务发起与查询等全流程操作的前端平台。",
+    "interfaces": [
+      {
+        "method": "GET",
+        "path": "/api/v1/user/current",
+        "description": "获取当前登录用户身份、机构及权限信息"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/accounts",
+        "description": "获取用户有权查看的天财专用账户列表"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/relation-bindings/initiate",
+        "description": "发起关系绑定流程，获取签约或认证链接"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/split-orders",
+        "description": "发起分账指令（归集、批量付款、会员结算）"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/split-orders",
+        "description": "分页查询分账订单列表"
+      },
+      {
+        "method": "POST",
+        "path": "/api/internal/callback/tiancai",
+        "description": "接收三代系统异步回调，更新订单状态并通知用户"
+      }
+    ],
+    "database_tables": [
+      {
+        "name": "user",
+        "description": "用户表，存储用户身份、所属机构、角色及管理权限"
+      },
+      {
+        "name": "frontend_split_order",
+        "description": "前端分账订单表，关联三代订单，记录前端状态与表单数据"
+      },
+      {
+        "name": "relation_binding_flow",
+        "description": "关系绑定流程表，记录签约认证流程的步骤与状态"
+      },
+      {
+        "name": "user_notification",
+        "description": "用户通知表，存储待推送的业务通知"
       }
     ],
     "dependencies": [
       "三代系统",
-      "账户系统",
-      "业务核心",
-      "清结算系统"
+      "行业钱包系统",
+      "电子签约平台",
+      "认证系统"
     ],
     "key_features": [
-      "天财专用账户的开户与状态管理",
-      "分账指令的执行与资金划转",
-      "分账前的绑定关系与余额校验",
-      "交易数据同步与异步回调通知"
+      "多角色用户门户与权限隔离",
+      "引导式关系绑定流程（签约/认证）",
+      "分账业务发起与状态跟踪",
+      "交易查询与对账单下载"
+    ]
+  },
+  {
+    "module_name": "行业钱包系统",
+    "purpose": "作为天财分账业务的核心业务逻辑处理引擎，负责处理天财账户开通、关系绑定、分账指令执行等核心流程。",
+    "interfaces": [
+      {
+        "method": "POST",
+        "path": "/api/v1/tiancai/accounts/{tiancai_account_id}/bindings",
+        "description": "发起账户关系绑定流程"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/tiancai/accounts/{tiancai_account_id}/open-payment",
+        "description": "为总部开通付款权限"
+      },
+      {
+        "method": "POST",
+        "path": "/api/internal/tiancai/split-orders",
+        "description": "处理分账指令（内部接口）"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/tiancai/split-orders/{wallet_order_id}",
+        "description": "查询分账订单详情"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/tiancai/accounts/{tiancai_account_id}/bindings",
+        "description": "查询账户绑定关系列表"
+      },
+      {
+        "method": "POST",
+        "path": "/api/internal/callback/esign",
+        "description": "接收电子签约平台回调"
+      }
+    ],
+    "database_tables": [
+      {
+        "name": "tiancai_wallet_account",
+        "description": "钱包账户映射表，记录天财账户在钱包层的映射与状态"
+      },
+      {
+        "name": "account_binding",
+        "description": "账户关系绑定表，记录账户间的授权绑定关系"
+      },
+      {
+        "name": "tiancai_split_order",
+        "description": "钱包分账订单表，记录分账订单主信息"
+      },
+      {
+        "name": "split_order_detail",
+        "description": "分账订单明细表，记录每笔分账的收款方明细"
+      }
+    ],
+    "dependencies": [
+      "账户系统",
+      "三代系统",
+      "电子签约平台",
+      "对账单系统"
+    ],
+    "key_features": [
+      "天财账户开通与状态同步",
+      "账户关系绑定与电子签约协调",
+      "分账指令处理与业务规则校验",
+      "支持归集、批量付款、会员结算三大场景",
+      "事件驱动的状态管理与对账协同"
     ]
   },
   {
     "module_name": "业务核心",
-    "purpose": "作为支付系统的核心交易流水记录与对账数据源，负责接收并持久化分账交易数据，为下游提供统一、标准化的交易流水视图。",
+    "purpose": "作为天财分账业务的业务编排与流程驱动引擎，协调下游服务，处理业务请求并确保流程一致性。",
     "interfaces": [
       {
         "method": "POST",
-        "path": "/api/v1/biz-core/trades/sync-split",
-        "description": "供行业钱包系统调用，同步分账交易数据，需保证幂等性。"
+        "path": "/api/v1/tiancai/business/open",
+        "description": "为指定商户开通天财分账业务"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/tiancai/business/bindings",
+        "description": "发起账户关系绑定业务请求"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/tiancai/business/split-orders",
+        "description": "发起分账业务请求"
       },
       {
         "method": "GET",
-        "path": "/api/v1/biz-core/trades",
-        "description": "查询分账交易流水，支持多条件筛选和分页，供内部或对账单系统使用。"
+        "path": "/api/v1/tiancai/business/{business_id}",
+        "description": "查询具体业务请求的详细状态和结果"
       },
       {
-        "method": "GET",
-        "path": "/api/v1/biz-core/trades/{tradeNo}",
-        "description": "根据交易流水号查询单笔交易详情。"
+        "method": "POST",
+        "path": "/api/v1/tiancai/business/reconciliations",
+        "description": "按机构、日期、业务类型生成对账文件"
       }
     ],
     "database_tables": [
       {
-        "name": "split_trade",
-        "description": "分账交易流水表，存储所有标准化的分账交易记录，是核心数据表。"
+        "name": "business_process",
+        "description": "业务流程主表，记录业务请求和状态"
       },
       {
-        "name": "sync_request_log",
-        "description": "同步请求日志表，记录来自行业钱包系统的同步请求，用于实现接口幂等性。"
+        "name": "business_phase",
+        "description": "业务流程阶段表，记录各阶段执行详情"
+      },
+      {
+        "name": "merchant_account_mapping",
+        "description": "商户-账户映射表，关联商户号与天财账户ID"
+      },
+      {
+        "name": "business_reconciliation",
+        "description": "业务对账表，存储对账批次和文件信息"
       }
     ],
     "dependencies": [
-      "行业钱包系统",
-      "对账单系统",
-      "账户系统",
       "三代系统",
-      "计费中台/清结算系统"
+      "行业钱包系统",
+      "账户系统",
+      "电子签约平台",
+      "对账单系统"
     ],
     "key_features": [
-      "分账交易数据接收与标准化存储",
-      "为对账单系统提供核心数据源",
-      "通过幂等性设计保证数据一致性",
-      "发布交易流水已记录事件驱动下游"
+      "业务流程编排与状态机管理",
+      "商户-账户映射解析与转换",
+      "业务异常处理与补偿",
+      "业务对账与报表"
     ]
   },
   {
     "module_name": "对账单系统",
-    "purpose": "为“天财商龙”分账业务提供统一的对账数据聚合与账单生成服务。",
+    "purpose": "为天财机构提供统一、准确、可追溯的资金流转视图，满足其对账、审计、财务核算和业务分析需求。",
     "interfaces": [
       {
         "method": "GET",
-        "path": "/api/v1/statement/split-orders",
-        "description": "查询‘天财分账’指令账单"
-      },
-      {
-        "method": "GET",
-        "path": "/api/v1/statement/account-transactions",
-        "description": "查询机构动账明细"
-      },
-      {
-        "method": "GET",
-        "path": "/api/v1/statement/split-orders/{bizOrderNo}/detail",
-        "description": "查询指定分账指令的完整明细"
+        "path": "/api/v1/tiancai/reconciliations",
+        "description": "查询对账单列表，支持多维度筛选。"
       },
       {
         "method": "POST",
-        "path": "/api/v1/statement/files/generate",
-        "description": "触发生成指定日期的对账文件"
+        "path": "/api/v1/tiancai/reconciliations/generate",
+        "description": "触发对账文件的即时生成。"
       },
       {
         "method": "GET",
-        "path": "/api/v1/statement/files",
-        "description": "查询已生成的对账文件列表"
+        "path": "/api/v1/tiancai/accounts/{tiancai_account_id}/ledger",
+        "description": "查询指定天财账户的资金变动明细。"
       },
       {
         "method": "GET",
-        "path": "/api/v1/statement/files/{fileId}/download",
-        "description": "下载对账文件"
+        "path": "/api/v1/tiancai/institutions/{institution_code}/summary",
+        "description": "查询天财机构在指定日期的各类业务汇总数据。"
+      },
+      {
+        "method": "POST",
+        "path": "/api/internal/tiancai/reconciliations/verify",
+        "description": "触发指定日期和业务类型的数据一致性校验。"
       }
     ],
     "database_tables": [
       {
-        "name": "split_order_statement",
-        "description": "分账指令账单表，存储以分账指令为核心的业务对账数据"
+        "name": "account_ledger",
+        "description": "账户流水明细表，记录所有资金变动流水，是核心数据表。"
       },
       {
-        "name": "account_transaction_statement",
-        "description": "机构动账明细表，存储按商户维度的资金流水明细"
+        "name": "reconciliation_file",
+        "description": "对账文件表，存储已生成的对账文件元数据。"
       },
       {
-        "name": "statement_file",
-        "description": "对账文件表，记录已生成的对账文件信息"
+        "name": "tiancai_account_info",
+        "description": "天财账户信息表，存储账户基本信息用于关联查询。"
       },
       {
-        "name": "data_sync_log",
-        "description": "数据同步日志表，记录数据同步任务的状态"
+        "name": "daily_summary",
+        "description": "日终汇总表，存储各类业务的每日汇总指标。"
       }
     ],
     "dependencies": [
-      "业务核心",
       "账户系统",
       "清结算系统",
-      "三代系统"
+      "行业钱包系统",
+      "文件存储服务"
     ],
     "key_features": [
-      "多源数据汇聚与关联清洗",
-      "生成天财分账指令账单与机构动账明细",
-      "提供账单查询、明细查看与文件导出",
-      "按周期生成对账文件"
+      "多源数据采集与聚合",
+      "多维度对账单生成与分发",
+      "账户动账明细查询",
+      "数据一致性校验与告警"
     ]
   }
 ]

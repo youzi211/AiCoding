@@ -1,5 +1,5 @@
 # DocuFlow-AI Project - 软件设计文档
-生成时间: 2026-01-19 14:56:57
+生成时间: 2026-01-19 15:39:53
 
 ## 目录
 1. [概述说明](#1-概述说明)
@@ -7,14 +7,14 @@
 2. [系统设计](#2-系统设计)
 3. [模块设计](#3-模块设计)
    - 3.1 [账户系统](#31-账户系统)
-   - 3.2 [电子签约平台](#32-电子签约平台)
-   - 3.3 [认证系统](#33-认证系统)
+   - 3.2 [认证系统](#32-认证系统)
+   - 3.3 [计费中台](#33-计费中台)
    - 3.4 [三代系统](#34-三代系统)
-   - 3.5 [账务核心系统](#35-账务核心系统)
-   - 3.6 [行业钱包系统](#36-行业钱包系统)
-   - 3.7 [清结算系统](#37-清结算系统)
-   - 3.8 [计费中台](#38-计费中台)
-   - 3.9 [钱包APP/商服平台](#39-钱包APP/商服平台)
+   - 3.5 [清结算系统](#35-清结算系统)
+   - 3.6 [账务核心系统](#36-账务核心系统)
+   - 3.7 [电子签约平台](#37-电子签约平台)
+   - 3.8 [钱包APP/商服平台](#38-钱包APP/商服平台)
+   - 3.9 [行业钱包系统](#39-行业钱包系统)
    - 3.10 [业务核心](#310-业务核心)
    - 3.11 [对账单系统](#311-对账单系统)
 4. [接口设计](#4-接口设计)
@@ -28,372 +28,333 @@
 
 ## 角色
 
-- **天财** (别名: 天财商龙): 本需求文档中的核心业务合作方或系统名称，指代“天财商龙”。它是一个提供门店管理、会员结算等服务的系统，本需求旨在为其开放专用的账户和分账接口。
-- **总部** (别名: 总店, 发起方): 在天财分账业务中扮演资金归集方或分账发起方的角色。通常是一个企业性质的商户，负责管理下属门店，发起归集、批量付款、会员结算等操作。
-- **门店** (别名: 被归集方): 在天财分账业务中，通常作为被归集方（付方）或会员结算的收方。是总部下属的经营单元。
+- **天财** (别名: 天财商龙): 一个特定的商户或机构（推测为“天财商龙”），是该分账系统的核心业务方和需求发起方。系统为其提供专用的账户和分账接口。
+- **总部** (别名: 总店, 发起方): 在天财分账业务中，指品牌方或管理方，通常是分账指令的发起方、资金归集的收取方或会员结算/批量付款的付款方。角色类型为“总部”。
+- **门店**: 在天财分账业务中，指具体的经营门店，可以是资金归集的付款方，或会员结算的收款方。角色类型为“门店”。
 
 ## 业务实体
 
-- **收单商户** (别名: 商户): 通过支付系统进行收款业务的商户实体。在本需求中，特指与天财系统关联，需要进行分账处理的商户。
-- **天财收款账户** (别名: 专用收款账户, 天财专用账户): 为天财业务场景下的收单商户开立的专用账户，类型为“行业钱包（非小微钱包）”。用于接收交易结算资金，并作为分账的转出方或接收方。
-- **天财接收方账户** (别名: 接收方账户, 专用接收方账户): 为天财业务场景下的资金接收方（如供应商、股东、门店作为收款方时）开立的专用账户。用于接收从天财收款账户分账而来的资金。
-- **01待结算账户** (别名: 待结算账户): 用于临时存放收单交易待结算资金的内部账户。在退货、对账单等流程中会涉及对此账户的操作和查询。
-- **04退货账户** (别名: 退货账户): 用于处理退货资金的内部账户。在天财业务中，支持与天财收款账户联动进行退货扣款。
+- **天财专用账户**: 为满足天财分账业务需求而设立的专用账户类型，在账户系统底层做特殊标记和区分。包括天财收款账户和天财接收方账户。
+- **天财收款账户**: 天财专用账户的一种，用于接收收单交易结算款。分为总部和门店两种角色类型，结算模式默认为主动结算至本账户。
+- **天财接收方账户** (别名: 入账方账户): 天财专用账户的一种，用于接收从收款账户分账而来的资金（如供应商、股东等），支持绑定多张银行卡并设置默认提现卡。
+- **收单商户** (别名: 商户): 通过支付系统进行收款业务的商户。在本系统中，天财机构下的收单商户可以开通天财专用账户。
+- **待结算账户** (别名: 01账户): 用于临时存放收单交易资金的内部账户，类型代码为01。
+- **退货账户** (别名: 04账户): 用于处理退货资金的内部账户，类型代码为04。在天财场景下，可与天财收款账户组合处理退货。
 
 ## 技术术语
 
-- **三代系统**: 文档中提到的核心支付或商户管理系统，负责商户进件、账户管理、交易处理等。它是连接天财、行业钱包、账户系统等各模块的枢纽。
-- **行业钱包系统** (别名: 钱包系统): 负责处理钱包类账户业务（如天财专用账户）的系统。承担开户流转、关系绑定校验、分账请求处理、数据同步等核心业务逻辑。
-- **账户系统**: 底层账户管理系统，负责实际账户的创建、升级、标记以及资金记账等底层操作。对天财专用账户有特殊的底层控制和标记。
-- **清结算系统** (别名: 清结算): 负责交易资金的清算、结算、计费以及退货资金处理的系统。
-- **打款验证**: 一种身份认证方式。认证系统向待验证方的绑定银行卡打入随机金额，验证方回填正确金额即通过验证。主要用于对公企业或个体的认证。
-- **人脸验证**: 一种身份认证方式。通过比对姓名、身份证号和人脸信息是否一致来完成验证。主要用于个人或个体户的认证。
-- **电子签约平台** (别名: 电子签章系统): 提供电子协议签署、短信模板管理、H5页面封装、并集成打款/人脸认证服务的系统。负责留存协议和认证的全证据链。
-- **主动结算**: 一种结算模式，指收单交易资金直接结算到商户指定的收款账户（如天财收款账户）。与“被动结算”相对。
-- **被动结算**: 一种结算模式，指收单交易资金先停留在待结算账户，需要商户手动发起提款。文档中提及老商户可能从被动结算切换为主动结算至天财专用账户。
-- **计费中台**: 独立的计费服务系统，负责计算分账交易产生的手续费。费率等信息在三代配置，由清结算同步至计费中台。
-- **对账单系统**: 生成并提供各类账户和交易维度对账单的系统。为本需求专门提供“天财分账”指令账单及机构层级的动账明细。
-- **业务核心**: 支付系统的核心交易处理模块。在本需求中接收行业钱包同步的“天财分账”交易数据，并为对账单系统提供数据源。
+- **三代**: 指代拉卡拉支付系统中的某一代核心系统，负责商户管理、开户、交易处理等核心功能，是本需求中关键的调用和协调系统。
+- **行业钱包系统** (别名: 钱包系统): 负责处理钱包类账户业务（如天财专用账户）的系统，进行开户、关系绑定、分账指令处理、校验等核心逻辑。
+- **账户系统**: 底层的账户管理核心系统，负责账户的创建、升级、标记、账务处理及能力控制。
+- **清结算系统** (别名: 清结算): 负责交易清算、结算、计费以及退货资金处理的系统。
+- **电子签约平台** (别名: 电子签章系统): 提供电子协议签署、短信验证、H5页面、人脸/打款认证集成的系统，用于完成关系绑定的法律流程和证据链留存。
+- **认证系统**: 提供打款验证和人脸验证等身份核验能力的系统。
+- **打款验证**: 一种身份/账户所有权认证方式。认证系统向目标银行卡打入随机金额，验证方回填正确金额即通过验证。主要用于对公账户或特定场景的验证。
+- **人脸验证**: 一种身份认证方式，通过比对姓名、身份证和人脸信息是否一致来完成验证。主要用于对私账户的认证。
+- **主动结算**: 一种结算模式，指收单交易资金结算到商户指定的收款账户（如天财收款账户）。与“被动结算”相对。
+- **被动结算**: 一种结算模式，指收单交易资金停留在待结算账户，需要额外指令才可结算。本需求中不支持从天财专用账户切换至此模式。
+- **对账单系统**: 生成和提供各类账户动账明细、交易账单的系统，为天财提供机构层面的分账、提款、收单等账单。
 
 ## 流程
 
-- **归集** (别名: 资金归集): 一种资金流转流程，指门店（付方）将交易结算资金按约定比例或金额上交给总部（收方）。
-- **批量付款** (别名: 批付): 一种资金流转流程，指总部（付方）向其供应商、股东等接收方（天财接收方账户）进行批量分账付款。
-- **会员结算**: 一种资金流转流程，特指总部（付方）向门店（收方）就会员消费相关的资金进行分账结算。
-- **关系绑定** (别名: 签约与认证, 绑定): 在分账前，建立并验证资金付方与收方之间授权关系的关键流程。包括协议签署和身份认证（打款验证或人脸验证），是分账交易的前提。
-- **开通付款**: 在批量付款和会员结算场景下，付方（总部）需要额外进行的一个授权流程。付方需与拉卡拉签署代付授权协议，完成后才能生效其名下的关系绑定。
-- **分账** (别名: 转账): 核心的资金划转流程。指从天财收款账户向另一个天财收款账户或天财接收方账户进行资金划拨。文档中“转账”特指此分账操作。
+- **分账** (别名: 转账): 本需求中的核心业务流程，指从天财收款账户向另一个天财收款账户或天财接收方账户进行资金划转。系统定义新的交易类型“天财分账”。
+- **关系绑定** (别名: 签约与认证): 在分账前必须完成的流程，包括签约与认证，以建立资金转出方和转入方之间的合法授权关系。根据场景不同，流程和协议各异。
+- **归集** (别名: 资金归集): 一种分账场景，指资金从门店（付方）的收款账户归集到总部（收方）的收款账户。
+- **批量付款** (别名: 批付): 一种分账场景，指总部从其收款账户向多个天财接收方账户（如供应商、股东）进行付款。
+- **会员结算**: 一种分账场景，指总部从其收款账户向门店的收款账户进行结算（推测为会员消费相关的分润）。
+- **开通付款**: 在批量付款和会员结算场景下，付方（总部）需要额外进行的一个签约认证流程，签署《代付授权协议》，是关系绑定生效的前提。
 
 ---
 # 2 系统设计
-# 天财商龙分账业务系统设计文档
+好的，作为资深的软件架构师，我将基于您提供的模块摘要信息，为您生成一份系统级设计文档。
+
+# 天财分账系统 - 系统级设计文档
 
 ## 2.1 系统结构
 
-本系统采用分层、模块化的微服务架构，旨在为“天财商龙”业务提供合规、高效、可追溯的分账解决方案。整体架构遵循业务边界清晰、职责单一的原则，通过服务间API调用和异步消息机制进行协作。
+天财分账系统采用分层、模块化的微服务架构设计，以业务核心为编排中枢，以账户系统和账务核心为资金处理基石，通过清晰的职责边界和标准化的接口，协同完成商户开通、账户绑定、分账执行、资金结算等全流程业务。系统整体遵循“前-中-后台”的架构思想，确保业务敏捷性、资金安全性与系统稳定性。
 
 ```mermaid
 graph TB
-    subgraph “外部系统/渠道”
-        TC[天财商龙商户端]
-        H5[H5签约页面]
-        ExtAuth[外部认证服务]
-        MQ[消息队列]
-        SMS[短信平台]
-        Storage[文件存储]
+    subgraph “用户交互层 (前端)”
+        APP[钱包APP/商服平台模块]
     end
 
-    subgraph “业务接入与流程编排层”
-        TDS[三代系统]
+    subgraph “业务服务层 (中台)”
+        subgraph “业务编排与流程”
+            BIZ[业务核心]
+            GEN3[三代系统]
+        end
+        subgraph “核心业务处理”
+            WALLET[行业钱包系统]
+            BILLING[计费中台]
+        end
+        subgraph “支撑服务”
+            AUTH[认证系统]
+            E_SIGN[电子签约平台]
+        end
     end
 
-    subgraph “核心业务处理层”
-        WBS[行业钱包系统]
-        ACS[账务核心系统]
-        AuthS[认证系统]
-        ESP[电子签约平台]
+    subgraph “基础服务层 (后台)”
+        subgraph “资金与账户核心”
+            ACCT[账户系统]
+            LEDGER[账务核心系统]
+        end
+        subgraph “清结算与数据”
+            SETTLE[清结算系统]
+            RECON[对账单系统]
+        end
     end
 
-    subgraph “基础服务与支撑层”
-        AS[账户系统]
-        CSS[清结算系统]
-        FCS[计费中台]
-        BCS[业务核心]
+    subgraph “外部依赖系统”
+        EXT_PAY[支付核心/三代系统]
+        EXT_MSG[消息队列]
+        EXT_FILE[文件存储]
+        EXT_SMS[短信网关]
     end
 
-    subgraph “数据聚合与呈现层”
-        SS[对账单系统]
-    end
-
-    TC --> TDS
-    H5 --> ESP
-    TDS --> WBS
-    TDS --> AuthS
-    TDS --> ESP
-    WBS --> ACS
-    AuthS --> ESP
-    WBS --> AS
-    WBS --> CSS
-    WBS --> BCS
-    WBS --> MQ
-    ACS --> AS
-    ACS --> CSS
-    ACS --> FCS
-    CSS --> AS
-    CSS --> FCS
-    FCS --> AS
-    BCS --> AS
-    ESP --> ExtAuth
-    ESP --> SMS
-    ESP --> Storage
-    SS --> BCS
-    SS --> AS
-    SS --> CSS
+    APP --> BIZ & GEN3
+    BIZ --> GEN3 & WALLET & ACCT & E_SIGN
+    GEN3 --> WALLET & ACCT & E_SIGN & LEDGER
+    WALLET --> ACCT & GEN3 & E_SIGN & RECON
+    BILLING --> ACCT & SETTLE & RECON
+    AUTH --> SETTLE & E_SIGN
+    LEDGER --> WALLET & SETTLE & ACCT
+    SETTLE --> EXT_PAY & ACCT & RECON
+    RECON --> ACCT & SETTLE & WALLET & EXT_FILE
+    E_SIGN --> AUTH & EXT_SMS & EXT_FILE
+    GEN3 -.-> EXT_MSG
+    WALLET -.-> EXT_MSG
 ```
 
-**架构说明**：
-1.  **业务接入与流程编排层（三代系统）**：作为面向“天财商龙”商户的统一业务入口，负责商户进件、业务关系绑定、分账指令（归集、付款、结算）的发起与全流程状态管理。
-2.  **核心业务处理层**：
-    *   **行业钱包系统**：资金处理与业务逻辑中枢，负责校验分账关系、执行分账指令、驱动底层资金划转。
-    *   **账务核心系统**：分账业务的核心处理引擎，处理复杂的业务逻辑（如批量分账、冲正）并调用底层服务完成资金处理。
-    *   **认证系统**：负责建立并管理付方（总部）与收方（门店/会员）之间合法、可信的授权关系，是分账业务的法律与风控基础。
-    *   **电子签约平台**：提供电子协议签署、身份认证及证据链留存服务，为授权关系提供法律保障。
-3.  **基础服务与支撑层**：
-    *   **账户系统**：系统的资金基石，提供底层账户的全生命周期管理、状态控制及原子化的资金记账服务。
-    *   **清结算系统**：资金处理中枢，负责交易资金的清算、结算、计费及退货处理。
-    *   **计费中台**：专门负责分账交易手续费的精确计算与策略管理。
-    *   **业务核心**：支付系统的核心交易流水记录中心，接收并持久化所有标准化的分账交易数据，为对账、查询提供统一视图。
-4.  **数据聚合与呈现层（对账单系统）**：聚合各业务模块数据，生成统一、清晰的对账单和资金流水明细，服务于运营与财务。
-5.  **外部依赖**：包括外部认证、短信、文件存储等服务，以及作为异步通信枢纽的消息队列。
+**架构说明**:
+*   **用户交互层**: 提供统一的前端入口，面向天财机构、总部、门店等不同角色，封装复杂的后端流程。
+*   **业务服务层**:
+    *   **业务编排 (BIZ, GEN3)**: 负责接收、编排和驱动完整的业务流程，管理异步流程状态，是业务的“总指挥”。
+    *   **核心业务处理 (WALLET, BILLING)**: 行业钱包系统是分账指令、账户绑定的具体执行者；计费中台独立负责所有费用计算与结算指令生成。
+    *   **支撑服务 (AUTH, E_SIGN)**: 提供身份认证、协议签署等合规性能力，作为可复用的公共服务。
+*   **基础服务层**:
+    *   **资金与账户核心 (ACCT, LEDGER)**: 系统的基石。账户系统管理账户实体与关系；账务核心系统确保所有资金变动的原子性、一致性和可追溯性。
+    *   **清结算与数据 (SETTLE, RECON)**: 清结算系统处理跨账户的资金结算与调拨；对账单系统提供统一的资金视图和对账能力。
+*   **通信机制**: 同步调用以RESTful API为主，关键异步状态通知通过消息队列（如Kafka）实现松耦合通信。
 
 ## 2.2 功能结构
 
-系统功能围绕分账业务的全生命周期进行组织，涵盖从商户入驻、关系建立、资金操作到对账清算的完整闭环。
+系统功能围绕“账户生命周期管理”、“分账业务流程”、“资金结算与对账”三大核心领域展开。
 
 ```mermaid
 graph TD
-    A[天财商龙分账业务系统] --> B1[商户与账户管理]
-    A --> B2[授权与签约管理]
-    A --> B3[分账指令执行]
-    A --> B4[清算结算与计费]
-    A --> B5[交易对账与查询]
+    A[天财分账系统] --> B[账户与权限管理]
+    A --> C[分账业务处理]
+    A --> D[资金结算与对账]
+    A --> E[合规与支撑]
 
-    B1 --> C1_1[商户进件与配置]
-    B1 --> C1_2[账户体系管理]
-    B1 --> C1_3[关系绑定管理]
+    B --> B1[账户开通与维护]
+    B --> B2[关系绑定与授权]
+    B --> B3[账户查询与监控]
 
-    B2 --> C2_1[电子协议签署]
-    B2 --> C2_2[身份实名认证]
-    B2 --> C2_3[授权关系建立]
+    C --> C1[分账指令发起]
+    C --> C2[分账执行与记账]
+    C --> C3[业务流程状态管理]
 
-    B3 --> C3_1[资金归集]
-    B3 --> C3_2[批量付款]
-    B3 --> C3_3[会员结算]
-    B3 --> C3_4[分账冲正]
+    D --> D1[费用计算与冻结]
+    D --> D2[资金结算执行]
+    D --> D3[对账单生成]
+    D --> D4[交易流水查询]
 
-    B4 --> C4_1[交易清算]
-    B4 --> C4_2[资金结算]
-    B4 --> C4_3[手续费计算与扣划]
-    B4 --> C4_4[退货处理]
+    E --> E1[身份认证]
+    E --> E2[电子签约]
+    E --> E3[计费规则管理]
 
-    B5 --> C5_1[分账指令对账]
-    B5 --> C5_2[资金流水对账]
-    B5 --> C5_3[交易流水查询]
-    B5 --> C5_4[对账文件生成]
-
-    C1_1 --> D1[三代系统]
-    C1_2 --> D2[账户系统/行业钱包系统]
-    C1_3 --> D3[认证系统/三代系统]
-
-    C2_1 --> D4[电子签约平台]
-    C2_2 --> D5[电子签约平台/外部认证]
-    C2_3 --> D6[认证系统]
-
-    C3_1 & C3_2 & C3_3 & C3_4 --> D7[账务核心系统/行业钱包系统]
-
-    C4_1 & C4_2 & C4_4 --> D8[清结算系统]
-    C4_3 --> D9[计费中台]
-
-    C5_1 & C5_2 & C5_3 & C5_4 --> D10[对账单系统/业务核心]
+    B1 --> B1_1[创建天财专用账户]
+    B2 --> B2_1[发起绑定流程]
+    B2 --> B2_2[签约与认证]
+    C1 --> C1_1[归集/付款/会员结算]
+    D2 --> D2_1[触发待结算资金划转]
+    D2 --> D2_2[处理退货调拨]
+    E1 --> E1_1[打款验证]
+    E1 --> E1_2[人脸识别]
 ```
 
-**功能模块说明**：
-*   **商户与账户管理**：完成商户入驻、配置其结算模式，并为其开立底层资金账户和业务层钱包账户，管理付方与收方的绑定关系。
-*   **授权与签约管理**：通过电子签约、身份认证（打款/人脸/短信）等合规手段，建立具有法律效力的分账授权关系。
-*   **分账指令执行**：支持资金从收方归集至付方、从付方向多收方批量付款、以及针对会员的结算等多种分账场景，并提供冲正能力。
-*   **清算结算与计费**：对分账交易进行资金清算，按配置完成资金结算到商户账户，并准确计算、扣划交易产生的手续费，处理退货场景。
-*   **交易对账与查询**：聚合各模块数据，提供多维度的业务对账（指令流）、资金对账（资金流）能力，并生成标准对账文件。
+**功能模块说明**:
+*   **账户与权限管理**: 提供天财专用账户的创建、查询、以及账户间（如总部与门店）授权绑定关系的建立与管理，是分账业务的前置条件。
+*   **分账业务处理**: 覆盖从业务发起（通过前端或API）、指令执行（账务处理）、到全流程状态跟踪的核心业务链路。
+*   **资金结算与对账**: 包含业务计费、将资金从待结算户结算至收款账户、生成对账文件以及提供明细查询，形成资金闭环。
+*   **合规与支撑**: 为业务提供必需的身份核验、法律协议签署及灵活的费用计算能力，保障业务合规性。
 
 ## 2.3 网络拓扑图
 
-系统部署在私有云或金融云环境内，采用分区隔离策略，确保业务安全与合规。
+系统部署在私有云或金融云环境内，采用典型的分区部署策略，确保网络安全与合规。
 
 ```mermaid
 graph TB
     subgraph “互联网区 (DMZ)”
-        LB[负载均衡集群]
-        H5_GW[H5签约网关]
-        API_GW[API网关集群]
+        FW1[防火墙]
+        LB[负载均衡器]
+        APP_SVR[Web应用服务器<br/>钱包APP/商服平台后端]
     end
 
-    subgraph “核心业务区”
-        subgraph “应用集群”
-            APP_TDS[三代系统]
-            APP_WBS[行业钱包系统]
-            APP_ACS[账务核心系统]
-            APP_AuthS[认证系统]
-            APP_ESP[电子签约平台]
-            APP_SS[对账单系统]
+    subgraph “核心生产区”
+        FW2[内部防火墙]
+        subgraph “微服务集群”
+            GEN3_SVC[三代系统]
+            BIZ_SVC[业务核心]
+            WALLET_SVC[行业钱包系统]
+            AUTH_SVC[认证系统]
+            E_SIGN_SVC[电子签约平台]
         end
-        subgraph “数据存储集群”
+        subgraph “核心服务集群”
+            ACCT_SVC[账户系统]
+            LEDGER_SVC[账务核心系统]
+            BILLING_SVC[计费中台]
+            SETTLE_SVC[清结算系统]
+        end
+        subgraph “数据与中间件集群”
             DB[(主数据库集群)]
-            Redis_Cache[Redis缓存集群]
-            MQ_Cluster[消息队列集群]
-        end
-        subgraph “基础服务集群”
-            APP_AS[账户系统]
-            APP_CSS[清结算系统]
-            APP_FCS[计费中台]
-            APP_BCS[业务核心]
+            CACHE[缓存集群]
+            MQ[消息队列集群]
+            ES[(Elasticsearch)]
+            OSS[对象存储]
         end
     end
 
     subgraph “外部服务区”
-        Ext_SMS[短信服务]
-        Ext_Auth[外部认证服务]
-        Ext_Storage[文件存储服务]
+        EXT_SMS[短信网关]
+        EXT_TSA[时间戳服务]
+        EXT_BANK[银行/支付通道]
     end
 
-    Internet --> LB
-    LB --> H5_GW
-    LB --> API_GW
-    H5_GW --> APP_ESP
-    API_GW --> APP_TDS
-    API_GW --> APP_SS
-    
-    APP_TDS --> APP_WBS
-    APP_TDS --> APP_AuthS
-    APP_TDS --> APP_ESP
-    APP_WBS --> APP_ACS
-    APP_WBS --> APP_AS
-    APP_WBS --> APP_CSS
-    APP_WBS --> APP_BCS
-    APP_WBS --> MQ_Cluster
-    APP_ACS --> APP_AS
-    APP_ACS --> APP_CSS
-    APP_ACS --> APP_FCS
-    APP_AuthS --> APP_ESP
-    APP_CSS --> APP_AS
-    APP_CSS --> APP_FCS
-    APP_FCS --> APP_AS
-    APP_BCS --> APP_AS
-    APP_SS --> APP_BCS
-    APP_SS --> APP_AS
-    APP_SS --> APP_CSS
-
-    APP_ESP --> Ext_SMS
-    APP_ESP --> Ext_Auth
-    APP_ESP --> Ext_Storage
-
-    APP_AS & APP_CSS & APP_FCS & APP_BCS & APP_WBS & APP_ACS & APP_AuthS & APP_ESP & APP_TDS & APP_SS --> DB
-    APP_AS & APP_CSS & APP_FCS & APP_BCS & APP_WBS & APP_ACS & APP_AuthS & APP_ESP & APP_TDS & APP_SS --> Redis_Cache
+    Internet --> FW1 --> LB --> APP_SVR
+    APP_SVR --> FW2 --> GEN3_SVC & BIZ_SVC
+    微服务集群 <--> 核心服务集群
+    微服务集群 <--> 数据与中间件集群
+    核心服务集群 <--> 数据与中间件集群
+    AUTH_SVC & E_SIGN_SVC --> EXT_SMS & EXT_TSA
+    SETTLE_SVC --> EXT_BANK
+    LEDGER_SVC --> EXT_BANK
 ```
 
-**部署说明**：
-1.  **互联网区**：部署负载均衡、API网关和H5网关，作为系统对外统一入口，负责路由、限流、鉴权等。
-2.  **核心业务区**：
-    *   **应用集群**：所有业务微服务以集群方式部署，实现高可用和水平扩展。
-    *   **数据存储集群**：核心业务数据使用高可用数据库集群；高频访问数据（如关系缓存）使用Redis集群；模块间异步解耦通过消息队列实现。
-    *   **基础服务集群**：账户、清结算等底层服务独立部署，为上层业务提供稳定支撑。
-3.  **外部服务区**：通过专线或安全网关与第三方服务（短信、认证、存储）通信，满足业务需求。
-4.  **安全隔离**：各区域间通过防火墙进行严格隔离，仅开放必要的服务端口，确保网络安全。
+**部署说明**:
+*   **分区隔离**: 互联网区与核心生产区通过防火墙严格隔离，仅暴露必要的API网关或前端服务。
+*   **集群化部署**: 所有微服务、数据库、中间件均采用集群部署，保证高可用和可扩展性。
+*   **外部依赖**: 短信、时间戳、银行通道等外部服务通过专线或VPN在特定区域进行访问，确保通信安全与稳定。
 
 ## 2.4 数据流转
 
-数据流转贯穿分账业务的全过程，主要分为业务指令流和资金流两条主线。
+以“**门店营业收入分账至总部**”这一核心场景为例，描述关键数据在系统间的流转过程。
 
 ```mermaid
 sequenceDiagram
-    participant T as 天财商户端
-    participant TDS as 三代系统
-    participant AuthS as 认证系统
-    participant ESP as 电子签约平台
-    participant WBS as 行业钱包系统
-    participant ACS as 账务核心系统
-    participant AS as 账户系统
-    participant CSS as 清结算系统
-    participant FCS as 计费中台
-    participant BCS as 业务核心
-    participant SS as 对账单系统
+    participant F as 前端/APP
+    participant B as 业务核心
+    participant G as 三代系统
+    participant W as 行业钱包系统
+    participant L as 账务核心系统
+    participant A as 账户系统
+    participant S as 清结算系统
+    participant Bil as 计费中台
+    participant R as 对账单系统
 
-    Note over T, SS: 阶段一：商户入驻与关系建立
-    T->>TDS: 1. 商户进件
-    TDS->>AS: 1.1 创建底层账户
-    TDS->>WBS: 1.2 创建钱包账户
-    T->>TDS: 2. 发起关系绑定
-    TDS->>AuthS: 2.1 创建绑定关系
-    AuthS->>ESP: 2.2 发起电子签约
-    ESP-->>T: 2.3 引导用户完成H5签约/认证
-    ESP->>AuthS: 2.4 回调签约结果
-    AuthS->>TDS: 2.5 更新绑定状态
-    AuthS->>WBS: 2.6 同步绑定关系到缓存
-
-    Note over T, SS: 阶段二：分账指令执行与资金划转（以批量付款为例）
-    T->>TDS: 3. 发起批量付款指令
-    TDS->>ACS: 3.1 提交分账请求
-    ACS->>WBS: 3.2 校验绑定关系
-    ACS->>AS: 3.3 执行账户间转账（内部调用）
-    AS-->>ACS: 3.4 返回转账结果
-    ACS->>BCS: 3.5 同步分账交易流水
-    ACS->>FCS: 3.6 异步触发手续费计算
-    FCS->>CSS: 3.7 请求手续费扣划
-    CSS->>AS: 3.8 执行手续费账户扣款
-
-    Note over T, SS: 阶段三：清算结算与对账
-    CSS->>CSS: 4. 定时/手动执行清算结算
-    CSS->>AS: 4.1 结算资金划付至商户账户
-    BCS->>SS: 5.1 同步交易流水数据
-    AS->>SS: 5.2 同步账户变动数据
-    CSS->>SS: 5.3 同步结算与手续费数据
-    T->>SS: 6. 查询或下载对账单
+    Note over F, R: 1. 业务发起
+    F->>B: POST /split-orders (分账请求)
+    B->>G: 转发分账请求
+    G->>W: 调用内部接口处理分账
+    W->>L: POST /split-orders (执行分账)
+    
+    Note over L, A: 2. 核心账务处理
+    L->>A: 内部调用记账接口
+    A->>A: 原子化更新账户余额<br/>(门店账户扣款，总部账户入账)
+    A-->>L: 记账成功
+    L-->>W: 分账执行成功
+    W-->>G: 返回处理结果
+    G-->>B: 更新业务流程状态
+    B-->>F: 返回受理成功
+    
+    Note over G, Bil: 3. 异步计费与结算
+    par 计费
+        G->>Bil: POST /confirm (确认并冻结费用)
+        Bil-->>G: 费用冻结成功
+    and 触发结算
+        G->>S: POST /settlement/instructions (生成结算指令)
+        S->>L: POST /settlement-trigger (触发结算执行)
+        L->>A: 内部调用记账<br/>(待结算户->天财收款账户)
+        L-->>S: 结算完成
+    end
+    
+    Note over A, R: 4. 数据沉淀与对账
+    A->>R: 同步账户流水数据
+    L->>R: 同步交易流水数据
+    S->>R: 同步结算记录数据
+    R->>R: 日终汇总、对账、生成文件
 ```
 
-**数据流关键路径说明**：
-1.  **业务指令流**：`商户端 -> 三代系统 -> (认证系统/电子签约平台) -> 账务核心系统 -> 行业钱包系统 -> 业务核心`。此路径承载业务请求的发起、校验、处理与最终状态落地。
-2.  **资金流**：`账务核心系统/清结算系统 -> 账户系统`。所有资金变动（分账转账、手续费扣划、结算出款）最终都通过调用账户系统的原子化接口完成，确保资金账务的一致性。
-3.  **数据聚合流**：`业务核心 + 账户系统 + 清结算系统 -> 对账单系统`。各核心模块将标准化后的业务、资金、结算数据提供给对账单系统，生成统一视图。
+**数据流关键点**:
+1.  **请求驱动**: 业务请求通过前端发起，经业务编排层路由至核心处理引擎。
+2.  **资金变动唯一入口**: 所有涉及账户余额变更的操作，必须通过**账户系统**的原子化记账接口完成，确保数据强一致性。
+3.  **异步化处理**: 计费、结算等后续环节与主业务链路解耦，通过异步方式处理，提升主链路性能与用户体验。
+4.  **数据归集**: 账户系统、账务核心、清结算系统将各自的资金变动明细同步至**对账单系统**，形成唯一可信的资金数据源，用于对账与查询。
 
 ## 2.5 系统模块交互关系
 
-各模块通过同步API调用和异步消息机制紧密协作，共同完成分账业务。下图概括了核心的调用依赖关系。
+以下模块交互图详细刻画了各微服务之间的静态依赖关系与核心接口调用方向。
 
 ```mermaid
 graph LR
-    TDS[三代系统] -->|1. 进件/创建账户| AS[账户系统]
-    TDS -->|2. 创建钱包账户| WBS[行业钱包系统]
-    TDS -->|3. 发起关系绑定| AuthS[认证系统]
-    TDS -->|4. 发起签约| ESP[电子签约平台]
-    TDS -->|5. 发起分账指令| ACS[账务核心系统]
-    TDS -->|6. 同步结算配置| CSS[清结算系统]
-    TDS -->|7. 同步费率配置| FCS[计费中台]
+    subgraph “Key”
+        direction LR
+        S1[模块A] -->|依赖/调用| S2[模块B]
+    end
 
-    AuthS -->|8. 调用签约服务| ESP
-    ESP -->|9. 回调签约结果| AuthS
-    AuthS -->|10. 同步绑定关系到缓存| WBS
-
-    ACS -->|11. 校验分账关系| WBS
-    ACS -->|12. 执行资金转账| AS
-    ACS -->|13. 同步交易流水| BCS[业务核心]
-    ACS -->|14. 触发计费| FCS
-
-    WBS -->|15. 执行分账（驱动转账）| AS
-    WBS -->|16. 同步交易数据| BCS
-    WBS -->|17. 异步通知（如用MQ）| MQ[消息队列]
-
-    CSS -->|18. 执行结算/扣费| AS
-    CSS -->|19. 回调计费结果| FCS
-    FCS -->|20. 请求手续费扣划| CSS
-
-    BCS -->|21. 提供交易数据| SS[对账单系统]
-    AS -->|22. 提供账户流水数据| SS
-    CSS -->|23. 提供结算/手续费数据| SS
-
-    style TDS fill:#e1f5fe
-    style ACS fill:#f3e5f5
-    style WBS fill:#f1f8e9
-    style AS fill:#fff3e0
-    style CSS fill:#ffebee
-    style AuthS fill:#e8f5e8
-    style ESP fill:#fce4ec
+    APP[钱包APP/商服平台] -->|发起业务/查询| BIZ[业务核心]
+    APP -->|直接查询/操作| GEN3[三代系统]
+    
+    BIZ -->|驱动业务流程| GEN3
+    BIZ -->|查询/驱动账户绑定| WALLET[行业钱包系统]
+    BIZ -->|查询账户| ACCT[账户系统]
+    BIZ -->|创建签约流程| E_SIGN[电子签约平台]
+    
+    GEN3 -->|处理分账指令| WALLET
+    GEN3 -->|创建/查询账户| ACCT
+    GEN3 -->|回调通知| E_SIGN
+    GEN3 -->|执行分账记账| LEDGER[账务核心系统]
+    
+    WALLET -->|核心账户操作| ACCT
+    WALLET -->|状态回调| GEN3
+    WALLET -->|发起签约| E_SIGN
+    WALLET -->|提供业务数据| RECON[对账单系统]
+    
+    LEDGER -->|资金划转执行| WALLET
+    LEDGER -->|触发结算| SETTLE[清结算系统]
+    LEDGER -->|原子记账| ACCT
+    
+    SETTLE -->|获取路由信息| GEN3
+    SETTLE -->|结算记账| ACCT
+    SETTLE -->|提供结算数据| RECON
+    
+    BILLING[计费中台] -->|计算/冻结费用| ACCT
+    BILLING -->|生成结算指令| SETTLE
+    BILLING -->|提供费用数据| RECON
+    
+    AUTH[认证系统] -->|执行打款验证| SETTLE
+    AUTH -->|回调认证结果| E_SIGN
+    
+    E_SIGN -->|调用身份认证| AUTH
+    
+    RECON -->|获取账户主数据| ACCT
+    
+    style ACCT stroke:#333,stroke-width:3px
+    style LEDGER stroke:#333,stroke-width:3px
 ```
 
-**核心交互关系说明**：
-1.  **三代系统作为总入口**：几乎与所有其他核心业务模块交互，负责启动业务流程。
-2.  **账户系统作为资金底座**：被**行业钱包系统**、**账务核心系统**、**清结算系统**、**计费中台**直接调用，是所有资金变动的最终执行者。
-3.  **行业钱包系统与账务核心系统的协作**：两者都处理分账，但侧重点不同。**账务核心**侧重复杂业务逻辑处理（批量、冲正），而**行业钱包**侧重关系校验和驱动底层账户操作。两者都可能调用账户系统。
-4.  **认证与签约的闭环**：**认证系统**依赖**电子签约平台**完成法律授权过程，签约结果回调至认证系统，形成闭环。
-5.  **清结算与计费的协作**：**计费中台**负责计算手续费，但实际资金扣划请求发往**清结算系统**，由后者调用账户系统执行，体现了职责分离。
-6.  **数据汇聚到对账与业务核心**：**业务核心**接收来自**行业钱包系统**的交易流水，成为权威数据源。**对账单系统**则从**业务核心**、**账户系统**、**清结算系统**拉取数据，完成对账聚合。
+**交互关系核心解读**:
+*   **强依赖核心**：**账户系统 (ACCT)** 和 **账务核心系统 (LEDGER)** 是整个系统的资金数据处理中枢，被绝大多数上层业务模块所依赖。
+*   **业务编排链**：**业务核心 (BIZ) -> 三代系统 (GEN3) -> 行业钱包系统 (WALLET)** 构成了主要的业务请求驱动链条。
+*   **结算闭环**：**计费中台 (BILLING) -> 清结算系统 (SETTLE) -> 账务核心系统 (LEDGER)** 构成了费用计算与资金结算的闭环。
+*   **合规支撑**：**认证系统 (AUTH)** 与 **电子签约平台 (E_SIGN)** 相互协作，为**行业钱包系统 (WALLET)** 和**业务核心 (BIZ)** 提供合规能力。
+*   **数据汇聚点**：**对账单系统 (RECON)** 从**账户系统 (ACCT)**、**清结算系统 (SETTLE)**、**行业钱包系统 (WALLET)** 和**计费中台 (BILLING)** 汇聚数据，是系统的“数据总线”终点。
+
+---
+**文档说明**：本设计文档基于提供的模块摘要生成，反映了系统的逻辑架构与核心交互。在实际实施中，需进一步定义详细的API契约、数据模型、容错机制与性能指标。
 ---
 # 3 模块设计
 
@@ -406,206 +367,221 @@ graph LR
 ## 1. 概述
 
 ### 1.1 目的
-本模块是支付平台的底层账户核心，负责为“天财商龙”业务场景下的各类专用账户提供全生命周期的管理、状态控制及资金记账服务。它向上层（如行业钱包系统、清结算系统）提供稳定、原子化的账户操作接口，是支撑“归集”、“批量付款”、“会员结算”等分账业务流程的基石。
+本模块作为底层账户管理核心系统，旨在为“天财分账业务”提供专用的账户创建、管理、标记、账务处理及能力控制服务。它是支撑天财专用账户（收款账户、接收方账户）生命周期管理、资金流转和业务规则校验的基础设施。
 
 ### 1.2 范围
-- **账户创建与维护**：为“天财收款账户”和“天财接收方账户”提供开户、状态变更（冻结/解冻/注销）、属性标记（如标记为天财专用账户）等功能。
-- **资金记账**：处理与天财账户相关的所有资金变动，包括交易结算入账、分账出账/入账、退货扣款等，确保账务准确。
-- **账户查询**：提供账户余额、状态、流水等信息的查询服务。
-- **内部账户联动**：与“01待结算账户”、“04退货账户”等内部账户进行资金划转和联动记账。
-- **数据同步**：响应上层系统的状态变更请求，并发布账户变动事件，供其他系统（如三代系统、对账单系统）订阅。
-
-### 1.3 非范围
-- 分账业务逻辑（由行业钱包系统处理）。
-- 商户进件、协议签署与身份认证（由三代系统、电子签约平台处理）。
-- 费率计算（由计费中台处理）。
-- 交易处理（由业务核心处理）。
+- **账户生命周期管理**：天财专用账户的创建、状态变更、升级、冻结/解冻、注销。
+- **账户标记与分类**：为天财专用账户打上特殊业务标记（如`account_type: TIANCAI_RECEIVE`, `account_type: TIANCAI_RECEIVER`），并与标准账户进行逻辑隔离。
+- **账户关系绑定**：在底层建立并维护天财收款账户与天财接收方账户之间的授权关系，作为分账指令执行的前置条件。
+- **账务处理**：提供原子化的入账、出账、冻结、解冻等核心账务操作接口，确保资金变动的准确性和一致性。
+- **能力控制**：根据账户类型、状态和业务场景，控制账户是否可收、可付、可结算、可提现等能力。
+- **与上下游系统协同**：作为被调用方，为“三代系统”、“行业钱包系统”、“清结算系统”提供稳定、可靠的账户服务。
 
 ## 2. 接口设计
 
-### 2.1 REST API 端点
+### 2.1 API端点 (RESTful)
 
 #### 2.1.1 账户管理接口
-- **POST /api/v1/accounts**：创建账户
-    - **请求体**：`CreateAccountRequest`
-    - **响应**：`AccountDetailResponse`
-- **PUT /api/v1/accounts/{accountNo}/status**：更新账户状态
-    - **请求体**：`UpdateAccountStatusRequest`
-    - **响应**：`BaseResponse`
-- **GET /api/v1/accounts/{accountNo}**：查询账户详情
-    - **响应**：`AccountDetailResponse`
-- **POST /api/v1/accounts/batch-query**：批量查询账户信息
-    - **请求体**：`BatchQueryAccountRequest`
-    - **响应**：`List<AccountSimpleResponse>`
-
-#### 2.1.2 资金操作接口
-- **POST /api/v1/accounts/transfer**：账户间转账（内部调用，用于分账等场景）
-    - **请求体**：`InternalTransferRequest`
-    - **响应**：`TransferResponse`
-- **POST /api/v1/accounts/adjust**：账户调账（内部调用，用于差错处理）
-    - **请求体**：`AdjustAccountRequest`
-    - **响应**：`BaseResponse`
-- **GET /api/v1/accounts/{accountNo}/balance**：查询账户余额
-    - **响应**：`AccountBalanceResponse`
-- **GET /api/v1/accounts/{accountNo}/transactions**：查询账户流水
-    - **查询参数**：`startTime`, `endTime`, `page`, `size`
-    - **响应**：`PagedResponse<TransactionRecordResponse>`
-
-### 2.2 数据结构
-
-```json
-// CreateAccountRequest
-{
-  "requestId": "REQ202310270001", // 请求流水号，幂等键
-  "merchantNo": "M100001", // 所属收单商户号
-  "accountType": "TIANCAI_COLLECT", // 账户类型：TIANCAI_COLLECT(天财收款账户), TIANCAI_RECEIVE(天财接收方账户)
-  "accountName": "北京总店专用账户",
-  "currency": "CNY",
-  "attributes": { // 扩展属性
-    "isTiancaiSpecial": true, // 标记为天财专用账户
-    "parentMerchantNo": "M100000", // 所属总部商户号（门店账户时填写）
-    "walletSystemAccountId": "WALLET_ACC_001" // 对应的行业钱包账户ID，用于关联
-  }
-}
-
-// AccountDetailResponse
-{
-  "accountNo": "ACC202310270001",
-  "merchantNo": "M100001",
-  "accountType": "TIANCAI_COLLECT",
-  "accountName": "北京总店专用账户",
-  "balance": "10000.00",
-  "availableBalance": "9800.00",
-  "frozenBalance": "200.00",
-  "status": "ACTIVE", // ACTIVE, FROZEN, CLOSED
-  "currency": "CNY",
-  "attributes": { ... },
-  "createTime": "2023-10-27T10:00:00Z",
-  "updateTime": "2023-10-27T10:00:00Z"
-}
-
-// InternalTransferRequest
-{
-  "requestId": "TRANS202310270001", // 请求流水号，幂等键
-  "fromAccountNo": "ACC202310270001",
-  "toAccountNo": "ACC202310270002",
-  "amount": "500.00",
-  "currency": "CNY",
-  "bizType": "TIANCAI_SPLIT", // 业务类型：TIANCAI_SPLIT(天财分账), COLLECTION(归集), MEMBER_SETTLE(会员结算)
-  "bizOrderNo": "SPLIT202310270001", // 关联的业务订单号
-  "memo": "会员结算分账"
-}
-```
-
-### 2.3 发布的事件
-账户系统作为事件生产者，通过消息中间件发布以下领域事件：
-
-- **AccountCreatedEvent**：账户创建成功。
-    ```json
-    {
-      "eventId": "EVT_ACC_CREATED_001",
-      "eventType": "ACCOUNT_CREATED",
-      "timestamp": "2023-10-27T10:00:00Z",
-      "data": {
-        "accountNo": "ACC202310270001",
-        "merchantNo": "M100001",
-        "accountType": "TIANCAI_COLLECT",
-        "walletSystemAccountId": "WALLET_ACC_001"
+- **POST /api/v1/tiancai/accounts**
+    - **描述**：创建天财专用账户。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "req_123456", // 请求流水号，用于幂等
+        "merchant_no": "M100001", // 收单商户号
+        "account_role": "HEADQUARTERS", // 角色：HEADQUARTERS(总部)/STORE(门店)/RECEIVER(接收方)
+        "account_type": "TIANCAI_RECEIVE", // 账户类型：TIANCAI_RECEIVE(收款账户)/TIANCAI_RECEIVER(接收方账户)
+        "settlement_mode": "ACTIVE", // 结算模式，仅收款账户有效：ACTIVE(主动结算)
+        "base_account_info": { // 底层标准账户信息（由账户系统内部生成或关联）
+          "account_no": "optional_existing_account", // 可选，若为空则新建
+          "currency": "CNY"
+        },
+        "ext_info": { // 扩展信息
+          "legal_name": "天财科技有限公司",
+          "contact_phone": "13800138000"
+        }
       }
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "message": "成功",
+        "data": {
+          "tiancai_account_id": "TCA_20231011001",
+          "account_no": "3010001001", // 底层账户号
+          "account_role": "HEADQUARTERS",
+          "account_type": "TIANCAI_RECEIVE",
+          "status": "ACTIVE",
+          "settlement_mode": "ACTIVE",
+          "created_at": "2023-10-11T10:00:00Z"
+        }
+      }
+      ```
+
+- **POST /api/v1/tiancai/accounts/{tiancai_account_id}/relationships**
+    - **描述**：建立天财账户间的关系绑定（如总部收款账户与门店收款账户、收款账户与接收方账户）。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "req_rel_789",
+        "relation_type": "COLLECTION", // COLLECTION(归集)/BATCH_PAY(批量付款)/MEMBER_SETTLE(会员结算)
+        "from_account_id": "TCA_20231011001", // 付方天财账户ID
+        "to_account_id": "TCA_20231011002", // 收方天财账户ID
+        "contract_id": "CONTRACT_XYZ", // 电子签约平台返回的协议ID
+        "auth_status": "SIGNED", // 认证状态：SIGNED(已签约)/VERIFIED(已认证)
+        "effective_time": "2023-10-11T10:00:00Z",
+        "expire_time": "2024-10-11T10:00:00Z"
+      }
+      ```
+    - **响应体**：返回关系记录ID及状态。
+
+#### 2.1.2 账务操作接口
+- **POST /api/v1/accounts/{account_no}/ledger/entries**
+    - **描述**：执行账务记账（内部调用，不直接对外开放）。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "ledger_req_001",
+        "biz_trade_no": "TC_TRANS_001", // 业务交易流水号（分账、结算等）
+        "biz_type": "TIANCAI_SPLIT", // 业务类型：TIANCAI_SPLIT(天财分账)/SETTLEMENT(结算)/REFUND(退货)
+        "entries": [
+          {
+            "account_no": "3010001001",
+            "direction": "CREDIT", // CREDIT(入账)/DEBIT(出账)
+            "amount": 10000,
+            "currency": "CNY",
+            "balance_type": "AVAILABLE" // 余额类型：AVAILABLE(可用)/FROZEN(冻结)
+          },
+          {
+            "account_no": "3010001002",
+            "direction": "DEBIT",
+            "amount": 10000,
+            "currency": "CNY",
+            "balance_type": "AVAILABLE"
+          }
+        ]
+      }
+      ```
+    - **响应体**：返回记账流水号及结果。
+
+#### 2.1.3 查询接口
+- **GET /api/v1/tiancai/accounts/{tiancai_account_id}**
+- **GET /api/v1/tiancai/accounts?merchant_no={}&account_role={}&status={}**
+- **GET /api/v1/tiancai/accounts/{tiancai_account_id}/relationships?relation_type={}**
+
+### 2.2 发布/消费的事件
+
+#### 2.2.1 消费的事件
+- **MerchantCreatedEvent** (来自三代系统)：监听新收单商户创建，触发天财账户开通资格检查。
+- **AccountRelationVerifiedEvent** (来自行业钱包系统)：接收关系绑定完成通知，更新底层账户关系状态。
+- **SettlementInstructionEvent** (来自清结算系统)：接收结算指令，触发待结算账户(01)资金划转至天财收款账户。
+
+#### 2.2.2 发布的事件
+- **TiancaiAccountCreatedEvent**：天财专用账户创建成功时发布，供行业钱包系统订阅。
+  ```json
+  {
+    "event_id": "event_001",
+    "event_type": "TIANCAI_ACCOUNT_CREATED",
+    "timestamp": "2023-10-11T10:00:00Z",
+    "data": {
+      "tiancai_account_id": "TCA_20231011001",
+      "account_no": "3010001001",
+      "merchant_no": "M100001",
+      "account_role": "HEADQUARTERS",
+      "account_type": "TIANCAI_RECEIVE"
     }
-    ```
-- **AccountStatusChangedEvent**：账户状态变更（冻结/解冻/注销）。
-- **AccountBalanceChangedEvent**：账户余额发生变动（含变动金额、变动后余额、业务类型）。
-- **InternalTransferCompletedEvent**：内部转账完成（供对账单系统等订阅）。
+  }
+  ```
+- **AccountRelationshipBoundEvent**：账户关系绑定成功时发布，供行业钱包系统用于分账指令校验。
+- **AccountBalanceChangedEvent**：账户余额发生变动时发布，供对账单系统生成动账明细。
 
 ## 3. 数据模型
 
 ### 3.1 核心表设计
 
-#### 表：`account` (账户主表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| account_no | varchar(32) | Y | 账户号，全局唯一 | UK |
-| merchant_no | varchar(32) | Y | 所属商户号 | IDX |
-| account_type | varchar(32) | Y | 账户类型 | IDX |
-| account_name | varchar(128) | Y | 账户名称 | |
-| balance | decimal(15,2) | Y | 账户余额 | |
-| available_balance | decimal(15,2) | Y | 可用余额 | |
-| frozen_balance | decimal(15,2) | Y | 冻结余额 | |
-| currency | char(3) | Y | 币种 | |
-| status | varchar(16) | Y | 状态 | IDX |
-| attributes | json | N | 扩展属性（JSON格式） | |
-| version | int(11) | Y | 版本号，用于乐观锁 | |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
+#### 表：`tiancai_account` (天财专用账户表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `tiancai_account_id` | varchar(32) | Y | | **业务主键**，全局唯一，格式`TCA_YYYYMMDDxxx` |
+| `account_no` | varchar(20) | Y | | **关联的底层标准账户号**，外键关联`account.account_no` |
+| `merchant_no` | varchar(32) | Y | | 收单商户号 |
+| `account_role` | varchar(20) | Y | | 角色：`HEADQUARTERS`/`STORE`/`RECEIVER` |
+| `account_type` | varchar(20) | Y | | 账户类型：`TIANCAI_RECEIVE`/`TIANCAI_RECEIVER` |
+| `settlement_mode` | varchar(20) | N | `ACTIVE` | 结算模式：`ACTIVE`(主动结算)，仅收款账户有效 |
+| `status` | varchar(20) | Y | `ACTIVE` | 状态：`ACTIVE`/`FROZEN`/`CLOSED` |
+| `ext_info` | json | N | | 扩展信息（企业名称、联系人等） |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | |
 
-#### 表：`account_transaction` (账户流水表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| transaction_no | varchar(32) | Y | 流水号，全局唯一 | UK |
-| account_no | varchar(32) | Y | 账户号 | IDX |
-| opposite_account_no | varchar(32) | N | 对手方账户号 | IDX |
-| amount | decimal(15,2) | Y | 变动金额（正为入账，负为出账） | |
-| balance_before | decimal(15,2) | Y | 变动前余额 | |
-| balance_after | decimal(15,2) | Y | 变动后余额 | |
-| currency | char(3) | Y | 币种 | |
-| biz_type | varchar(32) | Y | 业务类型 | IDX |
-| biz_order_no | varchar(32) | Y | 关联业务订单号 | IDX |
-| request_id | varchar(32) | Y | 请求流水号，幂等键 | UK |
-| memo | varchar(256) | N | 备注 | |
-| create_time | datetime | Y | 创建时间 | IDX |
+#### 表：`account_relationship` (账户关系表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `relation_id` | varchar(32) | Y | | 关系唯一ID |
+| `relation_type` | varchar(30) | Y | | 关系类型：`COLLECTION`/`BATCH_PAY`/`MEMBER_SETTLE` |
+| `from_tiancai_account_id` | varchar(32) | Y | | 付方天财账户ID |
+| `to_tiancai_account_id` | varchar(32) | Y | | 收方天财账户ID |
+| `contract_id` | varchar(64) | Y | | 电子签约协议ID |
+| `auth_status` | varchar(20) | Y | | 认证状态：`SIGNED`/`VERIFIED`/`EXPIRED` |
+| `effective_time` | datetime | Y | | 生效时间 |
+| `expire_time` | datetime | N | | 过期时间 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
 
-#### 表：`internal_account` (内部账户表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| account_no | varchar(32) | Y | 内部账户号 | UK |
-| account_name | varchar(128) | Y | 账户名称（如“01待结算账户”、“04退货账户”） | |
-| account_type | varchar(32) | Y | 内部账户类型 | |
-| balance | decimal(15,2) | Y | 余额 | |
-| ... | ... | ... | ... | ... |
+#### 表：`account` (底层标准账户表 - 已存在，扩展)
+| 字段名 | 类型 | 描述 |
+| :--- | :--- | :--- |
+| `account_no` | varchar(20) | **主键**，账户号 |
+| `merchant_no` | varchar(32) | 所属商户号 |
+| `account_type_code` | varchar(10) | **扩展字段**：增加`TC_RCV`(天财收款账户)、`TC_REC`(天财接收方账户)等类型码 |
+| `balance_available` | decimal(15,2) | 可用余额 |
+| `balance_frozen` | decimal(15,2) | 冻结余额 |
+| `currency` | varchar(3) | 币种 |
+| `status` | varchar(20) | 账户状态 |
+| `capabilities` | json | **扩展字段**：账户能力位图，如`{"can_receive": true, "can_pay": true, "can_withdraw": false}` |
 
 ### 3.2 与其他模块的关系
-- **行业钱包系统**：行业钱包系统持有业务层的账户模型，通过 `walletSystemAccountId` 与账户系统的底层账户关联。行业钱包系统调用账户系统进行实际的账户创建、状态更新和资金划转。
-- **三代系统**：三代系统在商户进件时，通过行业钱包系统间接触发天财专用账户的创建。账户系统将账户创建成功事件同步给三代系统。
-- **清结算系统**：清结算系统将交易结算资金主动结算到天财收款账户，或从退货账户扣款，需调用账户系统的转账接口。
-- **对账单系统**：订阅账户系统的 `AccountBalanceChangedEvent` 和 `InternalTransferCompletedEvent`，生成动账明细和对账单。
-- **业务核心**：业务核心处理分账交易时，需要验证账户状态和余额，并记录交易流水。
+- **行业钱包系统**：通过`tiancai_account`和`account_relationship`表，为钱包系统提供账户信息和关系校验依据。
+- **清结算系统**：通过`account`表进行资金划转和记账。
+- **三代系统**：通过`merchant_no`关联收单商户信息。
+- **对账单系统**：通过监听`AccountBalanceChangedEvent`获取动账数据源。
 
 ## 4. 业务逻辑
 
-### 4.1 核心算法
-- **账户号生成**：采用 `ACC` + `年月日` + `7位序列号` 的规则（如 `ACC2023102700000001`），确保全局唯一。
-- **余额更新**：采用“先记流水，后更新余额”的模式，保证资金变动可追溯。更新主账户余额时使用乐观锁（`version`字段）防止并发更新导致余额错误。
-- **幂等控制**：所有写操作（创建、转账、调账）均需携带唯一的 `requestId`，系统会校验 `requestId` 是否已处理，避免重复操作。
+### 4.1 核心算法与规则
 
-### 4.2 业务规则
-1. **账户创建规则**：
-    - 只有 `accountType` 为 `TIANCAI_COLLECT` 或 `TIANCAI_RECEIVE` 的账户，其 `attributes.isTiancaiSpecial` 才必须为 `true`。
-    - 创建天财收款账户时，必须关联有效的 `merchantNo`（收单商户）。
-    - 创建天财接收方账户时，`attributes` 中可记录其关联的总部或门店信息。
+#### 4.1.1 天财账户创建规则
+1. **资格校验**：仅当`merchant_no`属于“天财”机构，且在三代系统中状态正常时，才允许创建天财专用账户。
+2. **账户类型决策**：
+   - 若`account_role`为`HEADQUARTERS`或`STORE`，则`account_type`必须为`TIANCAI_RECEIVE`（收款账户）。
+   - 若`account_role`为`RECEIVER`，则`account_type`必须为`TIANCAI_RECEIVER`（接收方账户）。
+3. **底层账户处理**：
+   - 若请求中未提供`base_account_info.account_no`，则调用内部服务创建一个新的标准账户，并打上对应的`account_type_code`标记。
+   - 若已提供，则校验该账户是否存在、是否属于该商户、且未标记为其他天财账户类型。
+4. **结算模式**：天财收款账户的`settlement_mode`强制设置为`ACTIVE`，且不允许后续修改为`PASSIVE`。
 
-2. **状态流转规则**：
-    ```
-    CREATED -> ACTIVE -> (FROZEN <-> ACTIVE) -> CLOSED
-    ```
-    - 账户创建后初始状态为 `ACTIVE`。
-    - 只有余额为0且无在途交易的 `ACTIVE` 或 `FROZEN` 账户可被 `CLOSED`。
+#### 4.1.2 关系绑定校验逻辑
+在执行分账前，行业钱包系统会调用账户系统的校验接口。校验逻辑如下：
+```python
+def validate_relationship(from_account_id, to_account_id, relation_type, amount):
+    # 1. 检查双方账户状态是否均为ACTIVE
+    # 2. 查询account_relationship表，是否存在有效（auth_status='VERIFIED'且在有效期内）的关系记录
+    # 3. 检查relation_type是否匹配
+    # 4. (可选) 检查付方账户可用余额是否 >= amount
+    # 5. 返回校验结果及关系ID
+```
 
-3. **资金操作规则**：
-    - 转账时，付方账户状态必须为 `ACTIVE`，且可用余额充足。
-    - 转账操作必须同时记录付方和收方的流水，并在一个本地事务中完成余额更新，保证借贷平衡。
-    - 涉及“04退货账户”的扣款，需校验对应的天财收款账户是否允许退货。
+#### 4.1.3 账务处理原子性
+所有账务操作（`/ledger/entries`）必须在**数据库事务**中完成，确保借贷平衡。采用“双写先锁”策略：
+1. 根据`biz_trade_no`获取分布式锁，防止重复处理。
+2. 在事务中，依次更新`account`表的余额字段，并插入流水记录。
+3. 事务提交后，释放锁，发布余额变更事件。
 
-### 4.3 验证逻辑
-- **开户请求验证**：检查商户号是否存在、账户类型是否支持、必要属性是否齐全。
-- **转账请求验证**：
-    - 校验付方和收方账户是否存在、状态是否正常、币种是否一致。
-    - 校验 `requestId` 是否重复。
-    - 校验付方可用余额是否大于等于转账金额。
-- **状态变更验证**：检查目标状态是否允许，如冻结已冻结账户、解冻非冻结账户应返回错误。
+### 4.2 验证逻辑
+- **创建账户**：校验商户号有效性、角色与类型匹配、结算模式合法性。
+- **建立关系**：校验双方账户存在、状态有效、且未建立同类型重复关系。
+- **账务操作**：校验账户状态、余额充足性（对于出账）、币种一致性。
 
 ## 5. 时序图
 
@@ -613,482 +589,103 @@ graph LR
 ```mermaid
 sequenceDiagram
     participant C as 三代系统
-    participant W as 行业钱包系统
     participant A as 账户系统
-    participant MQ as 消息队列
-
-    C->>W: 请求创建天财专用账户
-    Note over W: 1. 生成钱包层账户ID<br/>2. 组装账户属性
-    W->>A: POST /accounts (CreateAccountRequest)
-    Note over A: 1. 幂等校验<br/>2. 数据验证<br/>3. 生成账户号<br/>4. 持久化账户信息
-    A-->>W: 返回AccountDetailResponse
-    W-->>C: 返回开户结果
-    A->>MQ: 发布AccountCreatedEvent
-    Note over MQ: 三代系统、对账单系统等订阅消费
-```
-
-### 5.2 天财分账资金划转流程
-```mermaid
-sequenceDiagram
     participant W as 行业钱包系统
-    participant A as 账户系统
-    participant MQ as 消息队列
+    participant DB as 数据库
 
-    W->>A: POST /accounts/transfer (InternalTransferRequest)
-    Note over A: 1. 幂等校验<br/>2. 账户/余额校验
-    A->>A: 开启数据库事务
-    A->>A: 记录付方流水
-    A->>A: 更新付方余额 (可用余额减少)
-    A->>A: 记录收方流水
-    A->>A: 更新收方余额 (可用余额增加)
-    A->>A: 提交事务
-    A-->>W: 返回TransferResponse
-    A->>MQ: 发布InternalTransferCompletedEvent
-    Note over MQ: 对账单系统订阅，生成动账明细
-```
-
-## 6. 错误处理
-
-### 6.1 预期错误及HTTP状态码
-- **400 Bad Request**：请求参数无效、格式错误。
-- **404 Not Found**：指定的账户不存在。
-- **409 Conflict**：
-    - `ACCOUNT_STATUS_INVALID`：账户状态不允许此操作（如非ACTIVE账户进行转账）。
-    - `DUPLICATE_REQUEST_ID`：重复的请求流水号。
-- **422 Unprocessable Entity**：
-    - `INSUFFICIENT_BALANCE`：付方账户可用余额不足。
-    - `TRANSFER_LIMIT_EXCEEDED`：转账金额超限。
-- **500 Internal Server Error**：系统内部错误。
-
-### 6.2 处理策略
-- **重试策略**：对于网络超时等暂时性错误，调用方（如行业钱包系统）应实现幂等重试。
-- **补偿机制**：对于记账类操作，如因系统故障导致事务部分成功，需有对账和人工调账入口进行差错处理。
-- **监控告警**：对高频错误（如余额不足、账户状态异常）进行监控，并通知业务方排查。
-
-## 7. 依赖说明
-
-### 7.1 上游模块交互
-1. **行业钱包系统**：
-    - **调用本模块**：用于所有底层账户操作（创建、状态管理、转账）。
-    - **交互方式**：同步RPC调用（HTTP REST）。行业钱包系统需处理本模块返回的错误，并决定是否重试或向上抛错。
-    - **关键点**：行业钱包系统需保证其 `requestId` 的全局唯一性，以实现幂等。
-
-2. **清结算系统**：
-    - **调用本模块**：将交易结算资金从“01待结算账户”划转至天财收款账户；退货时从“04退货账户”扣款。
-    - **交互方式**：同步RPC调用。清结算系统需确保其结算指令与账户操作的一致性。
-
-### 7.2 下游模块交互
-1. **对账单系统**：
-    - **消费本模块事件**：订阅 `AccountBalanceChangedEvent` 和 `InternalTransferCompletedEvent`，用于生成明细。
-    - **交互方式**：异步消息（MQ）。需保证消息至少投递一次，消费端需实现幂等。
-
-2. **三代系统**：
-    - **消费本模块事件**：订阅 `AccountCreatedEvent`，更新其侧账户状态。
-    - **交互方式**：异步消息（MQ）。
-
-### 7.3 内部依赖
-- **数据库**：MySQL集群，要求高可用，支持事务。
-- **缓存**：Redis集群，用于缓存热点账户信息（如余额）和 `requestId` 幂等校验结果。
-- **消息中间件**：Kafka/RocketMQ，用于事件发布。
-
-**文档版本**：1.0  
-**最后更新**：2023-10-27  
-**设计者**：软件架构师
-
-## 3.2 电子签约平台
-
-
-
-# 电子签约平台模块设计文档
-
-## 1. 概述
-
-### 1.1 目的
-电子签约平台模块是“天财分账”业务的核心前置模块，负责为分账关系建立提供合法、合规、可追溯的授权基础。其主要目的是：
-1.  **协议签署**：为总部与门店（或其他接收方）之间的分账授权关系提供标准化的电子协议签署流程。
-2.  **身份认证**：集成打款验证和人脸验证服务，对协议签署方（尤其是接收方）进行强身份认证，确保资金流转安全。
-3.  **证据链留存**：完整记录并存储协议签署、身份认证过程中的所有关键数据、文件和时间戳，形成不可篡改的证据链，满足监管和审计要求。
-4.  **流程封装**：将复杂的签约与认证流程封装成简洁的H5页面或API，供上游系统（如行业钱包系统）调用，提升用户体验和集成效率。
-
-### 1.2 范围
-本模块负责：
--   电子协议的模板管理、生成、发起签署、状态同步与归档。
--   调用外部认证服务（打款验证/人脸验证）并管理其流程与结果。
--   提供签约流程的H5页面嵌入和API接口。
--   管理短信验证码的发送（用于签署确认或认证环节）。
--   与上游的**行业钱包系统**紧密交互，接收签约任务，反馈签约结果。
--   与底层的**账户系统**交互，获取必要的账户信息以支持打款验证。
-
-**不在本模块范围**：
--   具体的分账交易执行（由行业钱包系统处理）。
--   商户进件与账户开立（由三代系统与账户系统处理）。
--   费率计算与资金结算（由计费中台与清结算系统处理）。
-
-## 2. 接口设计
-
-### 2.1 API端点 (RESTful)
-
-#### 2.1.1 内部接口 (供行业钱包系统调用)
-
-**1. 发起签约认证**
--   **端点**: `POST /api/v1/contract/initiate`
--   **描述**: 行业钱包系统在需要建立分账关系时调用，创建签约任务并返回签约流程入口。
--   **请求头**: `X-Request-ID`, `Authorization (Bearer Token)`
--   **请求体**:
-    ```json
-    {
-      "taskId": "string", // 行业钱包系统生成的唯一任务ID，用于关联
-      "merchantNo": "string", // 付方（总部）商户号
-      "payerAccountNo": "string", // 付方天财收款账户号
-      "receiverType": "ENTERPRISE|INDIVIDUAL|STORE", // 接收方类型：企业、个人、门店
-      "receiverName": "string", // 接收方名称
-      "receiverCertNo": "string", // 接收方证件号（企业为统一社会信用代码，个人为身份证号）
-      "receiverAccountNo": "string", // 接收方天财接收方账户号（可选，打款验证时需要）
-      "receiverMobile": "string", // 接收方联系手机号（用于短信和H5链接）
-      "scene": "POOLING|BATCH_PAY|MEMBER_SETTLE", // 业务场景：归集、批量付款、会员结算
-      "authMode": "TRANSFER|FACE", // 认证方式：打款验证、人脸验证
-      "callbackUrl": "string" // 签约最终状态回调地址
-    }
-    ```
--   **响应体 (成功)**:
-    ```json
-    {
-      "code": "SUCCESS",
-      "msg": "成功",
-      "data": {
-        "signTaskId": "string", // 电子签约平台生成的签约任务ID
-        "signUrl": "string", // 签约认证H5页面URL，需发送给接收方
-        "expireTime": "2023-10-01T12:00:00Z" // 链接过期时间
-      }
-    }
-    ```
-
-**2. 查询签约任务状态**
--   **端点**: `GET /api/v1/contract/task/{signTaskId}`
--   **描述**: 行业钱包系统轮询或根据回调查询签约任务详细状态。
--   **响应体**:
-    ```json
-    {
-      "code": "SUCCESS",
-      "msg": "成功",
-      "data": {
-        "signTaskId": "string",
-        "taskId": "string",
-        "status": "INIT|SIGNING|AUTHING|SUCCESS|FAIL|EXPIRED",
-        "merchantNo": "string",
-        "payerAccountNo": "string",
-        "receiverName": "string",
-        "receiverAccountNo": "string",
-        "scene": "POOLING",
-        "authMode": "TRANSFER",
-        "contractId": "string", // 已签署的协议ID
-        "authResult": "PENDING|SUCCESS|FAIL",
-        "failReason": "string", // 失败原因
-        "createTime": "2023-10-01T10:00:00Z",
-        "updateTime": "2023-10-01T11:30:00Z"
-      }
-    }
-    ```
-
-**3. 开通付款授权（总部侧）**
--   **端点**: `POST /api/v1/contract/open-payment-auth`
--   **描述**: 在批量付款和会员结算场景下，为付方（总部）发起额外的代付协议签署。
--   **请求体**:
-    ```json
-    {
-      "taskId": "string",
-      "merchantNo": "string", // 总部商户号
-      "payerAccountNo": "string", // 总部天财收款账户号
-      "contactName": "string", // 总部联系人
-      "contactMobile": "string", // 总部联系人手机
-      "callbackUrl": "string"
-    }
-    ```
--   **响应体**: 类似 `/initiate`，返回总部签约链接。
-
-#### 2.1.2 外部接口 (供H5页面调用)
-
-**1. 获取签约页面数据**
--   **端点**: `GET /h5/v1/contract/data?signTaskId=xxx&token=yyy`
--   **描述**: H5页面加载时调用，获取协议内容、认证方式等信息。
--   **响应体**: 包含协议HTML片段、接收方信息、认证步骤说明等。
-
-**2. 提交短信验证码**
--   **端点**: `POST /h5/v1/contract/verify-sms`
--   **描述**: 用户（接收方）在H5页面输入短信验证码进行确认。
--   **请求体**: `{"signTaskId": "string", "smsCode": "string"}`
-
-**3. 触发/查询认证**
--   **端点**: `POST /h5/v1/auth/transfer/trigger` (打款验证)
--   **端点**: `GET /h5/v1/auth/face/url` (获取人脸验证SDK参数)
--   **描述**: H5页面引导用户进行相应认证。
-
-**4. 确认签署协议**
--   **端点**: `POST /h5/v1/contract/confirm-sign`
--   **描述**: 用户完成认证后，最终确认签署协议。
-
-### 2.2 发布/消费的事件
-
-#### 消费的事件
--   `AccountCreatedEvent` (来自账户系统)：监听天财专用账户的开户成功事件，为后续可能的打款验证准备账户信息。
-
-#### 发布的事件
--   `ContractSignedEvent`：当一份分账协议签署并认证成功时发布。
-    ```json
-    {
-      "eventId": "uuid",
-      "type": "CONTRACT_SIGNED",
-      "timestamp": "2023-10-01T12:00:00Z",
-      "data": {
-        "signTaskId": "string",
-        "contractId": "string",
-        "merchantNo": "string",
-        "payerAccountNo": "string",
-        "receiverName": "string",
-        "receiverAccountNo": "string",
-        "receiverCertNo": "string",
-        "scene": "POOLING",
-        "authMode": "TRANSFER",
-        "signedTime": "2023-10-01T11:59:00Z"
-      }
-    }
-    ```
--   `PaymentAuthOpenedEvent`：当总部开通付款授权成功时发布。
--   `ContractSignFailedEvent`：当签约任务失败时发布，包含失败原因。
-
-## 3. 数据模型
-
-### 3.1 核心数据库表设计
-
-```sql
--- 签约任务主表
-CREATE TABLE `t_sign_task` (
-  `id` bigint(20) NOT NULL AUTO_INCREMENT,
-  `sign_task_id` varchar(64) NOT NULL COMMENT '平台生成唯一任务ID',
-  `external_task_id` varchar(64) NOT NULL COMMENT '外部系统任务ID',
-  `merchant_no` varchar(32) NOT NULL COMMENT '付方商户号',
-  `payer_account_no` varchar(32) NOT NULL COMMENT '付方账户号',
-  `receiver_type` varchar(20) NOT NULL COMMENT '接收方类型',
-  `receiver_name` varchar(128) NOT NULL COMMENT '接收方名称',
-  `receiver_cert_no` varchar(64) NOT NULL COMMENT '接收方证件号',
-  `receiver_account_no` varchar(32) COMMENT '接收方账户号',
-  `receiver_mobile` varchar(20) NOT NULL COMMENT '接收方手机',
-  `scene` varchar(32) NOT NULL COMMENT '业务场景',
-  `auth_mode` varchar(20) NOT NULL COMMENT '认证方式',
-  `status` varchar(20) NOT NULL DEFAULT 'INIT' COMMENT '任务状态',
-  `contract_id` varchar(64) COMMENT '签署后的协议ID',
-  `contract_file_url` varchar(512) COMMENT '协议文件存储地址',
-  `auth_result` varchar(20) DEFAULT 'PENDING' COMMENT '认证结果',
-  `callback_url` varchar(512) NOT NULL COMMENT '回调地址',
-  `expire_time` datetime NOT NULL COMMENT '任务过期时间',
-  `fail_reason` varchar(512) COMMENT '失败原因',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_sign_task_id` (`sign_task_id`),
-  KEY `idx_external_task` (`external_task_id`),
-  KEY `idx_merchant` (`merchant_no`),
-  KEY `idx_receiver` (`receiver_cert_no`, `receiver_account_no`),
-  KEY `idx_status_expire` (`status`, `expire_time`)
-) ENGINE=InnoDB COMMENT='签约任务表';
-
--- 协议签署记录表
-CREATE TABLE `t_contract_record` (
-  `id` bigint(20) NOT NULL AUTO_INCREMENT,
-  `contract_id` varchar(64) NOT NULL COMMENT '协议唯一ID',
-  `sign_task_id` varchar(64) NOT NULL COMMENT '关联签约任务',
-  `template_id` varchar(32) NOT NULL COMMENT '协议模板ID',
-  `template_version` varchar(16) NOT NULL COMMENT '模板版本',
-  `content_hash` varchar(128) NOT NULL COMMENT '协议内容哈希值',
-  `signer_name` varchar(128) NOT NULL COMMENT '签署方名称',
-  `signer_cert_no` varchar(64) NOT NULL COMMENT '签署方证件号',
-  `signer_role` varchar(20) NOT NULL COMMENT '签署方角色(PAYER/RECEIVER)',
-  `sign_ip` varchar(45) COMMENT '签署IP',
-  `sign_user_agent` varchar(512) COMMENT '签署终端UA',
-  `sign_time` datetime NOT NULL COMMENT '签署时间',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_contract_id` (`contract_id`),
-  KEY `idx_sign_task` (`sign_task_id`),
-  KEY `idx_signer` (`signer_cert_no`)
-) ENGINE=InnoDB COMMENT='协议签署记录表';
-
--- 身份认证记录表
-CREATE TABLE `t_auth_record` (
-  `id` bigint(20) NOT NULL AUTO_INCREMENT,
-  `auth_id` varchar(64) NOT NULL COMMENT '认证记录ID',
-  `sign_task_id` varchar(64) NOT NULL COMMENT '关联签约任务',
-  `auth_mode` varchar(20) NOT NULL COMMENT '认证方式',
-  `auth_target` varchar(64) NOT NULL COMMENT '认证对象证件号',
-  `auth_status` varchar(20) NOT NULL DEFAULT 'PROCESSING' COMMENT '认证状态',
-  `request_param` json COMMENT '请求参数',
-  `response_data` json COMMENT '响应数据',
-  `auth_time` datetime COMMENT '认证完成时间',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_auth_id` (`auth_id`),
-  KEY `idx_sign_task` (`sign_task_id`),
-  KEY `idx_target` (`auth_target`)
-) ENGINE=InnoDB COMMENT='身份认证记录表';
-
--- 短信验证记录表
-CREATE TABLE `t_sms_record` (
-  `id` bigint(20) NOT NULL AUTO_INCREMENT,
-  `sign_task_id` varchar(64) NOT NULL,
-  `mobile` varchar(20) NOT NULL,
-  `sms_code` varchar(12) NOT NULL,
-  `sms_type` varchar(32) NOT NULL COMMENT 'SIGN_CONFIRM/AUTH_VERIFY',
-  `biz_id` varchar(64) COMMENT '外部短信服务ID',
-  `status` varchar(20) NOT NULL DEFAULT 'SENT' COMMENT 'SENT/USED/EXPIRED',
-  `expire_time` datetime NOT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_task_mobile` (`sign_task_id`, `mobile`, `status`),
-  KEY `idx_expire` (`expire_time`)
-) ENGINE=InnoDB COMMENT='短信验证记录表';
-```
-
-### 3.2 与其他模块的关系
--   **行业钱包系统**：上游调用方。电子签约平台接收其发起的签约任务，完成后通过回调或事件通知其结果。
--   **账户系统**：下游依赖。进行打款验证时，需要查询或验证接收方账户信息，并监听账户创建事件。
--   **外部认证服务**：下游依赖。调用第三方打款验证或人脸验证服务。
--   **短信服务平台**：下游依赖。调用内部或第三方短信服务发送验证码。
--   **文件存储服务**：下游依赖。用于存储已签署的电子协议PDF文件。
-
-## 4. 业务逻辑
-
-### 4.1 核心流程算法
-
-**签约认证总流程：**
-1.  **任务接收与初始化**：验证入参，创建签约任务，根据`receiverType`和`scene`选择协议模板。
-2.  **H5页面生成**：生成带有时效性和防篡改Token的签约链接。
-3.  **接收方操作流**：
-    a. **协议查看与短信验证**：接收方查看协议，通过短信验证码确认身份。
-    b. **身份认证**：
-        - 打款验证：调用账户系统，向`receiverAccountNo`打款（小额随机），引导用户回填金额。
-        - 人脸验证：调用人脸识别SDK，引导用户刷脸。
-    c. **协议签署**：认证成功后，用户进行最终签署确认，系统生成带时间戳的电子签名。
-4.  **证据链固化**：将协议原文、签署记录、认证结果、操作日志打包，计算哈希值，并可能上链或存证。
-5.  **结果通知**：更新任务状态，回调行业钱包系统，发布`ContractSignedEvent`。
-
-### 4.2 业务规则
-1.  **签约关系唯一性**：同一付方账户与同一接收方账户，在同一业务场景下，只允许存在一份`SUCCESS`状态的协议。
-2.  **认证方式规则**：
-    - `receiverType`为`ENTERPRISE`（企业），强制使用**打款验证**。
-    - `receiverType`为`INDIVIDUAL`（个人/个体户），强制使用**人脸验证**。
-    - `receiverType`为`STORE`（门店），可由业务方指定，默认推荐打款验证。
-3.  **协议模板管理**：不同`scene`和`receiverType`组合对应不同的协议模板。模板的任何变更需生成新版本，旧任务仍使用旧版本。
-4.  **链接安全**：H5链接需包含一次性Token和有效期（如30分钟），防止重放攻击。
-5.  **短信防刷**：同一手机号在短时间内（如1分钟）只能请求一次短信，每日有上限。
-
-### 4.3 验证逻辑
--   **入参校验**：必填字段、商户号与账户号是否存在且匹配、接收方证件号格式等。
--   **业务状态校验**：发起签约时，付方账户状态必须正常；接收方账户（如果已存在）状态必须正常。
--   **认证结果校验**：严格依赖外部认证服务的返回结果，只有明确成功时才可推进流程。
--   **防重复签署**：签署前校验是否已存在生效的同类协议。
-
-## 5. 时序图
-
-### 5.1 核心流程：发起并完成签约认证
-
-```mermaid
-sequenceDiagram
-    participant Wallet as 行业钱包系统
-    participant ES as 电子签约平台
-    participant H5 as 签约H5页面
-    participant Receiver as 接收方用户
-    participant AuthSvc as 外部认证服务
-    participant SMS as 短信服务
-    participant Acct as 账户系统
-
-    Wallet->>ES: 1. 发起签约认证(initiate)
-    ES->>ES: 2. 创建签约任务，生成唯一signTaskId
-    ES->>SMS: 3. 发送签约链接短信(含H5 URL)
-    ES-->>Wallet: 4. 返回signTaskId及签约链接
-    Wallet->>Receiver: 5. 引导用户点击链接(或线下通知)
-
-    Receiver->>H5: 6. 访问签约H5页面
-    H5->>ES: 7. 获取页面数据(GET /h5/data)
-    ES-->>H5: 8. 返回协议内容、认证方式等
-    H5->>Receiver: 9. 展示协议，请求发送验证码
-    Receiver->>H5: 10. 点击“发送验证码”
-    H5->>ES: 11. 请求发送短信
-    ES->>SMS: 12. 调用短信服务发送验证码
-    SMS->>Receiver: 13. 接收短信验证码
-    Receiver->>H5: 14. 输入验证码并提交
-    H5->>ES: 15. 验证短信码(POST /verify-sms)
-    ES-->>H5: 16. 验证通过
-
-    alt 认证方式为打款验证
-        H5->>Receiver: 17. 提示“即将进行打款验证”
-        ES->>Acct: 18. 发起打款验证请求(小额打款)
-        Acct->>Receiver: 19. 向接收方账户打款(实际入账)
-        Receiver->>H5: 20. 查询银行账户并输入打款金额
-        H5->>ES: 21. 提交打款金额
-        ES->>AuthSvc: 22. 校验打款金额
-        AuthSvc-->>ES: 23. 返回认证结果
-    else 认证方式为人脸验证
-        H5->>ES: 17. 请求人脸验证参数
-        ES-->>H5: 18. 返回人脸SDK配置
-        H5->>Receiver: 19. 引导用户刷脸
-        Receiver->>AuthSvc: 20. 通过SDK完成人脸识别
-        AuthSvc-->>ES: 21. 回调认证结果
+    C->>A: POST /tiancai/accounts (创建天财收款账户)
+    A->>DB: 校验商户资格 & 账户信息
+    DB-->>A: 返回校验结果
+    alt 校验失败
+        A-->>C: 返回错误响应
+    else 校验成功
+        A->>DB: 创建/关联底层账户，标记类型
+        A->>DB: 插入tiancai_account记录
+        DB-->>A: 操作成功
+        A->>W: 发布 TiancaiAccountCreatedEvent
+        A-->>C: 返回创建成功响应
     end
+```
 
-    ES->>ES: 24. 更新认证结果，生成最终协议
-    ES-->>H5: 25. 通知认证成功，展示最终协议
-    Receiver->>H5: 26. 点击“确认签署”
-    H5->>ES: 27. 确认签署(POST /confirm-sign)
-    ES->>ES: 28. 记录签署，生成证据链，存储协议文件
-    ES->>Wallet: 29. 回调结果(callbackUrl)
-    ES->>ES: 30. 发布ContractSignedEvent
+### 5.2 分账资金划转流程（账户系统视角）
+```mermaid
+sequenceDiagram
+    participant W as 行业钱包系统
+    participant A as 账户系统
+    participant DB as 数据库
+    participant MQ as 消息队列
+
+    W->>A: GET /relationships/validate (校验分账关系)
+    A->>DB: 查询有效关系记录
+    DB-->>A: 返回关系信息
+    A-->>W: 返回校验通过
+
+    W->>A: POST /accounts/{no}/ledger/entries (执行账务记账)
+    A->>DB: 获取分布式锁(biz_trade_no)
+    A->>DB: 开启事务，更新双方账户余额
+    A->>DB: 插入账务流水
+    DB-->>A: 事务提交成功
+    A->>DB: 释放锁
+    A->>MQ: 发布 AccountBalanceChangedEvent (双方账户)
+    A-->>W: 返回记账成功
 ```
 
 ## 6. 错误处理
 
-| 错误类型 | 错误码 | 处理策略 |
-| :--- | :--- | :--- |
-| **参数校验失败** | `4000` | 请求参数格式错误或缺失，返回具体错误字段，调用方需修正后重试。 |
-| **业务校验失败** | `4001` | 如商户不存在、账户状态异常、重复签约等。记录日志，返回明确业务错误信息。 |
-| **认证服务异常** | `5001` | 调用打款/人脸验证服务超时或失败。记录详细日志，任务状态置为`AUTHING_FAIL`，支持异步重试机制。 |
-| **短信发送失败** | `5002` | 短信服务不可用。可重试数次，若最终失败，任务状态置为`FAIL`。 |
-| **回调通知失败** | `5003` | 通知行业钱包系统回调失败。启用重试队列，按指数退避策略重试，并监控告警。 |
-| **系统内部错误** | `5000` | 数据库异常、未知异常等。记录完整错误堆栈，告警，任务状态置为`FAIL`。 |
+| 错误码 | HTTP 状态码 | 描述 | 处理策略 |
+| :--- | :--- | :--- | :--- |
+| `ACCOUNT_MERCHANT_INVALID` | 400 | 商户号无效或非天财机构 | 拒绝请求，返回详细错误信息。 |
+| `ACCOUNT_ROLE_TYPE_MISMATCH` | 400 | 账户角色与类型不匹配 | 拒绝请求，提示正确组合。 |
+| `ACCOUNT_ALREADY_EXISTS` | 409 | 天财账户已存在 | 返回已存在的账户信息，确保幂等。 |
+| `RELATIONSHIP_DUPLICATE` | 409 | 同类型关系已存在且有效 | 返回现有关系ID。 |
+| `RELATIONSHIP_NOT_FOUND` | 404 | 有效关系不存在 | 分账指令被拒绝。 |
+| `ACCOUNT_BALANCE_INSUFFICIENT` | 422 | 账户余额不足 | 拒绝出账请求。 |
+| `ACCOUNT_FROZEN` | 423 | 账户已冻结 | 拒绝所有资金变动请求。 |
+| `LEDGER_ENTRY_DUPLICATE` | 409 | 重复的记账请求(biz_trade_no) | 返回之前的记账结果，确保幂等。 |
+| `DATABASE_CONNECTION_FAILED` | 500 | 数据库连接失败 | 触发系统告警，请求入队列重试。 |
 
 **通用策略**：
--   **幂等性**：所有接口通过`taskId`或`signTaskId`保证幂等。
--   **异步与重试**：对于外部依赖调用（认证、回调）采用异步化处理，并配备可靠的重试机制。
--   **状态机**：签约任务有明确的状态机，防止状态混乱。任何失败都应有明确的状态和原因记录。
--   **监控与告警**：对错误率、延迟、任务积压进行监控，关键错误实时告警。
+- **客户端错误(4xx)**：记录日志，返回明确错误信息，不重试。
+- **服务端错误(5xx)**：记录错误日志并告警，对于账务类操作，利用`request_id`和`biz_trade_no`实现幂等，上游可安全重试。
+- **分布式锁争用**：采用指数退避策略重试，超过最大重试次数后返回“系统繁忙”。
 
 ## 7. 依赖说明
 
-### 7.1 上游模块交互
--   **行业钱包系统**是**主要上游调用方**。
-    -   **交互方式**：同步API调用 (`/initiate`) + 异步回调 (`callbackUrl`) + 事件监听（可选）。
-    -   **职责**：钱包系统负责业务逻辑判断（何时需要签约），并携带正确的业务参数发起调用。电子签约平台负责执行具体的签约与认证流程，并将最终结果返回。
+### 7.1 上游依赖
+1. **三代系统**
+   - **交互方式**：同步REST API调用。
+   - **职责**：提供商户信息校验、触发天财账户创建请求。
+   - **关键点**：账户系统依赖其提供准确的商户状态和机构归属信息。
 
-### 7.2 下游模块/服务交互
-1.  **账户系统**：
-    -   **用途**：打款验证时，需要验证`receiverAccountNo`的有效性，并触发小额打款。
-    -   **交互方式**：同步RPC调用。
-2.  **外部认证服务**：
-    -   **用途**：执行打款金额校验或人脸识别。
-    -   **交互方式**：HTTP API调用 + 异步回调（针对人脸验证）。
-3.  **短信服务平台**：
-    -   **用途**：发送签约链接和验证码短信。
-    -   **交互方式**：异步消息队列或HTTP API。
-4.  **文件存储服务 (如OSS)**：
-    -   **用途**：永久存储已签署的电子协议PDF文件。
-    -   **交互方式**：SDK上传。
+2. **行业钱包系统**
+   - **交互方式**：同步API调用（校验关系）、异步事件消费（`AccountRelationVerifiedEvent`）。
+   - **职责**：发起关系绑定状态同步、分账前的账户关系校验、触发账务操作。
+   - **关键点**：账户系统是其执行分账的资金底层，必须保持高可用和强一致性。
 
-### 7.3 关键依赖管理
--   **降级策略**：对于非核心依赖（如短信服务的非关键通知），可考虑降级（如记录日志后跳过）。但对于**认证服务**，无法降级，失败即导致整个签约流程失败。
--   **超时与熔断**：所有外部调用必须设置合理的超时时间，并配置熔断器（如Hystrix或Resilience4j），防止因下游故障导致系统资源耗尽。
--   **数据一致性**：采用“最终一致性”。签约任务状态为主，通过重试确保回调成功。证据链数据在平台内部确保强一致性。
+3. **清结算系统**
+   - **交互方式**：同步API调用（账务操作）。
+   - **职责**：在结算日，将待结算账户(01)资金划入天财收款账户；处理退货(04账户)资金调拨。
+   - **关键点**：账务接口需支持大并发批量处理，并保证事务性。
 
-## 3.3 认证系统
+### 7.2 下游依赖
+1. **数据库 (MySQL)**
+   - **用途**：持久化存储账户、关系、流水数据。
+   - **要求**：主从架构，读写分离。需要支持事务和行级锁。
+
+2. **消息中间件 (Kafka/RocketMQ)**
+   - **用途**：发布账户变更事件，实现系统间解耦。
+   - **要求**：保证至少一次投递，关键事件需有序。
+
+3. **分布式锁服务 (Redis)**
+   - **用途**：保证`biz_trade_no`级别账务操作的幂等性。
+   - **要求**：高可用，锁自动过期防止死锁。
+
+### 7.3 设计原则
+- **松耦合**：通过事件驱动与上游业务系统解耦，避免循环依赖。
+- **高内聚**：账户生命周期、账务核心逻辑封装在本模块内部。
+- **明确边界**：账户系统不处理业务规则（如分账比例、结算周期），只提供账户层面的能力和状态管理。业务规则由行业钱包系统负责。
+
+## 3.2 认证系统
 
 
 
@@ -1097,127 +694,139 @@ sequenceDiagram
 ## 1. 概述
 
 ### 1.1 目的
-本模块是“天财分账业务”的核心前置模块，负责为分账业务的资金付方与收方建立合法、可信的授权关系。其核心目的是通过电子协议签署与身份认证，确保分账指令的发起方（如总部）拥有对资金转出账户的合法支配权，并确认接收方（如门店、供应商）的身份真实有效，从而构建分账业务的法律与风控基础。
+认证系统作为支付平台的核心身份核验模块，旨在为“天财分账”及其他业务场景提供安全、合规、可靠的身份与账户所有权验证能力。其主要目的是确保资金流转方（如总部、门店、供应商、股东）的身份真实性和账户控制权，为后续的“关系绑定”和“分账”操作提供法律和风控基础。
 
 ### 1.2 范围
-本模块涵盖以下核心流程：
-1. **关系绑定**：引导付方与收方完成电子协议签署与身份认证，建立分账授权关系。
-2. **开通付款**：为总部（付方）开通批量付款与会员结算权限，需额外签署代付授权协议。
-3. **认证状态管理**：管理绑定关系的全生命周期状态（如待签约、待认证、已生效、已失效）。
-4. **证据链管理**：与电子签约平台集成，完整留存协议文件、认证过程记录等法律证据。
+本模块专注于提供标准化的认证能力，不处理具体的业务签约流程。其核心职责包括：
+- **打款验证**：通过对公或对私银行卡打入随机金额，验证账户的有效性和用户控制权。
+- **人脸验证**：通过比对姓名、身份证号与人脸生物特征，验证个人身份真实性。
+- **认证状态管理**：记录、查询和管理每一次认证尝试的结果与证据。
+- **与电子签约平台集成**：作为其底层认证能力提供方，完成关系绑定流程中的关键核验步骤。
 
-**边界说明**：
-- **负责**：认证流程的编排、状态管理、与电子签约平台的交互。
-- **不负责**：具体的账户开立（由行业钱包/账户系统负责）、分账交易执行（由行业钱包/清结算负责）、费率计算（由计费中台负责）。
+### 1.3 设计原则
+- **解耦与复用**：认证能力与具体业务逻辑解耦，通过标准API提供服务。
+- **安全与合规**：所有验证流程符合金融级安全标准与监管要求，证据链完整可追溯。
+- **高可用与性能**：作为关键路径组件，需保证高可用性，验证过程应高效。
 
 ## 2. 接口设计
 
-### 2.1 REST API 端点
+### 2.1 API端点 (RESTful)
 
-#### 2.1.1 发起关系绑定
-- **端点**: `POST /api/v1/auth/bindings`
-- **描述**: 为指定的付方与收方发起绑定流程。系统将创建绑定记录，并调用电子签约平台生成签约链接。
-- **请求头**: `Authorization: Bearer <token>`, `Content-Type: application/json`
+#### 2.1.1 发起打款验证
+- **端点**: `POST /api/v1/verification/transfer-payment`
+- **描述**: 请求系统向指定银行卡打入一笔随机金额的验证款。
+- **认证**: 需要调用方（如行业钱包系统）的API密钥认证。
+- **请求头**:
+    - `X-Client-Id`: 调用方标识
+    - `X-Signature`: 请求签名
 - **请求体**:
 ```json
 {
-  "requestId": "REQ202310250001", // 请求流水号，用于幂等
-  "payerMerchantNo": "PAYER88888888", // 付方商户号（总部）
-  "payerAccountNo": "WALLET_P001", // 付方天财收款账户号
-  "payeeMerchantNo": "PAYEE9999999", // 收方商户号（门店/供应商）
-  "payeeAccountNo": "WALLET_R001", // 收方天财接收方账户号
-  "bindType": "COLLECTION", // 绑定类型：COLLECTION-归集, BATCH_PAY-批量付款, MEMBER_SETTLE-会员结算
-  "authMethod": "TRANSFER_VERIFY", // 认证方式：TRANSFER_VERIFY-打款验证, FACE_VERIFY-人脸验证
-  "extraInfo": { // 扩展信息，根据bindType不同而不同
-    "collectionRule": { // 归集场景：归集规则
-      "ratio": 0.7,
-      "fixedAmount": null
-    },
-    "validityPeriod": { // 协议有效期（可选）
-      "startTime": "2024-01-01 00:00:00",
-      "endTime": "2024-12-31 23:59:59"
-    }
-  }
+  "requestId": "req_202310271200001", // 调用方唯一请求ID，用于幂等
+  "bizScene": "TIANCAI_BINDING", // 业务场景：TIANCAI_BINDING(天财关系绑定), WITHDRAW(提现)等
+  "bizReferenceNo": "bind_123456", // 关联的业务唯一号（如签约流水号）
+  "accountInfo": {
+    "accountType": "CORPORATE", // 账户类型：CORPORATE-对公，PERSONAL-对私
+    "accountName": "北京天财科技有限公司", // 账户名
+    "accountNo": "1101234567890123456", // 银行卡号
+    "bankCode": "ICBC", // 银行编码
+    "bankBranch": "北京分行海淀支行" // 开户支行（对公建议提供）
+  },
+  "callbackUrl": "https://wallet.example.com/callback/verification" // 异步结果回调地址（可选）
 }
 ```
-- **响应体** (成功 200):
+- **成功响应** (202 Accepted):
 ```json
 {
   "code": "SUCCESS",
-  "message": "绑定流程发起成功",
+  "message": "打款验证已发起",
   "data": {
-    "bindingId": "BIND202310250001", // 系统生成的绑定关系唯一ID
-    "status": "PENDING_SIGN", // 当前状态：待签约
-    "signUrl": "https://esign.lakala.com/h5/contract?token=xyz", // 电子签约H5页面URL（给收方）
-    "expireTime": "2024-01-02 12:00:00" // 签约链接过期时间
+    "verificationId": "ver_7x82hjs9a2k", // 本系统生成的唯一验证ID
+    "status": "PROCESSING",
+    "estimatedCompletionTime": "2023-10-27T12:05:00+08:00" // 预计打款完成时间
   }
 }
 ```
 
-#### 2.1.2 查询绑定状态
-- **端点**: `GET /api/v1/auth/bindings/{bindingId}`
-- **描述**: 根据绑定ID查询关系绑定的详细状态。
-- **响应体**:
-```json
-{
-  "code": "SUCCESS",
-  "data": {
-    "bindingId": "BIND202310250001",
-    "payerMerchantNo": "PAYER88888888",
-    "payeeMerchantNo": "PAYEE9999999",
-    "bindType": "COLLECTION",
-    "status": "PENDING_VERIFY", // 状态：PENDING_SIGN, PENDING_VERIFY, EFFECTIVE, INVALID, EXPIRED
-    "authMethod": "TRANSFER_VERIFY",
-    "signTime": "2024-01-01 10:30:00", // 签约完成时间
-    "verifyTime": null, // 认证完成时间
-    "contractId": "CONTRACT001", // 电子签约平台返回的协议ID
-    "invalidReason": null // 失效原因（如：MANUAL_CANCEL, VERIFY_FAILED）
-  }
-}
-```
-
-#### 2.1.3 处理电子签约回调
-- **端点**: `POST /api/v1/auth/callback/esign` （电子签约平台回调）
-- **描述**: 接收电子签约平台发送的签约结果回调，更新绑定状态。**此端点需进行签名验证**。
-- **请求体** (示例):
-```json
-{
-  "event": "SIGN_SUCCESS", // SIGN_SUCCESS, SIGN_FAILED
-  "contractId": "CONTRACT001",
-  "signerRole": "PAYEE", // 签署方角色：PAYER, PAYEE
-  "signTime": "2024-01-01 10:30:00",
-  "bindingId": "BIND202310250001", // 回传的业务ID
-  "timestamp": 1704078600000,
-  "signature": "xxxx" // 对以上内容的签名
-}
-```
-- **响应体**: 固定返回 `{"code": "SUCCESS"}`
-
-#### 2.1.4 发起开通付款
-- **端点**: `POST /api/v1/auth/payment-enable`
-- **描述**: 为总部商户开通批量付款与会员结算权限。此操作需总部签署额外的代付授权协议。
+#### 2.1.2 提交打款验证码
+- **端点**: `POST /api/v1/verification/transfer-payment/{verificationId}/confirm`
+- **描述**: 用户回填收到的打款金额，以完成验证。
 - **请求体**:
 ```json
 {
-  "requestId": "ENABLE_REQ001",
-  "payerMerchantNo": "PAYER88888888",
-  "payerAccountNo": "WALLET_P001",
-  "operator": { // 操作人信息（用于协议签署）
+  "amount": "0.23" // 用户回填的金额，单位元，保留两位小数
+}
+```
+- **成功响应**:
+```json
+{
+  "code": "SUCCESS",
+  "message": "验证成功",
+  "data": {
+    "verificationId": "ver_7x82hjs9a2k",
+    "status": "SUCCESS",
+    "verifiedAt": "2023-10-27T12:08:15+08:00"
+  }
+}
+```
+
+#### 2.1.3 发起人脸验证
+- **端点**: `POST /api/v1/verification/face`
+- **描述**: 发起一次人脸识别验证请求。
+- **请求体**:
+```json
+{
+  "requestId": "req_202310271200002",
+  "bizScene": "TIANCAI_BINDING",
+  "bizReferenceNo": "bind_123457",
+  "userInfo": {
     "name": "张三",
     "idCardNo": "110101199001011234",
-    "mobile": "13800138000"
+    "idCardType": "ID_CARD" // 证件类型：ID_CARD, PASSPORT等
+  },
+  "callbackUrl": "https://wallet.example.com/callback/verification",
+  "redirectUrl": "https://h5.e-sign.com/face?token={token}" // 引导用户完成人脸识别的H5页面，由电子签约平台提供
+}
+```
+- **成功响应**:
+```json
+{
+  "code": "SUCCESS",
+  "message": "人脸验证已发起",
+  "data": {
+    "verificationId": "ver_8k3jhs82na1",
+    "status": "WAITING_USER_ACTION",
+    "authToken": "eyJhbGciOi...", // 用于H5页面的临时令牌
+    "redirectUrl": "https://h5.e-sign.com/face?token=eyJhbGciOi..." // 完整的跳转URL
   }
 }
 ```
-- **响应体**:
+
+#### 2.1.4 查询验证结果
+- **端点**: `GET /api/v1/verification/{verificationId}`
+- **描述**: 同步查询某次验证的详细状态和结果。
+- **成功响应**:
 ```json
 {
   "code": "SUCCESS",
   "data": {
-    "enableId": "ENABLE001",
-    "status": "PENDING_SIGN",
-    "signUrl": "https://esign.lakala.com/h5/proxy-payment?token=abc", // 代付协议签署URL
-    "expireTime": "2024-01-02 12:00:00"
+    "verificationId": "ver_7x82hjs9a2k",
+    "requestId": "req_202310271200001",
+    "bizScene": "TIANCAI_BINDING",
+    "bizReferenceNo": "bind_123456",
+    "method": "TRANSFER_PAYMENT", // 验证方法：TRANSFER_PAYMENT, FACE
+    "status": "SUCCESS", // 状态：PROCESSING, WAITING_USER_ACTION, SUCCESS, FAILED, EXPIRED
+    "accountInfo": { ... }, // 发起时的账户信息（打款验证独有）
+    "userInfo": { ... }, // 发起时的用户信息（人脸验证独有）
+    "evidence": {
+      "transferAmount": "0.23", // 打款金额（打款验证成功后有值）
+      "transferTime": "2023-10-27T12:03:00+08:00", // 打款时间
+      "transactionNo": "txn_202310271203001" // 打款交易流水号
+    },
+    "failureReason": "AMOUNT_MISMATCH", // 失败原因码（如果失败）
+    "failureMessage": "回填金额与打款金额不符",
+    "createdAt": "2023-10-27T12:00:00+08:00",
+    "updatedAt": "2023-10-27T12:08:15+08:00"
   }
 }
 ```
@@ -1225,232 +834,571 @@ sequenceDiagram
 ### 2.2 发布/消费的事件
 
 #### 2.2.1 发布的事件
-1. **BindingStatusChangedEvent** (绑定状态变更)
-   - **Topic**: `auth.binding.status.changed`
-   - **触发时机**: 绑定关系状态发生变更时（如变为`EFFECTIVE`, `INVALID`）
-   - **Payload**:
-   ```json
-   {
-     "bindingId": "BIND202310250001",
-     "oldStatus": "PENDING_VERIFY",
-     "newStatus": "EFFECTIVE",
-     "changeTime": "2024-01-01 11:00:00",
-     "payerAccountNo": "WALLET_P001",
-     "payeeAccountNo": "WALLET_R001",
-     "bindType": "COLLECTION"
-   }
-   ```
-   - **消费者**: 行业钱包系统（用于更新其内部的关系映射，作为分账交易的前置校验依据）。
+认证系统在关键节点会向消息中间件（如Kafka）发布领域事件，供其他系统（如行业钱包系统、电子签约平台）订阅。
 
-2. **PaymentEnabledEvent** (付款权限开通)
-   - **Topic**: `auth.payment.enabled`
-   - **触发时机**: 总部成功开通批量付款/会员结算权限时。
-   - **Payload**:
-   ```json
-   {
-     "enableId": "ENABLE001",
-     "payerMerchantNo": "PAYER88888888",
-     "payerAccountNo": "WALLET_P001",
-     "effectiveTime": "2024-01-01 12:00:00"
-   }
-   ```
-   - **消费者**: 行业钱包系统（用于允许该账户发起批量付款和会员结算类分账）。
+1. **VerificationInitiatedEvent** (验证已发起)
+    - **Topic**: `verification.events.initiated`
+    - **触发时机**: 成功受理打款验证或人脸验证请求后。
+    - **Payload**:
+    ```json
+    {
+      "eventId": "evt_001",
+      "eventType": "VERIFICATION_INITIATED",
+      "timestamp": "2023-10-27T12:00:00+08:00",
+      "data": {
+        "verificationId": "ver_7x82hjs9a2k",
+        "bizScene": "TIANCAI_BINDING",
+        "bizReferenceNo": "bind_123456",
+        "method": "TRANSFER_PAYMENT",
+        "status": "PROCESSING"
+      }
+    }
+    ```
+
+2. **VerificationCompletedEvent** (验证已完成)
+    - **Topic**: `verification.events.completed`
+    - **触发时机**: 验证最终状态确定（成功或失败）。
+    - **Payload**:
+    ```json
+    {
+      "eventId": "evt_002",
+      "eventType": "VERIFICATION_COMPLETED",
+      "timestamp": "2023-10-27T12:08:15+08:00",
+      "data": {
+        "verificationId": "ver_7x82hjs9a2k",
+        "bizScene": "TIANCAI_BINDING",
+        "bizReferenceNo": "bind_123456",
+        "method": "TRANSFER_PAYMENT",
+        "status": "SUCCESS",
+        "failureReason": null,
+        "evidence": { ... }
+      }
+    }
+    ```
 
 #### 2.2.2 消费的事件
-1. **AccountCreatedEvent** (账户创建事件)
-   - **Topic**: `wallet.account.created`
-   - **来源**: 行业钱包系统
-   - **用途**: 当新的天财专用账户（收款账户或接收方账户）创建成功后，认证系统可监听此事件，用于关联或校验绑定请求中的账户信息是否有效。
+认证系统可能需要消费来自其他系统的事件以触发某些操作（本需求中暂不涉及主动消费，主要为被动API调用）。
 
 ## 3. 数据模型
 
-### 3.1 数据库表设计
+### 3.1 核心表设计
 
-#### 表：`auth_binding` (关系绑定主表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
+#### 表: `verification_record` (验证记录表)
+存储每一次验证请求的完整信息与状态。
+| 字段名 | 类型 | 必填 | 默认值 | 说明 |
 | :--- | :--- | :--- | :--- | :--- |
-| `binding_id` | varchar(32) | Y | 主键，绑定关系唯一ID | PK |
-| `request_id` | varchar(64) | Y | 请求流水号，用于幂等控制 | UK |
-| `payer_merchant_no` | varchar(32) | Y | 付方商户号 | IDX1 |
-| `payer_account_no` | varchar(64) | Y | 付方天财账户号 | IDX1 |
-| `payee_merchant_no` | varchar(32) | Y | 收方商户号 | IDX2 |
-| `payee_account_no` | varchar(64) | Y | 收方天财账户号 | IDX2 |
-| `bind_type` | varchar(32) | Y | 绑定类型：COLLECTION, BATCH_PAY, MEMBER_SETTLE | |
-| `auth_method` | varchar(32) | Y | 认证方式：TRANSFER_VERIFY, FACE_VERIFY | |
-| `status` | varchar(32) | Y | 状态：PENDING_SIGN, PENDING_VERIFY, EFFECTIVE, INVALID, EXPIRED | IDX3 |
-| `contract_id` | varchar(64) | N | 电子签约协议ID | UK |
-| `sign_time` | datetime | N | 签约完成时间 | |
-| `verify_time` | datetime | N | 认证完成时间 | |
-| `invalid_reason` | varchar(128) | N | 失效原因 | |
-| `extra_info` | json | N | 扩展信息（如归集规则、有效期） | |
-| `created_time` | datetime | Y | 创建时间 | |
-| `updated_time` | datetime | Y | 更新时间 | |
+| `id` | bigint(20) | 是 | AUTO_INCREMENT | 自增主键 |
+| `verification_id` | varchar(32) | 是 | | **业务唯一验证ID**，全局唯一索引 `uk_verification_id` |
+| `request_id` | varchar(64) | 是 | | **调用方请求ID**，与`client_id`组成联合唯一索引 `uk_request_client`，用于幂等 |
+| `client_id` | varchar(32) | 是 | | **调用方标识** (如 `wallet_system`) |
+| `biz_scene` | varchar(32) | 是 | | **业务场景**，如 `TIANCAI_BINDING` |
+| `biz_reference_no` | varchar(64) | 是 | | **关联业务流水号** |
+| `method` | varchar(20) | 是 | | **验证方法**：`TRANSFER_PAYMENT`, `FACE` |
+| `status` | varchar(30) | 是 | `INIT` | **状态**: `INIT`, `PROCESSING`, `WAITING_USER_ACTION`, `SUCCESS`, `FAILED`, `EXPIRED` |
+| `account_info_json` | json | 否 | NULL | **账户信息** (打款验证用)，JSON格式存储 `accountInfo` |
+| `user_info_json` | json | 否 | NULL | **用户信息** (人脸验证用)，JSON格式存储 `userInfo` |
+| `evidence_json` | json | 否 | NULL | **验证证据**，成功后的打款金额、流水号等 |
+| `failure_reason` | varchar(50) | 否 | NULL | **失败原因码** |
+| `failure_message` | varchar(255) | 否 | NULL | **失败详情** |
+| `callback_url` | varchar(512) | 否 | NULL | 异步回调地址 |
+| `expires_at` | datetime | 是 | | **验证过期时间**，创建后一定时间（如30分钟）未完成则状态置为`EXPIRED` |
+| `created_at` | datetime | 是 | CURRENT_TIMESTAMP | 创建时间 |
+| `updated_at` | datetime | 是 | CURRENT_TIMESTAMP ON UPDATE | 更新时间 |
 
-#### 表：`payment_enable` (付款开通表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-| :--- | :--- | :--- | :--- | :--- |
-| `enable_id` | varchar(32) | Y | 主键 | PK |
-| `request_id` | varchar(64) | Y | 请求流水号 | UK |
-| `payer_merchant_no` | varchar(32) | Y | 付方商户号 | UK |
-| `payer_account_no` | varchar(64) | Y | 付方天财账户号 | |
-| `operator_name` | varchar(64) | Y | 操作人姓名 | |
-| `operator_id_card` | varchar(32) | Y | 操作人身份证号 | |
-| `operator_mobile` | varchar(16) | Y | 操作人手机号 | |
-| `status` | varchar(32) | Y | 状态：PENDING_SIGN, EFFECTIVE, INVALID | |
-| `contract_id` | varchar(64) | N | 代付协议ID | |
-| `effective_time` | datetime | N | 生效时间 | |
-| `created_time` | datetime | Y | 创建时间 | |
-| `updated_time` | datetime | Y | 更新时间 | |
+**索引**:
+- PRIMARY KEY (`id`)
+- UNIQUE KEY `uk_verification_id` (`verification_id`)
+- UNIQUE KEY `uk_request_client` (`request_id`, `client_id`)
+- KEY `idx_biz_ref` (`biz_scene`, `biz_reference_no`)
+- KEY `idx_status_expires` (`status`, `expires_at`) (用于过期扫描任务)
 
-#### 表：`auth_evidence` (认证证据链表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
+#### 表: `transfer_payment_detail` (打款验证明细表)
+为打款验证场景扩展存储打款执行细节，与`verification_record`为一对一关系。
+| 字段名 | 类型 | 必填 | 默认值 | 说明 |
 | :--- | :--- | :--- | :--- | :--- |
-| `id` | bigint | Y | 自增主键 | PK |
-| `binding_id` | varchar(32) | Y | 关联的绑定ID | IDX |
-| `evidence_type` | varchar(32) | Y | 证据类型：CONTRACT(协议), VERIFY_RECORD(认证记录), CALLBACK_LOG(回调日志) | |
-| `external_id` | varchar(64) | Y | 外部系统ID（如合同ID、认证流水号） | |
-| `content` | json | Y | 证据内容或快照 | |
-| `storage_path` | varchar(512) | N | 文件存储路径（如PDF协议） | |
-| `created_time` | datetime | Y | 创建时间 | |
+| `id` | bigint(20) | 是 | AUTO_INCREMENT | 主键 |
+| `verification_id` | varchar(32) | 是 | | 关联验证ID，外键 `fk_verification_id` |
+| `transfer_amount` | decimal(10,2) | 是 | | **打款金额** (随机生成，如0.23) |
+| `transfer_status` | varchar(20) | 是 | `PENDING` | **打款执行状态**: `PENDING`, `SUCCESS`, `FAILED` |
+| `transaction_no` | varchar(64) | 否 | NULL | **打款交易流水号**，关联支付/清结算系统 |
+| `attempt_count` | tinyint | 是 | 0 | **打款尝试次数** |
+| `last_attempt_at` | datetime | 否 | NULL | 最后一次尝试打款时间 |
+| `confirmed_amount` | decimal(10,2) | 否 | NULL | **用户回填的金额** |
+| `created_at` | datetime | 是 | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | 是 | CURRENT_TIMESTAMP ON UPDATE | |
+
+**索引**:
+- PRIMARY KEY (`id`)
+- UNIQUE KEY `uk_verification_id` (`verification_id`)
+- KEY `idx_transfer_status` (`transfer_status`, `last_attempt_at`) (用于重试任务)
 
 ### 3.2 与其他模块的关系
-- **行业钱包系统**: 核心下游。认证系统将生效的绑定关系与付款权限通过事件同步给钱包系统，钱包系统在执行分账交易前必须校验对应关系是否存在且有效。
-- **电子签约平台**: 核心依赖。认证系统通过API调用其生成签约链接、获取协议文件，并接收其回调通知。
-- **三代系统**: 上游入口。三代系统作为商户进件和业务发起方，会调用本模块的API发起绑定和开通付款流程。
-- **账户系统**: 弱依赖。通过消费`AccountCreatedEvent`来校验账户有效性，但主要依赖行业钱包系统保证账户状态。
+- **行业钱包系统**: 是认证系统的主要调用方，在“关系绑定”流程中发起认证请求。
+- **电子签约平台**: 在人脸验证场景中，认证系统通过重定向将用户引导至电子签约平台提供的H5页面进行人脸采集与比对。电子签约平台在比对完成后，通过回调通知认证系统结果。
+- **支付/清结算系统**: 在执行打款验证时，认证系统需调用支付或清结算系统的付款接口，完成小额打款。
+- **账户系统**: 在部分风控场景下，可能需要查询账户状态（非本需求核心）。
 
 ## 4. 业务逻辑
 
-### 4.1 核心算法与流程
+### 4.1 核心算法
 
-#### 4.1.1 关系绑定状态机
-```mermaid
-stateDiagram-v2
-    [*] --> PENDING_SIGN : 发起绑定
-    PENDING_SIGN --> PENDING_VERIFY : 收方签约成功
-    PENDING_SIGN --> INVALID : 签约失败/超时
-    PENDING_VERIFY --> EFFECTIVE : 认证成功
-    PENDING_VERIFY --> INVALID : 认证失败/超时
-    EFFECTIVE --> INVALID : 手动解绑/协议过期
-    INVALID --> [*]
-```
-- **PENDING_SIGN**: 初始状态。调用电子签约平台生成H5签约链接，链接有效期24小时。
-- **PENDING_VERIFY**: 收方签约完成后，根据`authMethod`调用相应认证服务。
-  - `TRANSFER_VERIFY`: 通知电子签约平台发起打款验证（向收方绑卡打款）。
-  - `FACE_VERIFY`: 引导收方进入人脸识别H5页面。
-- **EFFECTIVE**: 认证成功。发布`BindingStatusChangedEvent`，关系生效。
-- **INVALID**: 终止状态。签约/认证失败、超时、手动解绑或协议到期。
+#### 4.1.1 随机打款金额生成
+- **规则**: 生成一个介于 `0.01` 元到 `1.00` 元之间的随机金额。
+- **精度**: 人民币分（0.01元）。
+- **算法**: `amount = (random.nextInt(100) + 1) / 100.0`。
+- **唯一性**: 对于同一`verification_id`，金额生成后固定不变。在极低概率冲突下可重试生成。
 
-#### 4.1.2 开通付款流程
-1. 校验该商户是否已存在有效的开通记录，避免重复开通。
-2. 调用电子签约平台，生成**代付授权协议**签署链接（签署方为付方/总部）。
-3. 总部操作人完成签署后，电子签约平台回调本系统。
-4. 更新开通状态为`EFFECTIVE`，记录生效时间，并发布`PaymentEnabledEvent`。
+#### 4.1.2 验证结果判定
+- **打款验证成功**: `abs(confirmed_amount - transfer_amount) < 0.005` (即误差小于半分钱)。
+- **人脸验证成功**: 接收电子签约平台回调，比对分数高于预设阈值（如0.8），且姓名、身份证号一致。
+- **失败**: 金额不符、超时、人脸比对失败或用户主动取消。
 
 ### 4.2 业务规则
-1. **唯一性规则**：
-   - 同一对`payer_account_no`和`payee_account_no`，在相同的`bind_type`下，只能存在一条`EFFECTIVE`状态的绑定关系。
-   - 同一`payer_merchant_no`只能有一条`EFFECTIVE`状态的开通付款记录。
 
-2. **依赖规则**：
-   - 发起`BATCH_PAY`或`MEMBER_SETTLE`类型的绑定前，付方必须已完成**开通付款**流程。
-   - `COLLECTION`（归集）类型的绑定无需开通付款。
-
-3. **认证方式规则**：
-   - 若收方为企业，强制使用**打款验证**。
-   - 若收方为个体工商户或个人，可使用**人脸验证**。
-
-4. **生效规则**：
-   - 绑定关系生效后，才允许行业钱包系统处理对应的分账指令。
-   - 开通付款生效后，才允许行业钱包系统处理批量付款和会员结算类分账。
+1. **幂等性**: 使用 `request_id` + `client_id` 保证同一业务请求不会重复创建验证记录。
+2. **有效期**: 每笔验证创建后有效期为 **30分钟**。超时后状态自动更新为 `EXPIRED`，不可再提交验证码。
+3. **打款重试**: 打款操作若首次失败（如银行通道问题），系统自动重试，最多 **3次**，间隔指数退避。
+4. **验证次数限制**: 同一`biz_reference_no`在24小时内，同一验证方法失败次数不得超过 **5次**，防止暴力破解。
+5. **金额保密**: 打款金额在验证成功前，不得在任何日志或接口中明文泄露。
+6. **场景适配**:
+    - **对公账户绑定**：强制使用 **打款验证**。
+    - **对私账户绑定**：优先使用 **人脸验证**；若人脸验证不可用（如用户拒绝），可降级为 **打款验证**。
 
 ### 4.3 验证逻辑
-1. **请求幂等性**：所有创建类接口（如发起绑定、开通付款）必须携带`request_id`，系统会校验`request_id`是否已处理过，防止重复创建。
-2. **账户状态校验**：在发起绑定时，需通过查询行业钱包系统或消费账户事件，确认`payer_account_no`和`payee_account_no`存在且状态正常（非冻结、注销）。
-3. **商户关系校验**：对于归集场景，需通过三代系统提供的接口，校验门店是否确实归属于该总部旗下。
-4. **回调签名验证**：所有来自电子签约平台的回调请求，必须使用预共享密钥进行签名验证，防止伪造请求。
+
+#### 4.3.1 发起请求校验
+```python
+def validate_init_request(request):
+    # 1. 基本校验
+    if not request.request_id or not request.biz_scene or not request.biz_reference_no:
+        raise ValidationError("必要参数缺失")
+    
+    # 2. 根据method校验特定字段
+    if request.method == "TRANSFER_PAYMENT":
+        if not request.account_info or not request.account_info.account_no:
+            raise ValidationError("打款验证必须提供账户信息")
+        # 对公账户名校验规则更严格
+        if request.account_info.account_type == "CORPORATE" and not request.account_info.account_name:
+            raise ValidationError("对公账户必须提供户名")
+    
+    elif request.method == "FACE":
+        if not request.user_info or not request.user_info.name or not request.user_info.id_card_no:
+            raise ValidationError("人脸验证必须提供用户姓名和身份证号")
+    
+    # 3. 幂等校验：查询是否已有相同的 request_id + client_id 记录
+    existing_record = VerificationRecord.find_by_request(request.request_id, request.client_id)
+    if existing_record:
+        return existing_record # 直接返回已存在的记录
+    
+    # 4. 风控校验：检查同一业务号是否超过失败次数限制
+    if is_failure_limit_exceeded(request.biz_reference_no, request.method):
+        raise BusinessError("验证失败次数过多，请稍后再试")
+```
+
+#### 4.3.2 确认打款金额校验
+```python
+def confirm_transfer_payment(verification_id, confirmed_amount):
+    record = VerificationRecord.find_by_id(verification_id)
+    
+    # 1. 状态校验
+    if record.status not in ["PROCESSING", "WAITING_USER_ACTION"]:
+        raise BusinessError("当前验证状态不允许确认")
+    
+    # 2. 过期校验
+    if record.expires_at < current_time():
+        record.update_status("EXPIRED")
+        raise BusinessError("验证已过期")
+    
+    # 3. 金额比对
+    detail = TransferPaymentDetail.find_by_verification_id(verification_id)
+    if abs(float(confirmed_amount) - float(detail.transfer_amount)) < 0.005:
+        record.update_status("SUCCESS", evidence={"transferAmount": detail.transfer_amount, ...})
+        publish_verification_completed_event(record)
+    else:
+        record.update_status("FAILED", failure_reason="AMOUNT_MISMATCH")
+        publish_verification_completed_event(record)
+        raise BusinessError("验证失败，金额不符")
+```
 
 ## 5. 时序图
 
-### 5.1 关系绑定与认证流程（以打款验证为例）
-
+### 5.1 打款验证流程（门店绑定天财收款账户 - 对公场景）
 ```mermaid
 sequenceDiagram
-    participant C as 三代系统
-    participant A as 认证系统
-    participant E as 电子签约平台
-    participant W as 行业钱包系统
-    participant B as 银行/支付通道
+    participant 门店/总部 as 用户
+    participant 行业钱包系统 as 钱包系统
+    participant 认证系统
+    participant 清结算系统
+    participant 消息队列 as MQ
 
-    C->>A: 1. POST /bindings (发起绑定)
-    A->>A: 2. 幂等校验，创建binding记录(PENDING_SIGN)
-    A->>E: 3. 调用生成签约链接API
-    E-->>A: 4. 返回签约H5 URL
-    A-->>C: 5. 返回bindingId和signUrl
-    C->>E: 6. 引导收方访问signUrl完成签约(H5)
-    E->>A: 7. POST /callback/esign (SIGN_SUCCESS回调)
-    A->>A: 8. 更新状态为PENDING_VERIFY
-    A->>E: 9. 请求发起打款验证
-    E->>B: 10. 发起打款(小额随机)
-    B-->>E: 11. 打款成功
-    E->>收方: 12. 通知收方回填金额(H5页面)
-    收方->>E: 13. 提交回填金额
-    E->>A: 14. POST /callback/esign (VERIFY_SUCCESS回调)
-    A->>A: 15. 更新状态为EFFECTIVE，存证
-    A->>W: 16. 发布BindingStatusChangedEvent
-    W-->>A: 17. 确认接收
+    用户->>钱包系统: 1. 提交对公账户信息，申请绑定
+    钱包系统->>认证系统: 2. POST /verification/transfer-payment (请求打款验证)
+    认证系统->>认证系统: 3. 生成验证记录，随机打款金额
+    认证系统->>清结算系统: 4. 调用付款接口，执行小额打款
+    清结算系统-->>认证系统: 5. 返回打款结果
+    认证系统-->>钱包系统: 6. 202 Accepted (验证已受理)
+    认证系统->>MQ: 7. 发布 VerificationInitiatedEvent
+    
+    清结算系统->>用户银行账户: 8. 异步打款入账 (金额0.23元)
+    
+    用户->>钱包系统: 9. 查询银行卡，回填打款金额
+    钱包系统->>认证系统: 10. POST /verification/{id}/confirm (提交验证码)
+    认证系统->>认证系统: 11. 校验金额，更新状态
+    认证系统->>MQ: 12. 发布 VerificationCompletedEvent (SUCCESS)
+    认证系统-->>钱包系统: 13. 返回验证成功
+    钱包系统->>钱包系统: 14. 更新绑定关系状态为“已认证”
+    钱包系统-->>用户: 15. 通知绑定成功
+```
+
+### 5.2 人脸验证流程（供应商绑定天财接收方账户 - 对私场景）
+```mermaid
+sequenceDiagram
+    participant 供应商 as 用户
+    participant 行业钱包系统 as 钱包系统
+    participant 认证系统
+    participant 电子签约平台
+    participant 消息队列 as MQ
+
+    用户->>钱包系统: 1. 提交个人信息，申请绑定
+    钱包系统->>认证系统: 2. POST /verification/face (请求人脸验证)
+    认证系统->>认证系统: 3. 生成验证记录和临时token
+    认证系统-->>钱包系统: 4. 返回redirectUrl
+    钱包系统-->>用户: 5. 重定向到电子签约平台H5页
+    
+    用户->>电子签约平台H5: 6. 进行人脸采集与比对
+    电子签约平台H5->>电子签约平台: 7. 提交人脸数据
+    电子签约平台->>电子签约平台: 8. 执行实名认证与人脸比对
+    电子签约平台->>认证系统: 9. 回调通知结果 (Webhook)
+    
+    认证系统->>认证系统: 10. 验证回调签名，更新记录状态
+    认证系统->>MQ: 11. 发布 VerificationCompletedEvent
+    认证系统-->>电子签约平台: 12. 回调响应ACK
+    
+    Note over 认证系统,钱包系统: 异步通知路径
+    认证系统->>钱包系统: 13. 可选：通过callbackUrl异步通知
+    钱包系统->>钱包系统: 14. 更新绑定关系状态
+    钱包系统-->>用户: 15. 通知绑定结果
 ```
 
 ## 6. 错误处理
 
-| 错误场景 | 错误码 | 处理策略 | 是否重试 |
+### 6.1 预期错误码列表
+| HTTP状态码 | 错误码 | 描述 | 处理建议 |
 | :--- | :--- | :--- | :--- |
-| 请求幂等冲突 (`request_id`重复) | `DUPLICATE_REQUEST` | 返回已存在的业务结果（如bindingId） | 否 |
-| 账户不存在或状态异常 | `ACCOUNT_INVALID` | 拒绝请求，返回具体原因 | 否（需用户修正） |
-| 电子签约平台调用超时/失败 | `ESIGN_SERVICE_UNAVAILABLE` | 异步重试3次，记录告警 | 是 |
-| 电子签约回调签名验证失败 | `INVALID_SIGNATURE` | 记录安全日志，直接拒绝 | 否 |
-| 认证失败（打款金额错误） | `VERIFICATION_FAILED` | 更新绑定状态为`INVALID`，通知业务方 | 否 |
-| 数据库异常 | `DATABASE_ERROR` | 依赖框架重试机制，记录告警 | 是（事务性操作） |
-| 消息发布失败 | `EVENT_PUBLISH_FAILED` | 本地建表存储失败事件，定时任务补偿推送 | 是 |
+| 400 | `INVALID_PARAMETER` | 请求参数缺失或格式错误 | 检查请求体，确保必填字段符合规范 |
+| 400 | `UNSUPPORTED_VERIFICATION_METHOD` | 不支持的验证方法 | 检查`method`字段是否为`TRANSFER_PAYMENT`或`FACE` |
+| 409 | `DUPLICATE_REQUEST` | 重复的请求ID | 使用原`verificationId`进行后续操作，或更换`requestId` |
+| 429 | `RATE_LIMIT_EXCEEDED` | 调用频率超限 | 降低调用频率，遵循限流策略 |
+| 429 | `FAILURE_LIMIT_EXCEEDED` | 同一业务验证失败次数超限 | 引导用户24小时后再试 |
+| 404 | `VERIFICATION_NOT_FOUND` | 验证记录不存在 | 检查`verificationId`是否正确 |
+| 403 | `VERIFICATION_EXPIRED` | 验证已过期 | 重新发起验证请求 |
+| 403 | `VERIFICATION_COMPLETED` | 验证已完成（成功/失败） | 根据当前状态决定后续操作，无需重复提交 |
+| 500 | `THIRD_PARTY_SERVICE_ERROR` | 下游服务（清结算、电子签）异常 | 系统自动重试，告警通知运维 |
+| 503 | `BANK_CHANNEL_UNAVAILABLE` | 打款通道暂时不可用 | 系统自动重试，告警通知运维 |
+
+### 6.2 处理策略
+1. **客户端错误 (4xx)**: 调用方需修正请求后重试。系统提供清晰的错误信息。
+2. **服务端错误 (5xx)**:
+    - **打款失败**: 系统内置重试机制（最多3次），并记录失败原因。最终仍失败则更新验证状态为`FAILED`，原因`TRANSFER_FAILED`。
+    - **依赖服务超时/不可用**: 快速失败，返回503，并触发降级策略（如人脸验证不可用时，业务方可选择降级为打款验证）。
+3. **异步回调保证**: 向`callbackUrl`发送回调时，实施重试机制（如1, 3, 5分钟间隔，最多5次），确保业务方最终能收到结果。
+4. **监控与告警**: 对失败率、延迟、下游服务状态设置监控看板与告警阈值。
+
+## 7. 依赖说明
+
+### 7.1 上游依赖（认证系统调用）
+
+| 依赖系统 | 交互目的 | 接口方式 | 关键要求 |
+| :--- | :--- | :--- | :--- |
+| **清结算系统** | 执行小额打款 | 同步/异步API | 高可用、支持小额付款（最低0.01元）、返回明确交易流水号 |
+| **电子签约平台** | 人脸比对与实名认证 | 异步回调(Webhook) | 提供标准的H5页面集成方式、回调需带签名防篡改 |
+| **消息队列 (Kafka)** | 发布领域事件 | 消息发布 | 高吞吐、高可用 |
+
+### 7.2 下游依赖（调用认证系统）
+
+| 调用方 | 交互场景 | 集成方式 | 注意事项 |
+| :--- | :--- | :--- | :--- |
+| **行业钱包系统** | 关系绑定流程中的身份核验 | 同步REST API + 事件订阅 | 需处理异步回调，实现幂等，关注验证有效期 |
+| **（未来）其他业务系统** | 提现验证、敏感操作确认等 | 同步REST API | 遵循统一的API规范与认证方式 |
+
+### 7.3 集成要点
+1. **API认证**: 所有调用需通过API Gateway，使用 `X-Client-Id` 和签名 (`X-Signature`) 进行身份验证与防重放。
+2. **超时设置**: 调用清结算系统打款接口时，设置合理超时（如5秒），并配置快速失败与重试策略。
+3. **回调安全**: 电子签约平台回调需验证签名，确保请求来源可信。
+4. **数据一致性**: 依赖分布式事务或最终一致性方案。例如，更新验证状态与发布事件应在一个本地事务中；若回调通知失败，通过定期扫描`PROCESSING`状态超时记录进行补偿。
+
+## 3.3 计费中台
+
+
+
+# 计费中台模块设计文档
+
+## 1. 概述
+
+### 1.1 目的
+计费中台模块是天财分账系统的核心计费引擎，负责对各类分账交易、账户管理、资金操作进行精确的费用计算和结算处理。它作为清结算系统的一部分，向上游（行业钱包系统、三代系统）提供标准化的计费服务，向下游（账户系统、对账单系统）输出计费结果和结算指令，确保天财业务的资金流转符合计费规则，并生成准确的计费凭证。
+
+### 1.2 范围
+- **计费对象**：天财分账交易（归集、批量付款、会员结算）、天财专用账户的开户/维护、提现/充值操作。
+- **核心功能**：
+    1. **费率规则管理**：支持为不同业务场景、不同角色（总部/门店）、不同账户类型配置差异化的计费规则（如固定费用、百分比费率、阶梯费率、封顶/保底）。
+    2. **实时计费**：在分账指令处理、账户操作等关键节点，实时计算并冻结/扣除相关费用。
+    3. **批量结算**：按结算周期（如T+1）对已发生的费用进行汇总、核对，并生成结算指令，驱动资金从待结算账户或指定账户划转至收费方账户。
+    4. **费用对账**：生成详细的计费明细和汇总账单，供内部对账和天财机构查询。
+    5. **计费豁免与优惠**：支持基于特定条件（如活动期、大客户）的费用减免。
+- **非范围**：支付交易本身的清算（由清结算主流程负责）、底层账户的账务记账（由账户系统负责）、电子签约流程。
+
+## 2. 接口设计
+
+### 2.1 API端点 (RESTful)
+
+#### 2.1.1 计费试算接口
+- **端点**: `POST /v1/billing/calculate`
+- **描述**: 在业务发起前（如分账），预先计算并返回费用明细，用于前端展示或风控校验。
+- **请求头**: `X-Biz-Scenario: {场景码}`, `X-Request-ID: {请求ID}`
+- **请求体**:
+```json
+{
+  "biz_order_no": "TC202403210001", // 业务订单号
+  "scene_code": "TC_COLLECT", // 业务场景码，如 TC_COLLECT(归集), TC_BATCH_PAY(批量付款)
+  "payer_info": {
+    "account_no": "TC_RCV_1001", // 付方账户号
+    "account_role": "HEADQUARTERS" // 付方角色
+  },
+  "payee_info": {
+    "account_no": "TC_RCV_1002", // 收方账户号（批量付款时为数组）
+    "account_role": "STORE"
+  },
+  "amount": 100000, // 分账金额（单位：分）
+  "currency": "CNY",
+  "extend_info": { // 扩展信息，用于匹配复杂规则
+    "industry_type": "catering",
+    "merchant_tier": "VIP1"
+  }
+}
+```
+- **响应体** (成功):
+```json
+{
+  "code": "SUCCESS",
+  "data": {
+    "biz_order_no": "TC202403210001",
+    "total_fee": 50, // 总费用（分）
+    "currency": "CNY",
+    "fee_details": [
+      {
+        "fee_type": "PLATFORM_SERVICE_FEE", // 费用类型
+        "fee_name": "平台服务费",
+        "calculation_base": 100000, // 计费基数
+        "rate": "0.0005", // 费率
+        "fee_amount": 50,
+        "payer_account_no": "TC_RCV_1001", // 承担方账户
+        "payee_account_no": "FEE_ACCOUNT_PLATFORM" // 收费方账户
+      }
+    ]
+  }
+}
+```
+
+#### 2.1.2 费用确认与冻结接口
+- **端点**: `POST /v1/billing/confirm`
+- **描述**: 业务正式执行前（如分账指令通过风控后），确认并冻结费用，确保资金可用。
+- **请求体**: 包含 `biz_order_no` 和 `calculate_id` (试算返回的标识)。
+- **响应体**: 返回 `billing_order_no` (计费订单号) 和费用冻结结果。
+
+#### 2.1.3 费用结算指令生成接口（内部）
+- **端点**: `POST /internal/v1/billing/settle`
+- **描述**: 由调度任务触发，对已冻结且业务已完成的费用，生成结算指令。
+- **请求体**: `{ "settle_date": "2024-03-21", "biz_scenario": "TC_COLLECT" }`
+- **响应体**: 返回生成的结算批次号及指令数量。
+
+### 2.2 发布/消费的事件
+
+#### 2.2.1 消费的事件
+- **`Tiancai.Split.Order.Completed`** (来自行业钱包系统): 分账订单完成。触发计费模块进行费用确认和结算准备。
+- **`Account.Created`** (来自账户系统): 天财专用账户创建成功。可能触发开户手续费计费。
+- **`Settlement.Cycle.Closed`** (来自清结算系统): 结算周期关闭。触发批量费用结算作业。
+
+#### 2.2.2 发布的事件
+- **`Billing.Fee.Frozen`**: 费用冻结成功。通知相关系统费用已预留。
+- **`Billing.Settlement.Instruction.Created`**: 结算指令已生成。清结算系统将消费此事件执行资金划转。
+- **`Billing.Detail.Generated`**: 计费明细已生成。对账单系统消费以生成天财机构账单。
+
+## 3. 数据模型
+
+### 3.1 核心表设计
+
+#### 3.1.1 计费规则表 (`billing_rule`)
+| 字段名 | 类型 | 必填 | 描述 |
+| :--- | :--- | :--- | :--- |
+| `rule_id` | bigint | Y | 主键 |
+| `rule_code` | varchar(64) | Y | 规则唯一编码 |
+| `rule_name` | varchar(128) | Y | 规则名称 |
+| `biz_scenario` | varchar(32) | Y | 业务场景码 |
+| `payer_role` | varchar(32) | N | 付费方角色 (如 HEADQUARTERS)，NULL表示通用 |
+| `payee_role` | varchar(32) | N | 收款方角色 |
+| `account_type` | varchar(32) | N | 账户类型 (TC_RCV, TC_RECIPIENT) |
+| `fee_type` | varchar(32) | Y | 费用类型 (PLATFORM_SERVICE_FEE, WITHDRAW_FEE) |
+| `calculation_mode` | varchar(32) | Y | 计费模式 (PERCENTAGE, FIXED, TIERED) |
+| `rate` | decimal(10,6) | N | 费率 (百分比模式) |
+| `fixed_amount` | bigint | N | 固定费用 (分) |
+| `tier_config` | json | N | 阶梯费率配置 |
+| `min_fee` | bigint | N | 最低费用 |
+| `max_fee` | bigint | N | 最高费用 |
+| `fee_payer` | varchar(32) | Y | 费用承担方 (PAYER, PAYEE, BOTH) |
+| `effective_date` | date | Y | 生效日期 |
+| `expiry_date` | date | N | 失效日期 |
+| `status` | tinyint | Y | 状态 (1生效，0失效) |
+
+#### 3.1.2 计费订单表 (`billing_order`)
+| 字段名 | 类型 | 必填 | 描述 |
+| :--- | :--- | :--- | :--- |
+| `billing_order_no` | varchar(64) | Y | 主键，计费订单号 |
+| `biz_order_no` | varchar(64) | Y | 关联的业务订单号 |
+| `biz_scenario` | varchar(32) | Y | 业务场景 |
+| `total_fee` | bigint | Y | 总费用 (分) |
+| `currency` | char(3) | Y | 币种 |
+| `fee_status` | varchar(32) | Y | 状态 (CALCULATED, FROZEN, SETTLED, CANCELLED) |
+| `payer_account_no` | varchar(64) | Y | 业务付方账户 |
+| `settle_date` | date | N | 结算日期 |
+| `created_at` | datetime | Y | 创建时间 |
+
+#### 3.1.3 计费明细表 (`billing_detail`)
+| 字段名 | 类型 | 必填 | 描述 |
+| :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | 主键 |
+| `billing_order_no` | varchar(64) | Y | 关联计费订单 |
+| `fee_type` | varchar(32) | Y | 费用类型 |
+| `calculation_base` | bigint | Y | 计费基数 (分) |
+| `rate` | decimal(10,6) | N | 适用费率 |
+| `fee_amount` | bigint | Y | 费用金额 (分) |
+| `payer_account_no` | varchar(64) | Y | 费用承担方账户 |
+| `payee_account_no` | varchar(64) | Y | 费用收取方账户 (如平台收入户) |
+| `rule_id` | bigint | Y | 关联的计费规则 |
+
+#### 3.1.4 结算指令表 (`settlement_instruction`)
+| 字段名 | 类型 | 必填 | 描述 |
+| :--- | :--- | :--- | :--- |
+| `instruction_id` | varchar(64) | Y | 指令ID |
+| `batch_no` | varchar(64) | Y | 结算批次号 |
+| `billing_order_no` | varchar(64) | Y | 关联计费订单 |
+| `payer_account_no` | varchar(64) | Y | 出款账户 (如待结算账户01) |
+| `payee_account_no` | varchar(64) | Y | 入款账户 (平台账户) |
+| `amount` | bigint | Y | 金额 |
+| `currency` | char(3) | Y | 币种 |
+| `status` | varchar(32) | Y | 状态 (PENDING, PROCESSING, SUCCESS, FAILED) |
+| `settle_date` | date | Y | 结算日期 |
+
+### 3.2 与其他模块的关系
+- **行业钱包系统**: 通过事件和API交互，是计费触发的主要上游。
+- **账户系统**: 依赖其查询账户信息、角色、类型，并驱动费用账户的扣款。
+- **清结算系统**: 隶属其下，消费结算周期事件，并输出结算指令给清结算执行。
+- **对账单系统**: 提供计费明细数据，用于生成天财机构账单。
+- **三代系统**: 可能透传商户层级、行业等扩展信息，用于匹配计费规则。
+
+## 4. 业务逻辑
+
+### 4.1 核心计费算法
+1. **规则匹配引擎**：根据 `biz_scenario`, `payer_role`, `payee_role`, `account_type` 以及扩展信息（如 `industry_type`），从 `billing_rule` 表中匹配出优先级最高（规则最具体）且处于生效期的计费规则。
+2. **费用计算**：
+    - **百分比模式**: `fee = calculation_base * rate`。应用 `min_fee` 和 `max_fee` 限制。
+    - **固定费用模式**: `fee = fixed_amount`。
+    - **阶梯模式**: 根据 `tier_config` (如 `[{“min”:0, “max”:10000, “rate”:0.001}, ...]`) 计算。
+3. **费用承担方拆分**：若 `fee_payer` 为 `BOTH`，则按预设比例在付方和收方之间拆分费用，生成两条计费明细。
+
+### 4.2 业务规则
+- **归集场景**：通常由门店（付方）承担平台服务费。费用从门店的 **天财收款账户** 中扣除。
+- **批量付款/会员结算场景**：通常由总部（付方）承担手续费。费用从总部的 **天财收款账户** 中扣除。
+- **账户开户**：可能收取一次性开户费，从对应的 **天财收款账户** 或 **天财接收方账户** 中扣除。
+- **提现**：从天财接收方账户提现到银行卡，可能按笔收取固定提现费。
+- **退货场景**：关联原交易，计费可能冲正（reverse）或免除。
+
+### 4.3 验证逻辑
+- **费用试算验证**：匹配不到有效规则时，返回错误码 `NO_VALID_BILLING_RULE`。
+- **费用冻结验证**：检查付方账户状态是否正常、可用余额是否足够覆盖“业务金额+冻结费用”。
+- **结算前验证**：检查关联的业务订单状态是否为最终成功状态。
+
+## 5. 时序图
+
+### 5.1 分账业务计费流程
+
+```mermaid
+sequenceDiagram
+    participant Client as 行业钱包系统
+    participant Billing as 计费中台
+    participant Account as 账户系统
+    participant Settlement as 清结算系统
+
+    Client->>Billing: 1. 计费试算请求(POST /calculate)
+    Billing->>Billing: 2. 匹配计费规则
+    Billing->>Account: 3. 查询账户信息(可选)
+    Account-->>Billing: 账户详情
+    Billing-->>Client: 4. 返回试算结果
+
+    Note over Client: 业务风控、审批等流程
+
+    Client->>Billing: 5. 费用确认与冻结(POST /confirm)
+    Billing->>Account: 6. 检查并冻结费用余额
+    Account-->>Billing: 冻结成功
+    Billing-->>Client: 7. 返回冻结成功
+    Billing->>Billing: 8. 持久化计费订单(FROZEN状态)
+
+    Client->>Settlement: 9. 执行分账核心逻辑
+    Settlement-->>Client: 分账成功
+    Client->>Billing: 10. 发布事件 Split.Order.Completed
+
+    Billing->>Billing: 11. 更新计费订单为待结算
+    Billing->>Settlement: 12. 发布事件 Billing.Detail.Generated
+
+    Note over Settlement,Billing: T+1 结算日
+    Settlement->>Billing: 13. 发布事件 Settlement.Cycle.Closed
+    Billing->>Billing: 14. 批量生成结算指令
+    Billing->>Settlement: 15. 发布事件 Settlement.Instruction.Created
+    Settlement->>Account: 16. 执行资金划转(从待结算账户扣费)
+```
+
+## 6. 错误处理
+
+| 错误码 | HTTP状态码 | 描述 | 处理策略 |
+| :--- | :--- | :--- | :--- |
+| `BIZ_SCENARIO_INVALID` | 400 | 业务场景码不支持 | 检查请求参数，引导使用白名单内的场景码。 |
+| `NO_VALID_BILLING_RULE` | 400 | 未找到适用的计费规则 | 检查计费规则配置，或联系运营人员为该场景配置规则。 |
+| `ACCOUNT_NOT_FOUND` | 404 | 账户不存在或状态异常 | 调用方需确保账户已正确开户并处于可用状态。 |
+| `INSUFFICIENT_BALANCE` | 409 | 账户余额不足（用于冻结） | 通知业务方充值或调整业务金额。 |
+| `FEE_ALREADY_SETTLED` | 409 | 费用已结算，不可重复操作 | 幂等处理，返回已存在的结算结果。 |
+| `CALCULATE_ID_EXPIRED` | 410 | 试算结果已过期 | 重新调用试算接口。 |
+| `SYSTEM_ERROR` | 500 | 系统内部错误 | 记录详细日志，触发告警，人工介入排查。 |
 
 **通用策略**：
-- **客户端错误（4xx）**：由调用方参数错误或业务状态不满足导致，需调用方修正后重试。
-- **服务端错误（5xx）**：系统内部错误，记录详细日志和告警，对于可重试操作（如调用外部API）实施指数退避重试。
-- **补偿机制**：对于关键状态同步（如事件发布），采用本地事件表+定时任务扫描重推的机制，保证最终一致性。
+- 所有关键操作（冻结、结算）必须实现**幂等性**，通过唯一业务订单号或计费订单号控制。
+- 采用**异步补偿机制**。对于结算失败指令，记录失败原因，由定时任务重试或转人工处理。
+- 所有错误均返回结构化的JSON响应，包含 `code`, `message`, `request_id`。
 
 ## 7. 依赖说明
 
 ### 7.1 上游模块交互
-1. **三代系统**
-   - **交互方式**: 同步REST API调用。
-   - **职责**: 作为业务入口，发起`发起关系绑定`、`开通付款`等请求。认证系统为其提供清晰的API和状态查询能力。
-   - **数据流**: 三代系统传递商户号、账户号、绑定类型等业务参数。
+1. **行业钱包系统 (主调用方)**:
+    - **交互方式**: 同步API调用（试算、确认）、异步事件监听（`Split.Order.Completed`）。
+    - **职责**: 提供准确的业务场景、账户信息、金额，并在业务合适节点触发计费。
+    - **契约**: 需保证业务订单号的全局唯一性。
 
-2. **电子签约平台**
-   - **交互方式**: 同步API调用 + 异步回调。
-   - **职责**:
-     - 提供协议模板、生成签约H5页面。
-     - 集成打款验证、人脸验证服务并返回结果。
-     - 提供已签署协议的下载和存证查询。
-   - **数据流**: 认证系统传递签约方信息、业务标识；接收签约/认证结果回调。
+2. **账户系统**:
+    - **交互方式**: 同步RPC/API调用。
+    - **职责**: 提供账户余额查询、费用冻结/解冻/扣减接口。计费中台不直接操作账户余额，只调用账户系统接口。
+    - **关键接口**: `冻结资金`、`解冻并扣款`、`查询账户详情`。
+
+3. **清结算系统 (父系统)**:
+    - **交互方式**: 事件总线、内部API。
+    - **职责**: 提供结算周期时钟事件，接收并执行计费中台发出的资金结算指令。
 
 ### 7.2 下游模块交互
-1. **行业钱包系统**
-   - **交互方式**: 异步事件发布（消息队列）。
-   - **职责**: 消费`BindingStatusChangedEvent`和`PaymentEnabledEvent`，在其内部维护关系映射和权限白名单，作为执行分账交易的前置校验依据。
-   - **数据流**: 认证系统推送绑定ID、双方账户、绑定类型、状态变更等信息。
+1. **对账单系统**:
+    - **交互方式**: 异步事件 (`Billing.Detail.Generated`)、数据库直读（可选）。
+    - **职责**: 消费计费明细事件，为天财机构聚合生成费用账单。
 
-### 7.3 外部服务依赖
-- **银行/支付通道**：由电子签约平台封装打款验证能力，认证系统不直接交互。
-- **人脸识别服务**：由电子签约平台集成，认证系统通过调用电子签约平台间接使用。
-
-### 7.4 依赖管理
-- **强依赖**：电子签约平台。若其不可用，则所有新的绑定和开通流程无法进行。需有熔断机制和醒目告警。
-- **弱依赖**：行业钱包系统（事件消费）。若消息暂时发送失败，有本地补偿机制，不影响主流程，但可能导致分账交易短暂延迟生效。
-- **监控要点**：
-  - 电子签约平台API调用成功率与延迟。
-  - 消息发布成功率和积压情况。
-  - 绑定流程各阶段转化率及平均耗时。
+### 7.3 配置与数据依赖
+- **计费规则配置台**: 需要一个独立的运营管理后台，供业务人员配置和发布计费规则。此配置台可直接操作 `billing_rule` 表或通过管理API与计费中台交互。
+- **商户/机构信息**: 依赖三代系统或商户中心提供商户的行业分类、等级等信息，用于精细化的规则匹配。这些信息可通过请求中的 `extend_info` 传入，或由计费中台根据商户号实时查询获取。
 
 ## 3.4 三代系统
 
@@ -1461,425 +1409,765 @@ sequenceDiagram
 ## 1. 概述
 
 ### 1.1 目的
-本模块是“天财商龙”分账业务的**核心业务入口和流程编排中枢**。它负责面向商户（总部/门店）提供统一的业务接口，管理商户进件、账户配置、关系绑定、分账指令发起等全流程业务。三代系统作为上层业务系统，向下游（行业钱包系统、电子签约平台等）编排复杂的业务流程，并维护业务状态的一致性。
+三代系统作为拉卡拉支付的核心商户管理系统，是天财分账业务的**入口和协调中枢**。本模块负责接收天财的业务请求，协调**行业钱包系统**、**账户系统**、**电子签约平台**等多个下游系统，完成天财专用账户的开通、关系绑定、分账指令转发等全流程业务处理。三代系统是天财业务与底层支付基础设施之间的**桥梁和控制器**。
 
 ### 1.2 范围
-- **商户进件与账户配置**：为总部和门店商户开通天财业务，配置分账模式（主动/被动结算），并触发天财专用账户的开立。
-- **关系绑定流程编排**：为“归集”、“批量付款”、“会员结算”等场景，编排协议签署与身份认证（打款/人脸验证）流程，建立并验证付方与收方的授权关系。
-- **分账业务发起**：接收商户的“归集”、“批量付款”、“会员结算”等业务请求，进行业务校验后，调用行业钱包系统执行分账。
-- **开通付款授权**：为总部商户编排“开通付款”流程，完成与拉卡拉的代付授权协议签署，使其具备付款资格。
-- **业务状态与数据管理**：维护商户、账户、绑定关系、分账指令等核心业务实体的状态和关联关系。
-- **查询与对账**：为商户提供业务进度、账户信息、分账记录等查询功能，并整合对账单。
-
-### 1.3 非范围
-- 底层账户的创建与资金操作（由账户系统处理）。
-- 钱包层业务逻辑处理与分账执行（由行业钱包系统处理）。
-- 电子协议生成、签署及认证服务执行（由电子签约平台处理）。
-- 交易核心处理与计费（由业务核心、计费中台处理）。
-- 底层动账明细生成（由对账单系统处理）。
+- **商户与账户管理**：作为天财收单商户的开户和管理入口，触发天财专用账户的创建流程。
+- **业务请求受理与路由**：接收天财发起的各类分账业务请求（归集、批量付款、会员结算），进行初步校验后路由至行业钱包系统处理。
+- **流程协调与状态管理**：协调电子签约、认证、账户绑定等多个异步流程，管理整体业务状态。
+- **数据透传与结果返回**：作为统一出口，向天财返回业务处理结果。
+- **与现有系统集成**：无缝集成现有的商户管理、交易处理等核心功能，确保天财业务不破坏现有流程。
 
 ## 2. 接口设计
 
-### 2.1 REST API 端点（商户侧）
+### 2.1 API端点 (RESTful)
 
-#### 2.1.1 商户进件与账户管理
-- **POST /api/v1/tiancai/merchants/onboarding**：天财业务商户进件
-    - **请求体**：`MerchantOnboardingRequest`
-    - **响应**：`MerchantOnboardingResponse`
-- **PUT /api/v1/tiancai/merchants/{merchantNo}/settlement-mode**：更新结算模式（主动/被动）
-    - **请求体**：`UpdateSettlementModeRequest`
-    - **响应**：`BaseResponse`
-- **GET /api/v1/tiancai/merchants/{merchantNo}/accounts**：查询商户名下的天财专用账户列表
-    - **响应**：`List<AccountInfoResponse>`
-
-#### 2.1.2 关系绑定管理
-- **POST /api/v1/tiancai/bindings**：发起关系绑定（签约与认证）
-    - **请求体**：`CreateBindingRequest`
-    - **响应**：`CreateBindingResponse` (包含签约H5链接或认证任务ID)
-- **GET /api/v1/tiancai/bindings/{bindingId}**：查询绑定关系状态
-    - **响应**：`BindingDetailResponse`
-- **POST /api/v1/tiancai/bindings/{bindingId}/cancel**：取消进行中的绑定流程
-    - **响应**：`BaseResponse`
-- **GET /api/v1/tiancai/merchants/{payerMerchantNo}/bindings**：查询付方名下的所有有效绑定关系
-    - **查询参数**：`bizType` (归集/批量付款/会员结算)
-    - **响应**：`List<BindingSimpleResponse>`
-
-#### 2.1.3 分账业务发起
-- **POST /api/v1/tiancai/split-orders/collection**：发起资金归集
-    - **请求体**：`CreateCollectionOrderRequest`
-    - **响应**：`CreateSplitOrderResponse`
-- **POST /api/v1/tiancai/split-orders/batch-payment**：发起批量付款
-    - **请求体**：`CreateBatchPaymentOrderRequest`
-    - **响应**：`CreateSplitOrderResponse`
-- **POST /api/v1/tiancai/split-orders/member-settlement**：发起会员结算
-    - **请求体**：`CreateMemberSettleOrderRequest`
-    - **响应**：`CreateSplitOrderResponse`
-- **GET /api/v1/tiancai/split-orders/{orderNo}**：查询分账指令状态
-    - **响应**：`SplitOrderDetailResponse`
-
-#### 2.1.4 开通付款授权
-- **POST /api/v1/tiancai/merchants/{merchantNo}/enable-payment**：为总部商户发起“开通付款”流程
-    - **请求体**：`EnablePaymentRequest`
-    - **响应**：`EnablePaymentResponse` (包含授权协议签署H5链接)
-
-### 2.2 内部接口（供下游系统回调）
-
-- **POST /internal/api/v1/tiancai/callback/binding-status**：电子签约平台回调绑定状态
-    - **请求体**：`BindingCallbackRequest`
-    - **响应**：`BaseResponse`
-- **POST /internal/api/v1/tiancai/callback/payment-auth-status**：电子签约平台回调开通付款状态
-    - **请求体**：`PaymentAuthCallbackRequest`
-    - **响应**：`BaseResponse`
-- **POST /internal/api/v1/tiancai/callback/split-result**：行业钱包系统回调分账结果
-    - **请求体**：`SplitResultCallbackRequest`
-    - **响应**：`BaseResponse`
-
-### 2.3 数据结构
-
-```json
-// MerchantOnboardingRequest
-{
-  "requestId": "ONBOARD_REQ_001",
-  "merchantNo": "M100001",
-  "merchantType": "HEADQUARTERS", // HEADQUARTERS, STORE
-  "parentMerchantNo": "M100000", // 门店进件时必填，其总部商户号
-  "settlementMode": "ACTIVE", // ACTIVE(主动结算至天财账户), PASSIVE(被动结算)
-  "contactInfo": {
-    "name": "张三",
-    "phone": "13800138000",
-    "email": "zhangsan@example.com"
-  }
-}
-
-// CreateBindingRequest (以归集为例)
-{
-  "requestId": "BIND_REQ_001",
-  "bizType": "COLLECTION",
-  "payerMerchantNo": "M100000", // 总部
-  "payerAccountNo": "ACC_HQ_001", // 总部天财收款账户
-  "receiverMerchantNo": "M100001", // 门店
-  "receiverAccountNo": "ACC_STORE_001", // 门店天财收款账户
-  "authMethod": "REMITTANCE_VERIFICATION", // 打款验证
-  "extraInfo": { // 业务相关扩展信息
-    "collectionRatio": "0.3", // 归集比例 30%
-    "effectiveDate": "2023-11-01",
-    "expiryDate": "2024-10-31"
-  }
-}
-
-// CreateCollectionOrderRequest
-{
-  "requestId": "COLLECT_ORDER_001",
-  "payerMerchantNo": "M100001", // 门店（付方）
-  "payerAccountNo": "ACC_STORE_001",
-  "receiverMerchantNo": "M100000", // 总部（收方）
-  "receiverAccountNo": "ACC_HQ_001",
-  "amount": "10000.00",
-  "currency": "CNY",
-  "bindingId": "BIND_001", // 关联的已生效绑定关系ID
-  "memo": "2023年10月营业款归集"
-}
-
-// BindingCallbackRequest
-{
-  "eventId": "CALLBACK_EVT_001",
-  "bindingId": "BIND_001",
-  "taskId": "ESIGN_TASK_001", // 电子签约平台任务ID
-  "status": "SUCCESS", // SUCCESS, FAILED, CANCELED
-  "authMethod": "REMITTANCE_VERIFICATION",
-  "signedDocumentUrl": "https://esign.example.com/doc/xxx",
-  "failedReason": "验证金额回填错误",
-  "timestamp": "2023-10-27T14:30:00Z"
-}
-```
-
-### 2.4 发布的事件
-三代系统作为事件生产者，发布业务领域事件：
-
-- **TiancaiAccountConfiguredEvent**：商户天财业务配置完成（包括账户开立结果）。
-    ```json
-    {
-      "eventId": "EVT_TC_ACC_CFG_001",
-      "eventType": "TIANCAI_ACCOUNT_CONFIGURED",
-      "timestamp": "2023-10-27T10:05:00Z",
-      "data": {
-        "merchantNo": "M100001",
-        "accountNo": "ACC202310270001",
-        "accountType": "TIANCAI_COLLECT",
-        "settlementMode": "ACTIVE",
-        "walletSystemAccountId": "WALLET_ACC_001"
+#### 2.1.1 商户与账户开通接口
+- **POST /api/v1/tiancai/merchants/{merchant_no}/enable**
+    - **描述**：为指定的收单商户开通天财分账业务能力。此接口会触发天财专用账户的创建流程。
+    - **路径参数**：
+        - `merchant_no`: 收单商户号
+    - **请求体**：
+      ```json
+      {
+        "request_id": "req_enable_001",
+        "institution_code": "TIANCAI", // 机构代码，固定为天财
+        "account_roles": ["HEADQUARTERS", "STORE"], // 需要开通的账户角色列表
+        "operator": "admin_user",
+        "ext_params": {} // 扩展参数
       }
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "message": "开通请求已受理",
+        "data": {
+          "process_id": "PROC_20231011001", // 流程实例ID，用于查询进度
+          "estimated_time": 30 // 预计完成时间（秒）
+        }
+      }
+      ```
+
+#### 2.1.2 分账业务请求接口
+- **POST /api/v1/tiancai/split-orders**
+    - **描述**：天财发起分账指令的统一入口。三代系统接收后，进行基础校验并转发给行业钱包系统。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "split_req_20231011001",
+        "biz_scene": "COLLECTION", // 业务场景：COLLECTION(归集)/BATCH_PAY(批量付款)/MEMBER_SETTLE(会员结算)
+        "payer": {
+          "tiancai_account_id": "TCA_20231011001",
+          "merchant_no": "M100001",
+          "role": "STORE"
+        },
+        "payee_list": [
+          {
+            "tiancai_account_id": "TCA_20231011002",
+            "merchant_no": "M100002",
+            "role": "HEADQUARTERS",
+            "amount": 10000, // 分账金额（分）
+            "currency": "CNY",
+            "memo": "门店日结归集"
+          }
+        ],
+        "total_amount": 10000,
+        "biz_ref_no": "TC_ORDER_001", // 天财业务参考号
+        "callback_url": "https://tiancai.com/callback", // 异步回调地址
+        "ext_info": {}
+      }
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "message": "分账指令已接收",
+        "data": {
+          "split_order_id": "SO_202310110001", // 三代系统生成的分账订单号
+          "status": "PROCESSING",
+          "received_at": "2023-10-11T10:00:00Z"
+        }
+      }
+      ```
+
+#### 2.1.3 查询接口
+- **GET /api/v1/tiancai/split-orders/{split_order_id}**
+    - **描述**：查询分账指令处理状态。
+- **GET /api/v1/tiancai/merchants/{merchant_no}/accounts**
+    - **描述**：查询商户名下的天财专用账户列表及状态。
+- **GET /api/v1/tiancai/processes/{process_id}**
+    - **描述**：查询异步流程（如账户开通、关系绑定）的执行进度。
+
+#### 2.1.4 回调接口 (供下游系统调用)
+- **POST /api/internal/tiancai/callback/process**
+    - **描述**：行业钱包、电子签约等下游系统回调通知流程状态变更。
+    - **请求体**：
+      ```json
+      {
+        "process_id": "PROC_20231011001",
+        "step": "ACCOUNT_CREATION", // 流程步骤
+        "status": "SUCCESS", // 步骤状态：SUCCESS/FAILED/PENDING
+        "result_data": {
+          "tiancai_account_id": "TCA_20231011001",
+          "account_no": "3010001001"
+        },
+        "error_code": "",
+        "error_message": "",
+        "timestamp": "2023-10-11T10:00:00Z"
+      }
+      ```
+
+### 2.2 发布/消费的事件
+
+#### 2.2.1 消费的事件
+- **TiancaiAccountCreatedEvent** (来自账户系统)：接收天财账户创建成功通知，更新本地账户映射关系。
+- **SplitOrderCompletedEvent** (来自行业钱包系统)：接收分账指令处理完成通知，更新订单状态并回调天财。
+
+#### 2.2.2 发布的事件
+- **MerchantCreatedEvent**：当三代系统创建新的收单商户时发布，供账户系统监听以判断是否需开通天财账户。
+  ```json
+  {
+    "event_id": "event_merchant_001",
+    "event_type": "MERCHANT_CREATED",
+    "timestamp": "2023-10-11T09:00:00Z",
+    "data": {
+      "merchant_no": "M100001",
+      "merchant_name": "天财示范店",
+      "institution_code": "TIANCAI",
+      "status": "ACTIVE",
+      "created_at": "2023-10-11T09:00:00Z"
     }
-    ```
-- **BindingRelationshipEstablishedEvent**：绑定关系生效。
-- **SplitOrderCreatedEvent**：分账指令已创建（待执行）。
-- **SplitOrderCompletedEvent**：分账指令执行完成（成功/失败）。
-
-### 2.5 消费的事件
-三代系统作为事件消费者，订阅以下事件以更新自身状态：
-
-- **AccountCreatedEvent** (来自账户系统)：更新本地账户状态为“已开立”。
-- **AccountStatusChangedEvent** (来自账户系统)：同步底层账户状态（冻结/解冻/注销）。
+  }
+  ```
+- **TiancaiBusinessEnabledEvent**：商户成功开通天财业务时发布，供监控和审计系统使用。
 
 ## 3. 数据模型
 
 ### 3.1 核心表设计
 
 #### 表：`tiancai_merchant_config` (天财商户配置表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| merchant_no | varchar(32) | Y | 商户号 | UK |
-| merchant_type | varchar(16) | Y | 商户类型：HEADQUARTERS, STORE | IDX |
-| parent_merchant_no | varchar(32) | N | 上级总部商户号（门店时必填） | IDX |
-| settlement_mode | varchar(16) | Y | 结算模式：ACTIVE, PASSIVE | |
-| payment_enabled | tinyint(1) | Y | 是否已开通付款（总部） | |
-| status | varchar(16) | Y | 状态：PROCESSING, ACTIVE, SUSPENDED | IDX |
-| contact_info | json | N | 联系人信息（JSON） | |
-| config_time | datetime | Y | 配置时间 | |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `merchant_no` | varchar(32) | Y | | **收单商户号**，关联核心商户表 |
+| `institution_code` | varchar(20) | Y | `TIANCAI` | 机构代码 |
+| `business_status` | varchar(20) | Y | `DISABLED` | 天财业务状态：`DISABLED`/`ENABLING`/`ENABLED`/`SUSPENDED` |
+| `enabled_roles` | json | Y | `[]` | 已开通的账户角色列表，如`["HEADQUARTERS", "STORE"]` |
+| `config_json` | json | N | | 业务配置（费率、限额等） |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | |
 
-#### 表：`tiancai_account` (天财账户关联表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| merchant_no | varchar(32) | Y | 所属商户号 | IDX |
-| account_no | varchar(32) | Y | 底层账户号（账户系统） | UK |
-| wallet_account_id | varchar(64) | Y | 行业钱包账户ID | UK |
-| account_type | varchar(32) | Y | 账户类型：COLLECT, RECEIVE | |
-| account_name | varchar(128) | Y | 账户名称 | |
-| status | varchar(16) | Y | 状态：CREATING, ACTIVE, FROZEN, CLOSED | IDX |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
+#### 表：`tiancai_account_mapping` (天财账户映射表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `merchant_no` | varchar(32) | Y | | 收单商户号 |
+| `account_role` | varchar(20) | Y | | 账户角色：`HEADQUARTERS`/`STORE`/`RECEIVER` |
+| `tiancai_account_id` | varchar(32) | Y | | 天财账户ID（来自账户系统） |
+| `account_no` | varchar(20) | Y | | 底层账户号 |
+| `status` | varchar(20) | Y | | 映射状态：`CREATING`/`ACTIVE`/`INACTIVE` |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
 
-#### 表：`binding_relationship` (绑定关系表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| binding_id | varchar(32) | Y | 绑定关系业务ID | UK |
-| biz_type | varchar(32) | Y | 业务类型：COLLECTION, BATCH_PAYMENT, MEMBER_SETTLE | IDX |
-| payer_merchant_no | varchar(32) | Y | 付方商户号 | IDX |
-| payer_account_no | varchar(32) | Y | 付方账户号 | |
-| receiver_merchant_no | varchar(32) | Y | 收方商户号 | IDX |
-| receiver_account_no | varchar(32) | Y | 收方账户号 | |
-| auth_method | varchar(32) | Y | 认证方式：REMITTANCE_VERIFY, FACE_VERIFY | |
-| status | varchar(16) | Y | 状态：INIT, SIGNING, VERIFYING, SUCCESS, FAILED, CANCELED | IDX |
-| e_sign_task_id | varchar(64) | N | 电子签约任务ID | |
-| extra_info | json | N | 扩展信息（比例、有效期等） | |
-| effective_date | date | N | 生效日期 | |
-| expiry_date | date | N | 失效日期 | |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
+#### 表：`tiancai_split_order` (天财分账订单表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `split_order_id` | varchar(32) | Y | | **业务主键**，格式`SO_YYYYMMDDxxx` |
+| `request_id` | varchar(64) | Y | | 天财请求流水号，用于幂等 |
+| `biz_scene` | varchar(20) | Y | | 业务场景：`COLLECTION`/`BATCH_PAY`/`MEMBER_SETTLE` |
+| `payer_merchant_no` | varchar(32) | Y | | 付方商户号 |
+| `payer_account_id` | varchar(32) | Y | | 付方天财账户ID |
+| `total_amount` | decimal(15,2) | Y | | 总分账金额 |
+| `currency` | varchar(3) | Y | `CNY` | 币种 |
+| `status` | varchar(20) | Y | `INIT` | 订单状态：`INIT`/`PROCESSING`/`SUCCESS`/`FAILED`/`PARTIAL_SUCCESS` |
+| `wallet_order_id` | varchar(32) | N | | 行业钱包系统订单ID |
+| `callback_url` | varchar(512) | N | | 天财回调地址 |
+| `callback_status` | varchar(20) | Y | `PENDING` | 回调状态：`PENDING`/`SENT`/`FAILED` |
+| `request_data` | json | Y | | 原始请求数据（全量） |
+| `result_data` | json | N | | 处理结果数据 |
+| `error_code` | varchar(50) | N | | 错误码 |
+| `error_message` | varchar(500) | N | | 错误信息 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | |
 
-#### 表：`split_order` (分账指令表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| order_no | varchar(32) | Y | 分账指令号 | UK |
-| biz_type | varchar(32) | Y | 业务类型：COLLECTION, BATCH_PAYMENT, MEMBER_SETTLE | IDX |
-| payer_merchant_no | varchar(32) | Y | 付方商户号 | IDX |
-| payer_account_no | varchar(32) | Y | 付方账户号 | |
-| receiver_merchant_no | varchar(32) | Y | 收方商户号 | IDX |
-| receiver_account_no | varchar(32) | Y | 收方账户号 | |
-| amount | decimal(15,2) | Y | 分账金额 | |
-| currency | char(3) | Y | 币种 | |
-| binding_id | varchar(32) | Y | 关联的绑定关系ID | IDX |
-| status | varchar(16) | Y | 状态：CREATED, PROCESSING, SUCCESS, FAILED | IDX |
-| wallet_request_id | varchar(64) | N | 行业钱包系统请求ID | |
-| fail_reason | varchar(256) | N | 失败原因 | |
-| memo | varchar(256) | N | 备注 | |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
+#### 表：`tiancai_process_flow` (天财业务流程表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `process_id` | varchar(32) | Y | | 流程实例ID，格式`PROC_YYYYMMDDxxx` |
+| `process_type` | varchar(30) | Y | | 流程类型：`ACCOUNT_ENABLE`/`RELATION_BIND`/`PAYMENT_AUTH` |
+| `merchant_no` | varchar(32) | Y | | 关联商户号 |
+| `current_step` | varchar(30) | Y | | 当前步骤 |
+| `step_status` | varchar(20) | Y | `PENDING` | 步骤状态：`PENDING`/`PROCESSING`/`SUCCESS`/`FAILED` |
+| `context_data` | json | Y | | 流程上下文数据 |
+| `expire_time` | datetime | N | | 流程过期时间 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | |
 
 ### 3.2 与其他模块的关系
-- **行业钱包系统**：三代系统是行业钱包系统的**主要调用方**。通过同步RPC调用，触发钱包账户开立、关系绑定校验、分账指令执行。
-- **账户系统**：**间接依赖**。通过消费账户系统的事件，同步底层账户状态。不直接调用其接口，资金操作通过行业钱包系统代理。
-- **电子签约平台**：**服务调用方与回调接收方**。调用其服务获取签约H5链接、发起认证；接收其回调以更新绑定和授权状态。
-- **清结算系统**：**配置同步**。将商户的“主动结算”配置同步至清结算，使其能将资金结算至指定天财收款账户。
-- **对账单系统**：**数据提供方**。提供分账指令数据，作为生成“天财分账”指令账单的数据源之一。
-- **业务核心**：**数据消费者**。行业钱包系统将分账交易同步至业务核心，三代系统不直接交互。
+- **账户系统**：通过`tiancai_account_mapping`表维护商户号与天财账户ID的映射关系。
+- **行业钱包系统**：通过`tiancai_split_order.wallet_order_id`关联分账订单。
+- **电子签约平台**：通过`tiancai_process_flow.context_data`存储签约流程的临时数据。
+- **核心商户表(merchant)**：`tiancai_merchant_config.merchant_no`外键关联，确保只有有效商户可开通天财业务。
 
 ## 4. 业务逻辑
 
-### 4.1 核心算法
-- **分账指令号生成**：`SPLIT` + `年月日` + `6位序列号` (如 `SPLIT20231027000001`)。
-- **绑定关系ID生成**：`BIND` + `年月日` + `6位序列号`。
-- **状态机管理**：为`binding_relationship`和`split_order`设计严格的状态流转图，确保业务流程不可逆且状态明确。
-- **幂等控制**：所有创建类接口（进件、绑定、下单）必须携带`requestId`，在数据库层级或缓存中实现幂等校验。
+### 4.1 核心算法与规则
 
-### 4.2 业务规则
-1. **商户进件规则**：
-    - 总部商户进件，必须开立一个`TIANCAI_COLLECT`类型的天财收款账户。
-    - 门店商户进件，必须关联一个已存在的总部商户，并开立一个`TIANCAI_COLLECT`类型的天财收款账户。
-    - 若结算模式为`ACTIVE`，需同步该配置至清结算系统。
+#### 4.1.1 天财业务开通流程控制
+```python
+def enable_tiancai_business(merchant_no, account_roles):
+    """
+    开通天财业务的核心流程控制
+    1. 校验商户是否属于天财机构且状态正常
+    2. 为每个account_role异步创建天财专用账户
+    3. 等待所有账户创建成功
+    4. 更新业务状态为ENABLED
+    """
+    # 1. 校验商户
+    merchant = get_merchant(merchant_no)
+    if merchant.institution_code != 'TIANCAI':
+        raise ValidationError("非天财机构商户")
+    
+    # 2. 创建流程记录
+    process_id = create_process('ACCOUNT_ENABLE', merchant_no, account_roles)
+    
+    # 3. 异步调用账户系统创建账户（每个角色一个账户）
+    for role in account_roles:
+        async_call_account_system(merchant_no, role, process_id)
+    
+    # 4. 返回流程ID，后续通过回调更新状态
+    return process_id
+```
 
-2. **关系绑定规则**：
-    - 绑定关系是分账的前置条件，`split_order`必须关联一个状态为`SUCCESS`的`binding_id`。
-    - “归集”场景：付方是门店（天财收款账户），收方是总部（天财收款账户）。
-    - “批量付款”场景：付方是总部（天财收款账户），收方是供应商等（天财接收方账户）。
-    - “会员结算”场景：付方是总部（天财收款账户），收方是门店（天财收款账户）。
-    - “开通付款”是总部进行“批量付款”和“会员结算”的**前置全局授权**，只需办理一次。
+#### 4.1.2 分账指令路由与转发规则
+1. **场景识别与路由**：
+   - `COLLECTION`(归集)：门店(付方) → 总部(收方)
+   - `BATCH_PAY`(批量付款)：总部(付方) → 多个接收方(收方)
+   - `MEMBER_SETTLE`(会员结算)：总部(付方) → 门店(收方)
+   
+2. **预处理校验**：
+   - 校验付方商户是否已开通天财业务且状态正常
+   - 校验付方天财账户是否存在且状态为ACTIVE
+   - 校验总金额与明细金额之和是否一致
+   - 基于`request_id`实现幂等（防止重复提交）
 
-3. **分账执行规则**：
-    - 发起分账前，校验：付方账户状态正常、收方账户状态正常、绑定关系在有效期内、总部付款权限已开通（如适用）。
-    - 调用行业钱包系统执行分账，并异步等待回调更新指令状态。
+3. **请求转发**：
+   - 将标准化后的请求转发给行业钱包系统
+   - 记录`wallet_order_id`关联关系
+   - 启动异步超时监控（如30分钟未完成则标记为超时）
 
-### 4.3 验证逻辑
-- **进件请求验证**：校验商户号合法性、商户类型是否支持、门店的总部是否存在、结算模式是否有效。
-- **绑定请求验证**：
-    - 校验付方和收方商户是否存在且已开通天财业务。
-    - 校验指定的付方和收方账户是否存在且属于对应商户。
-    - 校验相同的付方、收方、业务类型是否存在重复的生效中绑定。
-    - 校验认证方式是否与收方商户类型匹配（如对公通常用打款验证）。
-- **分账请求验证**：
-    - 校验绑定关系是否`SUCCESS`且在有效期内。
-    - 对于“批量付款”和“会员结算”，校验付方总部是否已`payment_enabled`。
-    - 金额必须大于0。
+#### 4.1.3 异步流程状态机管理
+```python
+class ProcessStateMachine:
+    states = ['PENDING', 'PROCESSING', 'SUCCESS', 'FAILED', 'EXPIRED']
+    
+    def handle_callback(process_id, step, status, result_data):
+        """
+        处理下游系统回调，更新流程状态
+        """
+        process = get_process(process_id)
+        
+        # 更新当前步骤状态
+        update_step_status(process, step, status, result_data)
+        
+        # 判断流程是否完成
+        if all_steps_completed(process):
+            if any_step_failed(process):
+                final_status = 'FAILED'
+                # 触发补偿操作（如回滚已创建的账户）
+            else:
+                final_status = 'SUCCESS'
+                # 更新商户业务状态为ENABLED
+                update_merchant_business_status(process.merchant_no, 'ENABLED')
+            
+            update_process_status(process_id, final_status)
+            # 发布流程完成事件
+            publish_process_completed_event(process_id, final_status)
+```
+
+### 4.2 验证逻辑
+- **商户校验**：校验商户是否存在、是否属于天财机构、状态是否正常。
+- **账户校验**：校验天财账户是否存在、状态是否ACTIVE、是否属于指定商户。
+- **金额校验**：校验金额为正数、不超过限额、币种为CNY。
+- **幂等校验**：基于`request_id`防止重复请求，对于分账订单还需校验`biz_ref_no`在天财侧的唯一性。
+- **业务规则校验**：校验业务场景与账户角色的匹配性（如归集场景付方必须是门店角色）。
 
 ## 5. 时序图
 
-### 5.1 天财商户进件与账户开立流程
+### 5.1 天财业务开通流程
 ```mermaid
 sequenceDiagram
-    participant M as 商户(前端)
-    participant C as 三代系统
-    participant W as 行业钱包系统
+    participant T as 天财系统
+    participant G3 as 三代系统
     participant A as 账户系统
-    participant S as 清结算系统
-    participant MQ as 消息队列
+    participant W as 行业钱包系统
+    participant DB as 数据库
 
-    M->>C: POST /onboarding (MerchantOnboardingRequest)
-    C->>C: 1. 幂等校验<br>2. 业务校验
-    C->>W: 请求创建钱包账户及底层账户
-    W->>A: POST /accounts (创建天财专用账户)
-    A-->>W: 返回账户号
-    W-->>C: 返回开户结果(含wallet_account_id)
-    C->>C: 持久化商户配置、账户关联信息
-    C->>S: 同步主动结算配置（如settlementMode=ACTIVE）
-    C-->>M: 返回进件成功
-    C->>MQ: 发布TiancaiAccountConfiguredEvent
-    A->>MQ: 发布AccountCreatedEvent
-    C->>MQ: 消费AccountCreatedEvent，更新本地账户状态为ACTIVE
+    T->>G3: POST /merchants/{mno}/enable (开通业务)
+    G3->>DB: 校验商户信息
+    DB-->>G3: 返回商户数据
+    G3->>DB: 创建流程记录(PROC_001)
+    G3->>A: 异步调用创建账户(角色1)
+    G3->>A: 异步调用创建账户(角色2)
+    G3-->>T: 返回流程ID，请求已受理
+    
+    par 账户1创建
+        A->>A: 创建天财账户
+        A->>DB: 存储账户信息
+        A->>G3: 回调通知账户创建成功
+    and 账户2创建
+        A->>A: 创建天财账户
+        A->>DB: 存储账户信息
+        A->>G3: 回调通知账户创建成功
+    end
+    
+    G3->>DB: 更新流程步骤状态
+    G3->>DB: 判断所有步骤完成，更新流程状态为SUCCESS
+    G3->>DB: 更新商户业务状态为ENABLED
+    G3->>W: 发布 TiancaiBusinessEnabledEvent
+    G3->>T: 异步回调通知业务开通完成
 ```
 
-### 5.2 关系绑定（签约与认证）流程
+### 5.2 分账指令处理流程
 ```mermaid
 sequenceDiagram
-    participant M as 商户(前端)
-    participant C as 三代系统
-    participant E as 电子签约平台
-    participant B as 银行/认证机构
-    participant MQ as 消息队列
-
-    M->>C: POST /bindings (CreateBindingRequest)
-    C->>C: 1. 校验商户、账户、业务规则
-    C->>C: 生成binding_id，状态INIT
-    C->>E: 请求生成电子协议并获取签署H5链接
-    E-->>C: 返回e_sign_task_id及签署链接
-    C->>C: 更新绑定状态为SIGNING
-    C-->>M: 返回签署链接
-    M->>E: 访问链接，完成协议签署
-    E->>E: 根据authMethod调用认证服务
-    Note over E,B: 打款验证：向收方打款<br>人脸验证：引导刷脸
-    E->>C: 回调 /callback/binding-status (状态：VERIFYING/SUCCESS/FAILED)
-    C->>C: 更新绑定状态，记录结果
-    C->>MQ: 发布BindingRelationshipEstablishedEvent（若成功）
-    C-->>M: （异步）状态可通过查询接口获取
-```
-
-### 5.3 发起资金归集流程
-```mermaid
-sequenceDiagram
-    participant M as 门店商户
-    participant C as 三代系统
+    participant T as 天财系统
+    participant G3 as 三代系统
     participant W as 行业钱包系统
     participant A as 账户系统
-    participant MQ as 消息队列
+    participant DB as 数据库
 
-    M->>C: POST /split-orders/collection (CreateCollectionOrderRequest)
-    C->>C: 1. 幂等校验<br>2. 业务校验(绑定、账户状态、金额)
-    C->>C: 生成order_no，状态CREATED
-    C->>W: 请求执行分账（传递账户、金额、binding_id等信息）
-    W->>W: 执行钱包层业务逻辑与校验
-    W->>A: POST /accounts/transfer (InternalTransferRequest)
-    A-->>W: 返回转账结果
-    W-->>C: 回调 /callback/split-result (状态：SUCCESS/FAILED)
-    C->>C: 更新分账指令状态
-    C->>MQ: 发布SplitOrderCompletedEvent
-    C-->>M: 返回分账指令号（异步结果需查询）
+    T->>G3: POST /split-orders (发起分账)
+    G3->>DB: 幂等校验(request_id)
+    G3->>DB: 校验商户和账户状态
+    G3->>DB: 创建分账订单记录(状态INIT)
+    G3->>W: 转发分账请求
+    W-->>G3: 返回受理成功(wallet_order_id)
+    G3->>DB: 更新订单状态为PROCESSING
+    G3-->>T: 返回受理成功(split_order_id)
+    
+    Note over W,A: 行业钱包系统处理分账细节
+    W->>A: 校验账户关系
+    W->>A: 执行账务操作
+    A-->>W: 返回账务处理结果
+    W->>G3: 回调通知分账完成
+    
+    G3->>DB: 更新订单状态为SUCCESS
+    G3->>T: 异步回调通知分账结果
 ```
 
 ## 6. 错误处理
 
-### 6.1 预期错误及HTTP状态码
-- **400 Bad Request**：请求参数缺失、格式错误、业务逻辑校验不通过（如绑定关系不存在）。
-- **403 Forbidden**：权限不足（如门店试图发起批量付款）。
-- **404 Not Found**：商户、账户或订单不存在。
-- **409 Conflict**：
-    - `DUPLICATE_REQUEST_ID`：重复请求。
-    - `BINDING_NOT_EFFECTIVE`：绑定关系未生效或已过期。
-    - `PAYMENT_NOT_ENABLED`：总部未开通付款权限。
-- **422 Unprocessable Entity**：
-    - `INSUFFICIENT_BALANCE`：付方账户余额不足（由下游返回）。
-    - `ACCOUNT_STATUS_INVALID`：账户状态异常。
-- **502 Bad Gateway**：调用下游系统（行业钱包、电子签）超时或失败。
-- **500 Internal Server Error**：系统内部错误。
+| 错误码 | HTTP 状态码 | 描述 | 处理策略 |
+| :--- | :--- | :--- | :--- |
+| `MERCHANT_NOT_FOUND` | 404 | 商户不存在 | 拒绝请求，提示检查商户号。 |
+| `MERCHANT_NOT_TIANCAI` | 400 | 商户不属于天财机构 | 拒绝请求，仅天财机构商户可开通此业务。 |
+| `BUSINESS_ALREADY_ENABLED` | 409 | 天财业务已开通 | 返回当前业务状态，确保幂等。 |
+| `INVALID_ACCOUNT_ROLE` | 400 | 无效的账户角色 | 拒绝请求，提示有效角色列表。 |
+| `SPLIT_REQUEST_DUPLICATE` | 409 | 重复的分账请求(request_id) | 返回已受理的订单信息，确保幂等。 |
+| `ACCOUNT_NOT_ACTIVE` | 422 | 天财账户状态非ACTIVE | 拒绝分账请求，提示检查账户状态。 |
+| `AMOUNT_VALIDATION_FAILED` | 400 | 金额校验失败（负数、超限等） | 拒绝请求，提示具体错误。 |
+| `SCENE_ROLE_MISMATCH` | 400 | 业务场景与账户角色不匹配 | 拒绝请求，提示正确组合。 |
+| `PROCESS_TIMEOUT` | 504 | 异步流程执行超时 | 触发超时处理，标记流程为EXPIRED，需人工介入。 |
+| `CALLBACK_FAILED` | 500 | 回调天财系统失败 | 记录日志并加入重试队列，最多重试5次。 |
 
-### 6.2 处理策略
-- **同步调用错误**：对下游系统（如行业钱包）的同步调用，采用有限次数的重试（如3次），重试失败则更新业务订单状态为`FAILED`，并记录失败原因。
-- **异步回调缺失**：对于重要的异步回调（如分账结果），设置定时任务扫描长时间处于`PROCESSING`状态的订单，主动向下游系统查询状态。
-- **状态不一致补偿**：通过消费底层系统（账户系统）的事件，与本地状态进行比对，发现不一致时触发告警并生成工单，支持人工干预修复。
-- **监控告警**：对关键接口错误率、下游调用延迟、长时间未处理订单进行监控和告警。
+**通用策略**：
+- **输入验证**：所有外部请求必须经过严格验证，防止非法数据进入系统。
+- **幂等性保证**：对于创建类、交易类请求，必须支持基于`request_id`的幂等。
+- **异步流程补偿**：对于多步骤异步流程，设计补偿机制，在部分步骤失败时进行回滚或人工干预。
+- **优雅降级**：当非核心依赖（如监控事件发布）失败时，不应影响主流程，记录日志后继续执行。
+- **监控告警**：对关键错误（5xx、流程超时、回调失败）配置实时告警。
 
 ## 7. 依赖说明
 
-### 7.1 上游模块交互（调用方）
-1. **行业钱包系统**：
-    - **调用关系**：**同步RPC调用**。
-    - **关键接口**：开户、关系绑定校验、执行分账。
-    - **交互要点**：
-        - 三代系统负责组装完整的业务上下文（商户、账户、绑定关系）。
-        - 需处理行业钱包返回的业务错误（如校验不通过）和系统错误（超时、宕机）。
-        - 分账指令为异步回调模式，需维护`wallet_request_id`以关联回调。
+### 7.1 上游依赖
+1. **天财系统**
+   - **交互方式**：同步REST API调用 + 异步HTTP回调。
+   - **职责**：发起业务开通、分账指令等业务请求，接收处理结果回调。
+   - **关键点**：
+     - 需与天财约定接口规范、加密方式、重试机制。
+     - 回调必须幂等，天财需正确处理重复回调。
+     - 建立对账机制，确保双方数据一致性。
 
-2. **电子签约平台**：
-    - **调用关系**：**同步RPC调用 + 异步HTTP回调**。
-    - **关键接口**：生成签署链接、查询任务状态。
-    - **交互要点**：
-        - 调用生成链接后，需保存`e_sign_task_id`。
-        - 提供高可用的回调端点，处理签约及认证结果，并实现回调幂等。
+### 7.2 下游依赖
+1. **账户系统**
+   - **交互方式**：同步REST API调用（创建账户） + 异步事件消费（`MerchantCreatedEvent`）。
+   - **职责**：执行天财专用账户的创建和管理。
+   - **关键点**：账户创建是异步过程，三代系统需维护流程状态等待回调。
 
-3. **清结算系统**：
-    - **调用关系**：**同步RPC调用**（配置同步）。
-    - **关键接口**：更新商户结算账户配置。
-    - **交互要点**：在商户进件或变更结算模式为`ACTIVE`时调用，确保交易资金结算至正确的天财收款账户。
+2. **行业钱包系统**
+   - **交互方式**：同步REST API调用（转发分账请求） + 异步事件消费（`TiancaiAccountCreatedEvent`）。
+   - **职责**：处理分账业务的核心逻辑，包括关系校验、账务指令生成等。
+   - **关键点**：三代系统作为路由层，不处理具体分账逻辑，但需监控处理超时。
 
-### 7.2 下游模块交互（被调用/消费事件）
-1. **账户系统**：
-    - **交互关系**：**异步消息消费**。
-    - **消费事件**：`AccountCreatedEvent`, `AccountStatusChangedEvent`。
-    - **交互要点**：用于更新本地`tiancai_account`表的状态，确保与底层一致。
+3. **电子签约平台**
+   - **交互方式**：同步REST API调用（发起签约） + 异步HTTP回调（签约结果）。
+   - **职责**：为关系绑定提供电子签约服务。
+   - **关键点**：签约流程涉及H5页面跳转，三代系统需管理签约会话状态。
 
-2. **对账单系统**：
-    - **交互关系**：**数据提供方**（可能通过DB对接或接口）。
-    - **提供数据**：`split_order`表数据。
-    - **交互要点**：按约定格式或接口提供分账指令数据，用于生成业务对账单。
+4. **认证系统**
+   - **交互方式**：通过行业钱包系统间接调用。
+   - **职责**：提供打款验证、人脸验证等身份核验能力。
+   - **关键点**：三代系统不直接交互，但需了解认证失败对整体流程的影响。
 
-3. **业务核心**：
-    - **交互关系**：**无直接交互**。数据通过行业钱包系统同步。
+### 7.3 设计原则
+- **单一入口**：三代系统作为天财业务的唯一入口，统一处理认证、鉴权、路由。
+- **职责分离**：三代系统负责流程协调和状态管理，不深入业务规则细节（如分账比例计算）。
+- **异步化设计**：耗时操作（账户创建、签约）采用异步流程，提高接口响应速度。
+- **状态可追溯**：所有业务流程都有明确的状态记录，支持查询和人工干预。
+- **故障隔离**：下游系统故障时，三代系统应有降级策略（如返回"处理中"状态，而不是直接失败）。
 
-### 7.3 内部依赖
-- **数据库**：MySQL集群，存储所有业务实体数据，要求高可用和事务支持。
-- **缓存**：Redis集群，用于缓存商户配置、热点绑定关系、以及`requestId`幂等校验。
-- **消息中间件**：Kafka/RocketMQ，用于发布业务事件和消费系统间事件。
-- **配置中心**：管理下游系统接口地址、超时时间、重试策略等配置。
+## 3.5 清结算系统
 
-**文档版本**：1.0  
-**最后更新**：2023-10-27  
-**设计者**：软件架构师
 
-## 3.5 账务核心系统
+
+# 清结算系统模块设计文档
+
+## 1. 概述
+
+### 1.1 目的
+本模块作为支付体系中的资金处理核心，负责处理与“天财分账业务”相关的交易清算、资金结算、计费以及退货资金处理。它连接收单交易、账户系统和行业钱包系统，确保天财专用账户的资金能够按照业务规则，从待结算账户准确、及时地结算到目标账户，并处理相关的退货资金流转。
+
+### 1.2 范围
+- **资金结算**：将收单交易沉淀在“待结算账户（01账户）”中的资金，根据商户配置的结算模式（本场景下为“主动结算”），划转至指定的“天财收款账户”。
+- **退货处理**：处理天财场景下的退货交易，协调“退货账户（04账户）”与“天财收款账户”之间的资金调拨。
+- **计费处理**：在结算过程中，根据计费规则计算并扣除交易手续费。
+- **清算文件处理**：生成并提供与结算、退货相关的资金对账文件。
+- **与天财分账的协同**：作为分账业务的资金源头，为“行业钱包系统”的分账指令提供已结算到账的资金保障。
+
+## 2. 接口设计
+
+### 2.1 API端点 (RESTful)
+
+#### 2.1.1 结算指令处理接口
+- **POST /api/v1/settlement/instructions**
+    - **描述**：接收来自支付核心或定时任务触发的结算指令，将资金从待结算账户（01）结算至目标天财收款账户。支持批量处理。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "settle_req_20250120001",
+        "instruction_type": "REGULAR_SETTLEMENT", // 指令类型：REGULAR_SETTLEMENT(常规结算), REFUND_SETTLEMENT(退货结算)
+        "settle_date": "2025-01-19", // 结算日期（账期）
+        "items": [
+          {
+            "biz_settle_no": "STL_M100001_20250119", // 业务结算流水号，用于幂等
+            "source_account_no": "0100000001", // 源账户号（待结算账户01）
+            "target_tiancai_account_id": "TCA_20231011001", // 目标天财账户ID
+            "target_account_no": "3010001001", // 目标账户号（天财收款账户）
+            "currency": "CNY",
+            "settle_amount": 150000, // 结算金额（元）
+            "fee_amount": 300, // 手续费金额（元）
+            "net_amount": 149700, // 净结算金额（元）
+            "trade_summary": { // 交易汇总信息（可选，用于对账）
+              "total_count": 100,
+              "total_amount": 150000
+            }
+          }
+        ]
+      }
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "message": "处理成功",
+        "data": {
+          "instruction_id": "INST_202501200001",
+          "status": "PROCESSING", // PROCESSING, PARTIAL_SUCCESS, SUCCESS, FAILED
+          "details": [
+            {
+              "biz_settle_no": "STL_M100001_20250119",
+              "status": "SUCCESS",
+              "ledger_entry_no": "LE_202501200001" // 关联的账务流水号
+            }
+          ]
+        }
+      }
+      ```
+
+#### 2.1.2 退货资金处理接口
+- **POST /api/v1/refund/fund-adjustments**
+    - **描述**：处理天财场景的退货。当发生退货时，需从天财收款账户扣款至退货账户（04），或从退货账户退款至用户原路。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "refund_adj_001",
+        "adjustment_type": "MERCHANT_REFUND", // MERCHANT_REFUND(商户退款), SYSTEM_REFUND(系统退款)
+        "original_trade_no": "PAY_20250119001", // 原支付交易号
+        "refund_trade_no": "REF_20250120001", // 本次退款交易号
+        "tiancai_account_id": "TCA_20231011001", // 关联的天财收款账户ID
+        "receive_account_no": "3010001001", // 天财收款账户号（出款方）
+        "refund_account_no": "0400000001", // 退货账户号（04账户，入款方）
+        "amount": 5000,
+        "currency": "CNY",
+        "reason": "客户取消订单"
+      }
+      ```
+    - **响应体**：返回调拨处理结果及账务流水号。
+
+#### 2.1.3 查询接口
+- **GET /api/v1/settlement/instructions/{instruction_id}**：查询结算指令状态。
+- **GET /api/v1/settlement/records?tiancai_account_id={}&settle_date={}&status={}**：查询结算记录。
+- **GET /api/v1/refund/adjustments?tiancai_account_id={}&date={}**：查询退货资金调拨记录。
+
+### 2.2 发布/消费的事件
+
+#### 2.2.1 消费的事件
+- **TradeSettledEvent** (来自支付核心)：消费已清算完成的交易汇总事件，触发结算任务。
+- **TiancaiAccountCreatedEvent** (来自账户系统)：获知天财收款账户创建，用于建立结算路由（将商户的待结算账户01与天财收款账户关联）。
+- **RefundAppliedEvent** (来自支付核心/业务系统)：消费退款申请事件，触发退货资金处理流程。
+
+#### 2.2.2 发布的事件
+- **SettlementCompletedEvent**：当资金成功从待结算账户结算至天财收款账户后发布，通知行业钱包系统资金已到位，可执行分账。
+  ```json
+  {
+    "event_id": "event_settle_001",
+    "event_type": "SETTLEMENT_COMPLETED",
+    "timestamp": "2025-01-20T02:00:00Z",
+    "data": {
+      "tiancai_account_id": "TCA_20231011001",
+      "account_no": "3010001001",
+      "settle_date": "2025-01-19",
+      "net_amount": 149700,
+      "currency": "CNY",
+      "biz_settle_no": "STL_M100001_20250119"
+    }
+  }
+  ```
+- **RefundFundAdjustmentCompletedEvent**：退货资金调拨完成时发布，供对账系统使用。
+- **SettlementInstructionProcessedEvent**：结算指令处理完成（无论成功失败）时发布，供监控和报表系统使用。
+
+## 3. 数据模型
+
+### 3.1 核心表设计
+
+#### 表：`settlement_instruction` (结算指令表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `instruction_id` | varchar(32) | Y | | **业务指令ID**，全局唯一 |
+| `request_id` | varchar(64) | Y | | 请求流水号，用于幂等 |
+| `instruction_type` | varchar(30) | Y | | 指令类型：`REGULAR_SETTLEMENT`, `REFUND_SETTLEMENT` |
+| `settle_date` | date | Y | | 结算日期（账期） |
+| `status` | varchar(20) | Y | `INIT` | 状态：`INIT`, `PROCESSING`, `SUCCESS`, `FAILED`, `PARTIAL_SUCCESS` |
+| `total_count` | int | Y | 0 | 指令条目总数 |
+| `success_count` | int | Y | 0 | 成功条目数 |
+| `failure_count` | int | Y | 0 | 失败条目数 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | |
+
+#### 表：`settlement_record` (结算记录表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `biz_settle_no` | varchar(64) | Y | | **业务结算流水号**，唯一键 |
+| `instruction_id` | varchar(32) | Y | | 所属指令ID |
+| `source_account_no` | varchar(20) | Y | | 源账户（待结算账户01） |
+| `target_tiancai_account_id` | varchar(32) | Y | | 目标天财账户ID |
+| `target_account_no` | varchar(20) | Y | | 目标账户（天财收款账户） |
+| `currency` | varchar(3) | Y | `CNY` | |
+| `settle_amount` | decimal(15,2) | Y | | 结算金额（含手续费） |
+| `fee_amount` | decimal(15,2) | Y | | 手续费金额 |
+| `net_amount` | decimal(15,2) | Y | | 净结算金额 |
+| `status` | varchar(20) | Y | `INIT` | 状态：`INIT`, `ACCOUNT_PROCESSING`, `SUCCESS`, `FAILED` |
+| `ledger_entry_no` | varchar(32) | N | | 账户系统返回的账务流水号 |
+| `trade_summary` | json | N | | 交易汇总信息 |
+| `error_msg` | text | N | | 失败原因 |
+| `completed_at` | datetime | N | | 完成时间 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+
+#### 表：`refund_fund_adjustment` (退货资金调拨表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `adjustment_no` | varchar(32) | Y | | **调拨流水号**，唯一 |
+| `request_id` | varchar(64) | Y | | 请求流水号，幂等 |
+| `adjustment_type` | varchar(30) | Y | | 类型：`MERCHANT_REFUND`, `SYSTEM_REFUND` |
+| `original_trade_no` | varchar(64) | Y | | 原支付交易号 |
+| `refund_trade_no` | varchar(64) | Y | | 退款交易号 |
+| `tiancai_account_id` | varchar(32) | Y | | 关联的天财账户ID |
+| `receive_account_no` | varchar(20) | Y | | 出款账户（天财收款账户） |
+| `refund_account_no` | varchar(20) | Y | | 入款账户（退货账户04） |
+| `amount` | decimal(15,2) | Y | | 调拨金额 |
+| `currency` | varchar(3) | Y | `CNY` | |
+| `status` | varchar(20) | Y | `INIT` | 状态：`INIT`, `SUCCESS`, `FAILED` |
+| `ledger_entry_no` | varchar(32) | N | | 账务流水号 |
+| `reason` | varchar(255) | N | | 调拨原因 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+
+#### 表：`settlement_route` (结算路由表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `merchant_no` | varchar(32) | Y | | 收单商户号 |
+| `settle_account_no` | varchar(20) | Y | | 待结算账户号（01账户） |
+| `tiancai_account_id` | varchar(32) | Y | | 目标天财收款账户ID |
+| `target_account_no` | varchar(20) | Y | | 目标天财收款账户号 |
+| `settle_mode` | varchar(20) | Y | `ACTIVE` | 结算模式：`ACTIVE` |
+| `status` | varchar(20) | Y | `ACTIVE` | 状态：`ACTIVE`, `INACTIVE` |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+
+### 3.2 与其他模块的关系
+- **账户系统**：通过调用账务操作接口(`/ledger/entries`)执行资金划转，是核心的资金操作依赖方。
+- **行业钱包系统**：消费本模块发布的`SettlementCompletedEvent`，作为触发分账的起点。
+- **支付核心（三代系统）**：消费其发布的交易清算完成事件，是结算任务的触发源；同时为其提供退货资金处理服务。
+- **对账单系统**：为本模块提供交易明细数据以汇总结算金额，并消费本模块发布的事件生成资金结算对账单。
+
+## 4. 业务逻辑
+
+### 4.1 核心算法与规则
+
+#### 4.1.1 主动结算流程（天财收款账户）
+1. **触发时机**：每日定时任务（如T+1日凌晨）或实时触发（根据`TradeSettledEvent`）。
+2. **路由查找**：根据`merchant_no`查询`settlement_route`表，找到对应的待结算账户（01）和目标天财收款账户。
+3. **金额汇总**：调用对账单系统或内部汇总服务，统计指定账期(`settle_date`)内，该待结算账户对应的所有成功交易净额（交易金额 - 已发生退款）。
+4. **计费计算**：根据商户费率合同，计算该笔结算应付的手续费。
+    - `结算金额 = 交易净额`
+    - `净结算金额 = 结算金额 - 手续费`
+5. **生成指令**：创建结算指令和记录，状态置为`INIT`。
+6. **调用账户系统**：调用账户系统账务接口，执行资金划转：
+    - **借记（DEBIT）** 待结算账户（01），金额为`净结算金额`。
+    - **贷记（CREDIT）** 天财收款账户，金额为`净结算金额`。
+    - （手续费单独记入收入账户，此逻辑可能内嵌在账户系统或清结算内部）。
+7. **状态更新与发布事件**：账务成功则更新记录状态为`SUCCESS`，并发布`SettlementCompletedEvent`。失败则记录错误，进行重试或人工干预。
+
+#### 4.1.2 天财场景退货处理规则
+1. **商户发起退款**：
+   - 资金路径：天财收款账户 (出) -> 退货账户（04）(入)。
+   - 逻辑：调用账户系统，从天财收款账户的可用余额中扣减退款金额，记入退货账户。退货账户资金后续用于原路退回给用户。
+2. **系统原路退款**：
+   - 资金路径：退货账户（04）(出) -> 银行/支付渠道。
+   - 逻辑：此步骤通常由支付核心执行，清结算系统负责确保退货账户中有足额资金。
+3. **校验**：执行调拨前，需校验天财收款账户状态是否正常、可用余额是否充足。
+
+#### 4.1.3 幂等性与一致性
+- **结算**：使用`biz_settle_no`作为业务唯一键，在`settlement_record`表中实现幂等。账户系统层面使用`biz_trade_no`保证账务幂等。
+- **退货调拨**：使用`request_id`和`adjustment_no`实现双重幂等保证。
+- **分布式事务**：与账户系统的账务操作为同步调用，依赖其内部事务保证资金划转的原子性。本系统记录操作状态，用于对账和补偿。
+
+### 4.2 验证逻辑
+- **结算指令验证**：验证结算日期有效性、目标天财账户是否存在且状态为`ACTIVE`、结算路由有效。
+- **金额验证**：结算金额、手续费需大于0，且净结算金额不大于源账户余额（由账户系统最终校验）。
+- **退货调拨验证**：验证原交易是否存在、退款金额是否合理、关联的天财账户是否有权操作此退款。
+
+## 5. 时序图
+
+### 5.1 天财收款账户日常结算流程
+```mermaid
+sequenceDiagram
+    participant Scheduler as 定时任务/事件
+    participant S as 清结算系统
+    participant B as 对账单系统
+    participant A as 账户系统
+    participant W as 行业钱包系统
+    participant DB as 数据库
+
+    Scheduler->>S: 触发T+1日结算任务
+    S->>DB: 查询待结算的路由(merchant_no -> tiancai_account)
+    DB-->>S: 返回路由列表
+    loop 每个结算路由
+        S->>B: 查询商户在settle_date的交易净额
+        B-->>S: 返回结算金额
+        S->>S: 计算手续费及净额
+        S->>DB: 创建settlement_instruction & record(状态INIT)
+        S->>A: POST /ledger/entries (01账户出，天财账户入)
+        A->>A: 执行账务事务
+        alt 账务成功
+            A-->>S: 返回成功及流水号
+            S->>DB: 更新record状态为SUCCESS
+            S->>W: 发布SettlementCompletedEvent
+        else 账务失败
+            A-->>S: 返回错误
+            S->>DB: 更新record状态为FAILED
+        end
+    end
+    S->>DB: 更新instruction最终状态
+```
+
+### 5.2 天财场景退货资金调拨流程
+```mermaid
+sequenceDiagram
+    participant B as 业务系统
+    participant S as 清结算系统
+    participant A as 账户系统
+    participant DB as 数据库
+
+    B->>S: POST /refund/fund-adjustments (申请退款调拨)
+    S->>DB: 幂等校验(request_id/adjustment_no)
+    S->>DB: 查询关联天财账户状态及余额
+    DB-->>S: 返回账户信息
+    alt 校验通过
+        S->>DB: 创建refund_fund_adjustment记录(状态INIT)
+        S->>A: POST /ledger/entries (天财账户出，04账户入)
+        A->>A: 执行账务事务
+        alt 账务成功
+            A-->>S: 返回成功
+            S->>DB: 更新记录状态为SUCCESS
+        else 账务失败
+            A-->>S: 返回错误(如余额不足)
+            S->>DB: 更新记录状态为FAILED
+            S-->>B: 返回调拨失败
+        end
+    else 校验失败
+        S-->>B: 返回错误(如账户冻结)
+    end
+```
+
+## 6. 错误处理
+
+| 错误码 | HTTP 状态码 | 描述 | 处理策略 |
+| :--- | :--- | :--- | :--- |
+| `SETTLE_ROUTE_NOT_FOUND` | 404 | 未找到该商户的生效结算路由 | 检查商户是否已开通天财账户并配置路由，结算任务暂停并告警。 |
+| `SETTLE_AMOUNT_INVALID` | 400 | 结算金额计算错误（<=0） | 记录异常，跳过该商户本次结算，发出业务告警。 |
+| `TIANCAI_ACCOUNT_INACTIVE` | 422 | 目标天财账户状态非ACTIVE | 结算任务暂停，等待账户恢复或人工处理。 |
+| `ACCOUNT_TRANSFER_FAILED` | 502 | 调用账户系统账务操作失败 | 根据账户系统返回的具体错误码决定重试策略（如网络错误重试，余额不足则失败）。 |
+| `DUPLICATE_SETTLE_NO` | 409 | 重复的`biz_settle_no` | 返回已存在的结算记录信息，确保幂等。 |
+| `REFUND_ORIGINAL_TRADE_NOT_FOUND` | 404 | 退货对应的原交易不存在 | 拒绝调拨请求。 |
+| `REFUND_ACCOUNT_BALANCE_INSUFFICIENT` | 422 | 天财收款账户余额不足 | 拒绝调拨请求，通知业务方。 |
+| `DATA_AGGREGATION_ERROR` | 500 | 从对账单系统汇总数据失败 | 重试查询，多次失败后触发告警，人工介入。 |
+
+**通用策略**：
+- **业务逻辑错误(4xx)**：立即失败，记录明确日志，通知上游系统。
+- **外部依赖错误(5xx/网络超时)**：
+  - **结算任务**：标记该条记录为`FAILED`，指令状态为`PARTIAL_SUCCESS`。整体任务继续执行其他路由。失败记录进入延时重试队列。
+  - **退货调拨**：立即向调用方返回失败，支持其重试（依赖`request_id`幂等）。
+- **重试机制**：对可重试错误（网络超时、数据库死锁），采用指数退避策略，最多重试3次。
+
+## 7. 依赖说明
+
+### 7.1 上游依赖
+1. **支付核心（三代系统）**
+   - **交互方式**：异步事件消费 (`TradeSettledEvent`, `RefundAppliedEvent`)。
+   - **职责**：提供已清算的交易数据作为结算源；触发退款流程。
+   - **关键点**：事件数据的准确性和及时性是结算正确性的基础。需有监控确保事件不丢失。
+
+2. **账户系统**
+   - **交互方式**：同步REST API调用 (`POST /ledger/entries`)。
+   - **职责**：执行所有资金划转的底层账务操作。
+   - **关键点**：**强依赖**。其可用性和性能直接决定清结算系统的吞吐量与成功率。需有熔断和降级策略（如堆积队列）。
+
+3. **对账单系统**
+   - **交互方式**：同步REST API调用。
+   - **职责**：提供指定商户和账期的交易金额汇总数据。
+   - **关键点**：结算金额计算的依据，需保证数据一致性（如已汇总的金额不会因后续退货而改变）。
+
+4. **行业钱包系统**
+   - **交互方式**：异步事件消费 (`TiancaiAccountCreatedEvent`)。
+   - **职责**：提供天财账户创建信息，用于建立结算路由。
+   - **关键点**：需及时建立路由，否则会影响结算。
+
+### 7.2 设计原则
+- **最终一致性**：通过事件驱动，与支付核心、行业钱包等系统达成最终一致性。结算完成后发布事件，驱动下游分账。
+- **职责清晰**：
+  - **清结算**：负责“资金何时、何路径、算多少”的问题。
+  - **账户系统**：负责“资金如何安全地从一个数字转移到另一个数字”。
+  - **行业钱包**：负责“资金到账后，根据业务规则如何再分配”。
+- **可观测性**：所有结算指令、调拨记录状态可查，关键步骤有明确日志，便于对账和问题排查。
+- **弹性设计**：结算任务支持分批、并行处理，单条失败不影响整体。依赖外部系统故障时有重试和补偿机制。
+
+## 3.6 账务核心系统
 
 
 
@@ -1888,393 +2176,1602 @@ sequenceDiagram
 ## 1. 概述
 
 ### 1.1 目的
-本模块是“天财商龙”分账业务的核心账务处理引擎，负责处理所有与资金分账相关的核心业务逻辑。它作为业务逻辑层，向上承接行业钱包系统的分账指令，向下驱动账户系统完成实际的资金划转，并协调清结算、计费中台等系统，确保“归集”、“批量付款”、“会员结算”等分账业务流程的完整、准确和一致。
+本模块作为天财分账业务的账务处理核心，负责处理所有与天财专用账户相关的资金流转、记账、结算、分账等核心账务操作。它向上承接行业钱包系统的业务指令，向下调用账户系统的底层账务能力，确保资金变动的准确性、一致性、可追溯性和合规性。本模块是天财分账业务资金流的核心引擎。
 
 ### 1.2 范围
-- **分账交易处理**：接收并处理来自行业钱包系统的分账请求（归集、批量付款、会员结算），执行完整的业务校验和账务处理流程。
-- **手续费计算与扣收**：联动计费中台，计算分账交易产生的手续费，并完成手续费账户的扣划。
-- **业务状态机管理**：维护分账订单的生命周期状态（创建、处理中、成功、失败、部分成功等），确保流程可追溯。
-- **关系绑定校验**：在执行分账前，校验付方与收方之间是否已完成有效的“关系绑定”及“开通付款”授权。
-- **资金路由与指令组装**：根据分账类型，正确路由资金路径（如涉及内部账户），并组装调用底层账户系统的转账指令。
-- **异常处理与冲正**：处理分账过程中的各类异常（如余额不足、账户冻结），并支持失败交易的冲正流程。
-- **数据同步与对账**：向业务核心同步分账交易数据，并为对账单系统提供“天财分账”指令账单的源数据。
-
-### 1.3 非范围
-- 底层账户的创建、余额管理（由账户系统负责）。
-- 商户进件、协议签署与身份认证（由三代系统、电子签约平台负责）。
-- 行业钱包账户层的业务逻辑（如开户流转、绑定校验触发，由行业钱包系统负责）。
-- 交易资金的清算与结算（由清结算系统负责）。
-- 前端页面或接口的暴露（由行业钱包系统或网关层负责）。
+- **分账指令处理**：接收并处理行业钱包系统发起的各类分账指令（归集、批量付款、会员结算），完成资金从付方账户到收方账户的划转。
+- **结算处理**：与清结算系统协同，处理收单交易资金的结算流程，将待结算账户（01账户）的资金划入指定的天财收款账户。
+- **退货资金处理**：处理涉及天财收款账户的退货场景，协调退货账户（04账户）与天财收款账户之间的资金调拨。
+- **账务流水与对账**：生成所有资金变动的明细流水，为对账单系统提供数据源，并支持内部对账与差错处理。
+- **资金操作校验**：在执行任何资金操作前，对账户状态、关系、余额、业务规则进行严格校验。
+- **事务与一致性保障**：确保所有跨账户、跨系统的资金操作在分布式环境下的最终一致性。
 
 ## 2. 接口设计
 
-### 2.1 REST API 端点 (内部接口，供行业钱包系统调用)
+### 2.1 API端点 (RESTful)
 
-#### 2.1.1 分账交易接口
-- **POST /api/v1/split/execute**: 执行单笔分账
-    - **请求体**: `ExecuteSplitRequest`
-    - **响应**: `SplitOrderResponse`
-- **POST /api/v1/split/batch-execute**: 执行批量分账（如批量付款场景）
-    - **请求体**: `BatchExecuteSplitRequest`
-    - **响应**: `BatchSplitOrderResponse`
-- **POST /api/v1/split/{splitOrderNo}/reverse**: 分账冲正
-    - **请求体**: `ReverseSplitRequest`
-    - **响应**: `BaseResponse`
-- **GET /api/v1/split/orders/{splitOrderNo}**: 查询分账订单详情
-    - **响应**: `SplitOrderDetailResponse`
-
-#### 2.1.2 查询与校验接口
-- **POST /api/v1/split/validate-relationship**: 校验分账关系
-    - **请求体**: `ValidateRelationshipRequest`
-    - **响应**: `ValidateRelationshipResponse`
-- **GET /api/v1/split/fee-calculate**: 试算手续费
-    - **查询参数**: `bizType`, `fromAccountNo`, `toAccountNo`, `amount`
-    - **响应**: `FeeCalculateResponse`
-
-### 2.2 数据结构
-
-```json
-// ExecuteSplitRequest - 执行单笔分账请求
-{
-  "requestId": "SPLIT_REQ_202310270001", // 请求流水号，幂等键
-  "bizType": "COLLECTION", // 业务类型: COLLECTION(归集), BATCH_PAY(批量付款), MEMBER_SETTLE(会员结算)
-  "bizOrderNo": "BIZ_ORDER_001", // 上游业务订单号（如归集单号）
-  "payer": {
-    "accountNo": "ACC202310270001", // 付方账户号（天财收款账户）
-    "merchantNo": "M100001", // 付方商户号
-    "merchantName": "北京总店"
-  },
-  "payee": {
-    "accountNo": "ACC202310270002", // 收方账户号（天财收款/接收方账户）
-    "merchantNo": "M100002", // 收方商户号
-    "merchantName": "上海分店"
-  },
-  "amount": "1000.00", // 分账金额
-  "currency": "CNY",
-  "memo": "2023年10月归集款",
-  "extInfo": { // 扩展信息
-    "splitRatio": "0.30", // 分账比例（如适用）
-    "originalTradeNo": "TRADE_001" // 原交易号（会员结算关联用）
-  }
-}
-
-// SplitOrderResponse - 分账订单响应
-{
-  "splitOrderNo": "SPLIT_ORDER_202310270001", // 本系统分账订单号
-  "status": "PROCESSING", // 订单状态: PROCESSING, SUCCESS, FAILED, PARTIAL_SUCCESS
-  "requestId": "SPLIT_REQ_202310270001",
-  "bizOrderNo": "BIZ_ORDER_001",
-  "estimatedFinishTime": "2023-10-27T10:05:00Z" // 预计完成时间（用于异步处理）
-}
-
-// SplitOrderDetailResponse - 分账订单详情
-{
-  "splitOrderNo": "SPLIT_ORDER_202310270001",
-  "bizType": "COLLECTION",
-  "status": "SUCCESS",
-  "payer": { ... },
-  "payee": { ... },
-  "amount": "1000.00",
-  "actualAmount": "995.00", // 实际划账金额（扣除手续费后）
-  "fee": "5.00", // 手续费
-  "feeDeductAccountNo": "FEE_ACCOUNT_001", // 手续费扣收账户
-  "currency": "CNY",
-  "memo": "2023年10月归集款",
-  "relatedAccountTransNos": ["TRANS001", "TRANS002"], // 关联的底层账户流水号
-  "errorCode": "",
-  "errorMsg": "",
-  "createTime": "2023-10-27T10:00:00Z",
-  "finishTime": "2023-10-27T10:00:30Z"
-}
-
-// BatchExecuteSplitRequest - 批量分账请求
-{
-  "batchRequestId": "BATCH_SPLIT_REQ_202310270001",
-  "bizType": "BATCH_PAY",
-  "bizBatchNo": "BATCH_PAY_001", // 上游批量业务批次号
-  "payer": { ... }, // 统一的付方
-  "items": [ // 分账明细列表
-    {
-      "itemRequestId": "ITEM_REQ_001",
-      "payee": { ... },
-      "amount": "500.00",
-      "memo": "供应商A货款"
-    },
-    ... // 最多支持1000条
-  ],
-  "currency": "CNY",
-  "extInfo": { ... }
-}
-```
-
-### 2.3 发布的事件
-账务核心系统作为事件生产者，发布以下领域事件：
-
-- **SplitOrderCreatedEvent**: 分账订单创建。
-    ```json
-    {
-      "eventId": "EVT_SPLIT_CREATED_001",
-      "eventType": "SPLIT_ORDER_CREATED",
-      "timestamp": "2023-10-27T10:00:00Z",
-      "data": {
-        "splitOrderNo": "SPLIT_ORDER_202310270001",
-        "bizType": "COLLECTION",
-        "payerAccountNo": "ACC202310270001",
-        "payeeAccountNo": "ACC202310270002",
-        "amount": "1000.00",
-        "bizOrderNo": "BIZ_ORDER_001"
+#### 2.1.1 分账指令接口
+- **POST /api/v1/tiancai/split-orders**
+    - **描述**：接收并执行天财分账指令。这是核心业务接口。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "split_req_20250120001", // 请求流水号，全局唯一，用于幂等
+        "biz_scene": "COLLECTION", // 业务场景：COLLECTION(归集)/BATCH_PAY(批量付款)/MEMBER_SETTLE(会员结算)
+        "payer_account_id": "TCA_20231011001", // 付方天财账户ID
+        "payee_account_id": "TCA_20231011002", // 收方天财账户ID
+        "amount": 100000, // 分账金额（单位：分）
+        "currency": "CNY",
+        "biz_ref_no": "ORDER_REF_001", // 业务参考号（如订单号），用于关联业务
+        "remark": "门店日终归集",
+        "ext_info": { // 扩展信息，根据场景不同
+          "split_ratio": 0.3, // 分账比例（批量付款可能用到）
+          "fee_deduct_info": {...} // 手续费扣收信息（如有）
+        }
       }
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "message": "分账指令接收成功",
+        "data": {
+          "split_order_no": "TSO_2025012000001", // 系统生成的分账订单号
+          "request_id": "split_req_20250120001",
+          "status": "PROCESSING", // 状态：PROCESSING(处理中)/SUCCESS/FAILED
+          "estimated_settle_time": "2025-01-20T15:30:00Z" // 预计完成时间
+        }
+      }
+      ```
+    - **说明**：此接口为异步处理，立即返回受理结果。实际账务处理通过内部流程完成。
+
+#### 2.1.2 结算触发接口
+- **POST /api/v1/tiancai/settlement-trigger**
+    - **描述**：由清结算系统调用，触发将待结算账户资金结算至天财收款账户。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "settle_req_001",
+        "settlement_batch_no": "SETTLE_20250120_01", // 清结算批次号
+        "merchant_no": "M100001",
+        "tiancai_receive_account_id": "TCA_20231011001", // 目标天财收款账户ID
+        "total_amount": 5000000, // 结算总金额（分）
+        "currency": "CNY",
+        "settlement_date": "2025-01-20", // 结算日期
+        "detail_items": [ // 可选的明细列表，用于对账
+          {
+            "trade_no": "TRADE_001",
+            "amount": 100000,
+            "fee": 500
+          }
+        ]
+      }
+      ```
+    - **响应体**：返回受理结果及系统生成的结算指令号。
+
+#### 2.1.3 退货资金处理接口
+- **POST /api/v1/tiancai/refund-adjustment**
+    - **描述**：处理涉及天财收款账户的退货，调整退货账户（04）与天财收款账户的资金。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "refund_adj_001",
+        "refund_trade_no": "REFUND_20250120001",
+        "original_trade_no": "TRADE_001", // 原交易号
+        "tiancai_receive_account_id": "TCA_20231011001", // 关联的天财收款账户
+        "refund_amount": 50000, // 退货金额（分）
+        "currency": "CNY",
+        "adjustment_type": "DIRECT_DEDUCT", // 调整类型：DIRECT_DEDUCT(直接扣减)/FUND_TRANSFER(资金划转)
+        "reason": "客户取消订单"
+      }
+      ```
+    - **响应体**：返回处理结果。
+
+#### 2.1.4 查询接口
+- **GET /api/v1/tiancai/split-orders/{split_order_no}**：查询分账指令状态及详情。
+- **GET /api/v1/tiancai/accounts/{tiancai_account_id}/transactions**：查询账户交易流水。
+- **POST /api/v1/tiancai/internal/reconciliation**：内部对账接口（日终批处理）。
+
+### 2.2 发布/消费的事件
+
+#### 2.2.1 消费的事件
+- **TiancaiAccountCreatedEvent** (来自账户系统)：监听天财账户创建，初始化本模块的账户缓存或路由信息。
+- **AccountRelationshipBoundEvent** (来自账户系统)：更新本模块维护的关系映射，用于快速校验。
+- **SettlementCompletedEvent** (来自清结算系统)：接收结算完成通知，触发后续分账或资金可用性更新。
+
+#### 2.2.2 发布的事件
+- **TiancaiSplitOrderCreatedEvent**：分账指令被成功接收并持久化后发布。
+  ```json
+  {
+    "event_id": "event_split_created_001",
+    "event_type": "TIANCAI_SPLIT_ORDER_CREATED",
+    "timestamp": "2025-01-20T10:00:00Z",
+    "data": {
+      "split_order_no": "TSO_2025012000001",
+      "biz_scene": "COLLECTION",
+      "payer_account_id": "TCA_20231011001",
+      "payee_account_id": "TCA_20231011002",
+      "amount": 100000,
+      "status": "PROCESSING"
     }
-    ```
-- **SplitOrderCompletedEvent**: 分账订单完成（成功/失败）。
-- **SplitOrderStatusChangedEvent**: 分账订单状态变更。
-
-### 2.4 消费的事件
-账务核心系统作为事件消费者，订阅以下事件以触发或更新业务：
-
-- **RelationshipBoundEvent** (来自行业钱包系统): 关系绑定完成，更新本地缓存。
-- **AccountStatusChangedEvent** (来自账户系统): 账户状态变更，影响后续分账校验。
+  }
+  ```
+- **TiancaiSplitOrderCompletedEvent**：分账指令处理完成（成功或失败）后发布，通知行业钱包系统和对账单系统。
+- **FundsSettledEvent**：天财收款账户收到结算资金后发布，通知相关业务方资金已到位。
+- **AccountTransactionEvent**：每笔账务变动（记账流水）完成后发布，包含详细的借贷信息，是对账单系统的核心数据源。
 
 ## 3. 数据模型
 
 ### 3.1 核心表设计
 
-#### 表：`split_order` (分账订单主表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| split_order_no | varchar(32) | Y | 分账订单号，全局唯一 | UK |
-| request_id | varchar(64) | Y | 请求流水号，幂等键 | UK |
-| biz_type | varchar(32) | Y | 业务类型 | IDX |
-| biz_order_no | varchar(64) | Y | 上游业务订单号 | IDX |
-| batch_request_id | varchar(64) | N | 批量请求ID（批量付款时） | IDX |
-| payer_account_no | varchar(32) | Y | 付方账户号 | IDX |
-| payer_merchant_no | varchar(32) | Y | 付方商户号 | IDX |
-| payee_account_no | varchar(32) | Y | 收方账户号 | IDX |
-| payee_merchant_no | varchar(32) | Y | 收方商户号 | IDX |
-| amount | decimal(15,2) | Y | 分账金额 | |
-| actual_amount | decimal(15,2) | Y | 实际划账金额 | |
-| currency | char(3) | Y | 币种 | |
-| fee | decimal(15,2) | Y | 手续费 | |
-| fee_deduct_account_no | varchar(32) | N | 手续费扣收账户 | |
-| status | varchar(16) | Y | 状态 | IDX |
-| memo | varchar(256) | N | 备注 | |
-| ext_info | json | N | 扩展信息（JSON） | |
-| error_code | varchar(32) | N | 错误码 | |
-| error_msg | varchar(512) | N | 错误信息 | |
-| version | int(11) | Y | 版本号，乐观锁 | |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
-| finish_time | datetime | N | 完成时间 | IDX |
+#### 表：`tiancai_split_order` (天财分账订单表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `split_order_no` | varchar(32) | Y | | **业务主键**，分账订单号，格式`TSO_YYYYMMDDxxxxx` |
+| `request_id` | varchar(64) | Y | | 请求流水号，用于幂等，全局唯一 |
+| `biz_scene` | varchar(20) | Y | | 业务场景：`COLLECTION`/`BATCH_PAY`/`MEMBER_SETTLE` |
+| `payer_account_id` | varchar(32) | Y | | 付方天财账户ID |
+| `payee_account_id` | varchar(32) | Y | | 收方天财账户ID |
+| `amount` | decimal(15,2) | Y | | 分账金额（元，存储用元） |
+| `currency` | varchar(3) | Y | `CNY` | 币种 |
+| `status` | varchar(20) | Y | `INIT` | 状态：`INIT`(初始)/`VALIDATING`(校验中)/`PROCESSING`(处理中)/`SUCCESS`/`FAILED`/`PARTIAL_SUCCESS`(部分成功-批付) |
+| `biz_ref_no` | varchar(64) | N | | 业务参考号 |
+| `remark` | varchar(256) | N | | 备注 |
+| `failure_reason` | varchar(512) | N | | 失败原因 |
+| `processed_at` | datetime | N | | 处理完成时间 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | |
 
-#### 表：`split_order_item` (分账订单明细表，用于批量付款)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| split_order_no | varchar(32) | Y | 分账订单号 | IDX |
-| item_request_id | varchar(64) | Y | 明细项请求ID | UK |
-| payee_account_no | varchar(32) | Y | 收方账户号 | IDX |
-| amount | decimal(15,2) | Y | 分账金额 | |
-| actual_amount | decimal(15,2) | Y | 实际划账金额 | |
-| fee | decimal(15,2) | Y | 手续费 | |
-| status | varchar(16) | Y | 状态 | IDX |
-| memo | varchar(256) | N | 备注 | |
-| error_code | varchar(32) | N | 错误码 | |
-| error_msg | varchar(512) | N | 错误信息 | |
-| create_time | datetime | Y | 创建时间 | |
+#### 表：`account_transaction` (账户交易流水表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `transaction_no` | varchar(32) | Y | | 交易流水号，格式`TXN_YYYYMMDDxxxxx` |
+| `account_no` | varchar(20) | Y | | **账户号**（底层账户号） |
+| `tiancai_account_id` | varchar(32) | Y | | 关联的天财账户ID |
+| `biz_trade_no` | varchar(64) | Y | | 关联的业务交易号（如split_order_no, settlement_batch_no） |
+| `biz_type` | varchar(30) | Y | | 业务类型：`TIANCAI_SPLIT`/`SETTLEMENT_IN`(结算入金)/`REFUND_ADJUSTMENT`/`WITHDRAW`(提现) |
+| `direction` | varchar(10) | Y | | 方向：`CREDIT`(入账)/`DEBIT`(出账) |
+| `amount` | decimal(15,2) | Y | | 交易金额（元） |
+| `balance_before` | decimal(15,2) | Y | | 交易前余额 |
+| `balance_after` | decimal(15,2) | Y | | 交易后余额 |
+| `balance_type` | varchar(20) | Y | `AVAILABLE` | 余额类型：`AVAILABLE`/`FROZEN` |
+| `currency` | varchar(3) | Y | `CNY` | |
+| `status` | varchar(20) | Y | `SUCCESS` | 状态：`SUCCESS`/`FAILED` |
+| `remark` | varchar(256) | N | | 备注 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
 
-#### 表：`split_relationship_cache` (分账关系缓存表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| payer_account_no | varchar(32) | Y | 付方账户号 | UK1 |
-| payee_account_no | varchar(32) | Y | 收方账户号 | UK1 |
-| relationship_status | varchar(16) | Y | 关系状态：BOUND, UNBOUND | |
-| auth_status | varchar(16) | Y | 开通付款授权状态：GRANTED, REVOKED | |
-| biz_types | json | Y | 允许的业务类型列表 | |
-| expire_time | datetime | N | 缓存过期时间 | IDX |
-| create_time | datetime | Y | 创建时间 | |
-| update_time | datetime | Y | 更新时间 | |
+#### 表：`settlement_instruction` (结算指令记录表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `instruction_no` | varchar(32) | Y | | 结算指令号，系统生成 |
+| `settlement_batch_no` | varchar(64) | Y | | 清结算系统批次号 |
+| `tiancai_receive_account_id` | varchar(32) | Y | | 天财收款账户ID |
+| `total_amount` | decimal(15,2) | Y | | 结算总金额 |
+| `currency` | varchar(3) | Y | `CNY` | |
+| `status` | varchar(20) | Y | `INIT` | 状态：`INIT`/`PROCESSING`/`SUCCESS`/`FAILED` |
+| `settlement_date` | date | Y | | 结算日期 |
+| `detail_count` | int | N | | 关联的交易明细笔数 |
+| `processed_at` | datetime | N | | |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
 
-#### 表：`split_account_trans_rel` (分账与账户流水关联表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| split_order_no | varchar(32) | Y | 分账订单号 | IDX |
-| account_trans_no | varchar(32) | Y | 账户系统流水号 | UK |
-| account_role | varchar(16) | Y | 账户角色：PAYER, PAYEE, FEE | |
-| create_time | datetime | Y | 创建时间 | |
+#### 表：`internal_reconciliation` (内部对账表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `recon_date` | date | Y | | 对账日期 |
+| `account_type` | varchar(20) | Y | | 账户类型：`TIANCAI_RECEIVE`/`TIANCAI_RECEIVER` |
+| `total_credit` | decimal(15,2) | Y | | 总入账金额 |
+| `total_debit` | decimal(15,2) | Y | | 总出账金额 |
+| `beginning_balance` | decimal(15,2) | Y | | 期初余额 |
+| `ending_balance` | decimal(15,2) | Y | | 期末余额 |
+| `calculated_balance` | decimal(15,2) | Y | | 计算余额（期初+入-出） |
+| `balance_diff` | decimal(15,2) | Y | `0.00` | 差额（计算余额-期末余额） |
+| `status` | varchar(20) | Y | `PENDING` | 状态：`PENDING`/`BALANCED`/`UNBALANCED` |
+| `checked_at` | datetime | N | | 核对时间 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
 
 ### 3.2 与其他模块的关系
-- **行业钱包系统**：上游调用方。行业钱包系统处理业务层逻辑后，调用本模块执行核心分账。本模块需消费其发布的`RelationshipBoundEvent`。
-- **账户系统**：下游被调用方。本模块组装指令调用账户系统完成资金划转，并消费其`AccountStatusChangedEvent`。
-- **计费中台**：下游被调用方。分账前调用计费中台试算手续费，分账成功后通知其记录手续费。
-- **清结算系统**：下游被调用方。在涉及“主动结算”资金入账天财收款账户后，或退货场景，清结算系统会调用本模块触发分账。
-- **业务核心**：下游事件消费者。本模块发布分账完成事件，业务核心订阅后记录交易数据。
-- **对账单系统**：下游事件消费者。订阅本模块的分账事件，生成“天财分账”指令账单。
+- **行业钱包系统**：通过`tiancai_split_order`表记录其发起的业务指令，并通过事件通知其处理结果。
+- **账户系统**：通过`account_transaction`表中的`account_no`关联底层账户流水，账务操作最终调用账户系统接口完成。
+- **清结算系统**：通过`settlement_instruction`表记录结算触发指令，实现结算资金的可追溯。
+- **对账单系统**：`account_transaction`表是其核心数据源，`internal_reconciliation`表支持其对账。
 
 ## 4. 业务逻辑
 
-### 4.1 核心算法
-- **分账订单号生成**：`SPLIT_ORDER` + `年月日` + `6位序列号` (如 `SPLIT_ORDER20231027000001`)。
-- **手续费计算路由**：
-    1. 根据 `bizType`, `payer` 和 `payee` 信息，构造计费请求。
-    2. 同步调用计费中台试算接口获取手续费金额和扣收账户。
-    3. 若手续费>0，则实际划账金额 = 分账金额 - 手续费。
-- **批量分账处理**：
-    - 采用“整体创建，逐笔处理”模式。主订单状态为`PROCESSING`，明细项独立处理。
-    - 支持部分成功，最终主订单状态根据明细结果聚合（全部成功->SUCCESS，全部失败->FAILED，其他->PARTIAL_SUCCESS）。
-- **幂等控制**：所有接口通过`requestId`（或`itemRequestId`）实现幂等，利用数据库唯一索引防重。
+### 4.1 核心算法与规则
 
-### 4.2 业务规则
-1. **分账前置校验规则**：
-    - **关系绑定**：校验 `split_relationship_cache` 中对应付方和收方的 `relationship_status` 为 `BOUND`。
-    - **开通付款**：对于 `bizType` 为 `BATCH_PAY` 或 `MEMBER_SETTLE`，需额外校验 `auth_status` 为 `GRANTED`。
-    - **账户状态**：付方账户必须为 `ACTIVE` 且可用余额充足（金额+手续费）。收方账户必须为 `ACTIVE`。
-    - **业务类型匹配**：校验当前分账业务类型在关系缓存的 `biz_types` 列表中。
+#### 4.1.1 分账指令处理流程
+1. **指令接收与幂等**：基于`request_id`进行幂等校验，防止重复处理。
+2. **业务校验**：
+   - 调用账户系统接口，校验付方与收方账户状态是否为`ACTIVE`。
+   - 调用账户系统关系校验接口，验证是否存在`VERIFIED`状态且有效的对应类型关系。
+   - 校验付方账户可用余额是否充足（实时查询或缓存）。
+   - 校验业务场景与账户角色的匹配性（如归集场景，付方必须是门店，收方必须是总部）。
+3. **指令持久化**：校验通过后，将指令状态置为`VALIDATING`并持久化。
+4. **账务执行**：
+   - 调用账户系统账务操作接口(`POST /ledger/entries`)，使用`split_order_no`作为`biz_trade_no`。
+   - 请求体构造借贷分录：付方账户`DEBIT`，收方账户`CREDIT`。
+   - 账户系统在事务中完成双方余额更新。
+5. **状态更新与通知**：
+   - 账务成功：更新分账订单状态为`SUCCESS`，记录处理时间。
+   - 账务失败：更新状态为`FAILED`，记录失败原因。
+   - 发布`TiancaiSplitOrderCompletedEvent`和`AccountTransactionEvent`。
 
-2. **资金处理规则**：
-    - **归集(COLLECTION)**：门店(付方) -> 总部(收方)。通常无手续费或手续费由门店承担。
-    - **批量付款(BATCH_PAY)**：总部(付方) -> 供应商/股东(收方)。手续费通常由总部承担。
-    - **会员结算(MEMBER_SETTLE)**：总部(付方) -> 门店(收方)。手续费规则可配置。
-    - **手续费扣划**：若手续费由付方承担，则从付方账户划出“分账金额+手续费”，其中手续费划入指定手续费账户。
+#### 4.1.2 结算资金处理流程
+1. **触发接收**：接收清结算系统的结算触发请求，基于`settlement_batch_no`和`tiancai_receive_account_id`做幂等。
+2. **资金划转**：
+   - 确定源账户：待结算账户（01账户），根据`merchant_no`定位。
+   - 确定目标账户：天财收款账户对应的底层账户。
+   - 调用账户系统账务操作接口，完成从01账户到天财收款账户的资金划转。
+3. **记录与通知**：记录结算指令，发布`FundsSettledEvent`，通知相关方资金已到账。
 
-3. **状态流转规则**：
-    ```
-    单笔分账: CREATED -> PROCESSING -> (SUCCESS / FAILED)
-    批量分账主单: CREATED -> PROCESSING -> (SUCCESS / PARTIAL_SUCCESS / FAILED)
-    批量分账明细: CREATED -> PROCESSING -> (SUCCESS / FAILED)
-    ```
-    - 订单创建后即为`PROCESSING`状态。
-    - 只有`PROCESSING`状态的订单允许冲正。
+#### 4.1.3 批量付款特殊处理
+- **拆分处理**：一个批量付款指令可能包含多个收款方。本模块接收的是单个付方对单个收方的指令。行业钱包系统负责拆分和组装。
+- **部分成功**：在极端情况下，一个批量批次中部分成功、部分失败。`tiancai_split_order`表记录每笔明细，行业钱包系统需汇总状态。本模块支持`PARTIAL_SUCCESS`状态用于上游汇总。
 
-### 4.3 验证逻辑
-- **请求基础验证**：必填字段、金额有效性（>0）、账户号格式、币种支持性。
-- **业务一致性验证**：
-    - 付方账户的`merchantNo`与请求中的`payer.merchantNo`一致。
-    - 收方账户类型符合业务场景（如批量付款的收方应为天财接收方账户）。
-- **风控验证**：
-    - 单笔分账金额限额。
-    - 付方当日累计分账限额。
-    - 敏感商户/账户监控名单校验。
+#### 4.1.4 日终对账流程
+1. **数据汇总**：每日凌晨，统计`account_transaction`表中当日所有交易，按账户类型汇总`CREDIT`和`DEBIT`总额。
+2. **余额核对**：从账户系统获取各天财账户的日初和日末余额快照。
+3. **差额计算**：计算`期初余额 + 总入账 - 总出账`是否等于`期末余额`。
+4. **异常处理**：若差额不为零，触发告警，并生成差错处理工单，供运营人员核查。
+5. **状态更新**：核对无误后，更新`internal_reconciliation`表状态为`BALANCED`。
+
+### 4.2 验证逻辑
+- **分账指令验证**：`业务场景`、`账户角色`、`关系有效性`、`余额充足性`四重校验。
+- **结算触发验证**：校验`天财收款账户`是否存在且状态正常，校验`结算批次`是否已处理过（幂等）。
+- **金额验证**：所有金额必须为正数，且符合币种精度要求。
+- **事务边界**：任何涉及资金变动的操作，必须在一个明确的业务事务内，且有补偿或冲正机制。
 
 ## 5. 时序图
 
-### 5.1 单笔归集分账流程
+### 5.1 天财分账（归集）核心流程
 ```mermaid
 sequenceDiagram
     participant W as 行业钱包系统
-    participant S as 账务核心系统
-    participant C as 计费中台
+    participant L as 账务核心系统
     participant A as 账户系统
+    participant DB as 数据库
     participant MQ as 消息队列
 
-    W->>S: POST /split/execute (ExecuteSplitRequest)
-    Note over S: 1. 幂等校验<br/>2. 基础验证
-    S->>S: 查询关系缓存，校验绑定与授权
-    S->>C: GET /fee-calculate (试算手续费)
-    C-->>S: 返回手续费结果
-    S->>S: 计算实际划账金额，创建分账订单(PROCESSING)
-    S->>A: POST /accounts/transfer (InternalTransferRequest)
-    Note over A: 执行资金划转
-    A-->>S: 返回转账结果
-    alt 转账成功
-        S->>S: 更新订单状态为SUCCESS，记录流水关联
-        S->>C: 异步通知手续费入账（如需要）
-        S->>MQ: 发布SplitOrderCompletedEvent(SUCCESS)
-    else 转账失败
-        S->>S: 更新订单状态为FAILED，记录错误信息
-        S->>MQ: 发布SplitOrderCompletedEvent(FAILED)
-    end
-    S-->>W: 返回SplitOrderResponse
+    W->>L: POST /split-orders (发起归集分账)
+    L->>DB: 基于request_id幂等校验
+    DB-->>L: 无重复记录
+    L->>A: GET /relationships/validate (校验账户关系)
+    A-->>L: 校验通过
+    L->>DB: 插入分账订单(状态=VALIDATING)
+    L->>A: POST /ledger/entries (执行账务记账)
+    Note over A: 事务内扣减付方，增加收方
+    A-->>L: 记账成功
+    L->>DB: 更新分账订单状态=SUCCESS
+    L->>MQ: 发布 SplitOrderCompletedEvent
+    L->>MQ: 发布 AccountTransactionEvent (付方&收方)
+    L-->>W: 返回异步受理成功(订单号)
 ```
 
-### 5.2 批量付款分账流程
+### 5.2 收单资金结算至天财账户流程
 ```mermaid
 sequenceDiagram
-    participant W as 行业钱包系统
-    participant S as 账务核心系统
+    participant S as 清结算系统
+    participant L as 账务核心系统
     participant A as 账户系统
+    participant DB as 数据库
     participant MQ as 消息队列
 
-    W->>S: POST /split/batch-execute (BatchExecuteSplitRequest)
-    Note over S: 1. 创建主订单(PROCESSING)<br/>2. 创建所有明细项
-    S-->>W: 立即返回BatchSplitOrderResponse
-    par 并行处理明细项
-        loop 每个明细项
-            S->>S: 校验该明细项关系与授权
-            S->>C: 试算手续费
-            S->>A: 执行单笔转账
-            alt 成功
-                S->>S: 更新明细项状态为SUCCESS
-            else 失败
-                S->>S: 更新明细项状态为FAILED
-            end
-        end
-    end
-    S->>S: 聚合所有明细项状态，更新主订单状态
-    S->>MQ: 发布SplitOrderCompletedEvent
+    S->>L: POST /settlement-trigger (触发结算)
+    L->>DB: 幂等校验(settlement_batch_no + account_id)
+    DB-->>L: 校验通过
+    L->>A: POST /ledger/entries
+    Note over A: 从01待结算账户划款至天财收款账户
+    A-->>L: 记账成功
+    L->>DB: 记录结算指令(状态=SUCCESS)
+    L->>MQ: 发布 FundsSettledEvent
+    L-->>S: 返回处理成功
 ```
 
 ## 6. 错误处理
 
-### 6.1 预期错误及HTTP状态码
-- **400 Bad Request**：请求参数无效、格式错误、金额非正。
-- **403 Forbidden**：
-    - `RELATIONSHIP_NOT_BOUND`：付方与收方未绑定有效关系。
-    - `PAYMENT_AUTH_REQUIRED`：未开通付款授权。
-    - `ACCOUNT_STATUS_INVALID`：账户状态异常（非ACTIVE、已冻结等）。
-- **409 Conflict**：
-    - `DUPLICATE_REQUEST_ID`：重复的请求流水号。
-    - `ORDER_STATUS_CANNOT_REVERSE`：订单状态不允许冲正。
-- **422 Unprocessable Entity**：
-    - `INSUFFICIENT_BALANCE`：付方账户余额不足。
-    - `EXCEED_DAILY_LIMIT`：超过当日分账限额。
-    - `FEE_CALCULATE_FAILED`：手续费计算失败。
-- **500 Internal Server Error**：系统内部错误、依赖服务超时或异常。
+| 错误码 | HTTP 状态码 | 描述 | 处理策略 |
+| :--- | :--- | :--- | :--- |
+| `SPLIT_REQUEST_DUPLICATE` | 409 | 重复的分账请求(request_id) | 返回已创建的分账订单信息，确保幂等。 |
+| `ACCOUNT_RELATIONSHIP_INVALID` | 422 | 账户关系校验失败 | 拒绝分账，返回具体原因（无关系、已过期、类型不匹配）。 |
+| `PAYER_BALANCE_INSUFFICIENT` | 422 | 付方余额不足 | 拒绝分账，通知调用方。 |
+| `ACCOUNT_STATUS_ABNORMAL` | 423 | 付方或收方账户状态非ACTIVE | 拒绝分账，提示账户冻结或注销。 |
+| `BIZ_SCENE_VALIDATION_FAILED` | 400 | 业务场景与账户角色不匹配 | 拒绝请求，例如门店向门店发起归集。 |
+| `SETTLEMENT_BATCH_DUPLICATE` | 409 | 重复的结算触发请求 | 返回已处理的结算指令信息。 |
+| `LEDGER_OPERATION_FAILED` | 500 | 底层账务操作失败 | 记录失败详情，更新分账订单状态为FAILED，发布失败事件。触发告警，需人工介入检查。 |
+| `RECONCILIATION_UNBALANCED` | (内部) | 日终对账不平 | 触发高级别告警，冻结相关账户的异常交易，生成差错工单。 |
 
-### 6.2 处理策略
-- **同步调用失败**：对于账户系统、计费中台的同步调用，采用有限次重试（如3次），重试间隔递增。若最终失败，将分账订单置为`FAILED`。
-- **异步补偿**：对于“最终一致性”场景（如通知计费中台记录手续费），采用异步消息+本地事务表确保至少一次投递，消费端需幂等。
-- **冲正机制**：对于`PROCESSING`状态下因系统故障导致的不确定状态订单，提供手动/自动冲正接口，调用账户系统进行反向划账。
-- **对账与差错处理**：每日与账户系统、计费中台进行对账，发现不平账目，触发差错处理流程，支持人工调账。
+**通用策略**：
+- **业务校验错误(4xx)**：立即失败，返回明确错误信息，不进行重试。
+- **外部系统调用失败**：
+  - 账户系统调用失败：根据错误类型决定。如果是网络超时等暂时性错误，进入重试队列（最多3次）。如果是账户状态等业务错误，立即失败。
+  - 采用**SAGA模式**处理长事务：对于已调用账户系统记账但后续步骤失败的情况，有对应的冲正接口，保证最终一致性。
+- **内部系统错误(5xx)**：记录完整错误日志和上下文，触发监控告警。对于异步处理的任务，移至死信队列，供人工排查。
 
 ## 7. 依赖说明
 
-### 7.1 上游模块交互
-1. **行业钱包系统**：
-    - **调用本模块**：所有分账请求的入口。行业钱包系统完成业务层校验（如门店归属校验）后，调用本模块执行分账。
-    - **交互方式**：同步RPC调用（HTTP REST）。本模块应快速响应（创建订单后即返回），实际处理可异步。
-    - **关键点**：行业钱包系统需保证其`requestId`的全局唯一性。本模块消费其发布的`RelationshipBoundEvent`以更新本地缓存。
+### 7.1 上游依赖
+1. **行业钱包系统**
+   - **交互方式**：同步REST API调用 (`POST /split-orders`)。
+   - **职责**：发起所有分账业务请求，是业务规则的制定者和校验者（前置基础校验）。
+   - **关键点**：本模块依赖其提供正确的业务场景、账户ID和金额。采用异步响应模式，通过事件回传处理结果。
 
-### 7.2 下游模块交互
-1. **账户系统**：
-    - **调用该模块**：执行所有资金划转操作。这是本模块最核心的依赖。
-    - **交互方式**：同步RPC调用。必须处理其返回的各类错误（余额不足、账户冻结等），并转化为业务侧错误码。
-    - **关键点**：需维护账户系统接口的熔断降级机制，防止其故障导致本模块雪崩。
+2. **清结算系统**
+   - **交互方式**：同步REST API调用 (`POST /settlement-trigger`)。
+   - **职责**：在结算日触发资金从待结算账户转入天财收款账户。
+   - **关键点**：依赖其提供准确的结算金额、批次号和商户信息。需保证幂等性处理。
 
-2. **计费中台**：
-    - **调用该模块**：分账前试算手续费，分账成功后异步通知其记录。
-    - **交互方式**：试算为同步RPC调用，通知为异步消息。
-    - **关键点**：手续费试算失败应阻断分账流程。通知消息需确保可靠投递。
+3. **账户系统**
+   - **交互方式**：同步REST API调用 (关系校验、账务操作)。
+   - **职责**：提供账户状态、关系的最终校验，以及执行原子化的资金划转。
+   - **关键点**：**强依赖**。账务操作必须成功，否则整个分账失败。需要设计良好的重试和补偿机制。
 
-3. **清结算系统**：
-    - **被该模块调用**：在特定场景（如交易结算触发分账），清结算系统会调用本模块。
-    - **交互方式**：同步RPC调用。需校验调用方的身份和权限。
+### 7.2 设计原则
+- **职责清晰**：本模块聚焦于“账务处理”，不涉及业务签约、认证、规则计算等。
+- **异步化与解耦**：核心资金处理虽需强一致性，但通过异步事件通知结果，与业务系统解耦。
+- **幂等性设计**：所有写操作接口必须支持幂等，通过`request_id`、`biz_trade_no`等实现。
+- **可观测性**：所有资金流转必须留下完整的双流水分录（交易流水），支持审计和对账。
+- **最终一致性**：在分布式环境下，通过事件驱动和补偿交易（冲正）保证跨系统数据的最终一致性。
 
-### 7.3 内部依赖
-- **数据库**：MySQL集群，要求高可用，支持事务。`split_order`表是核心，读写频繁。
-- **缓存**：Redis集群，用于缓存热点数据：
-    - 分账关系状态（`split_relationship_cache` 的热点数据）。
-    - 账户基础信息（状态、余额快照，用于快速校验）。
-- **消息中间件**：Kafka/RocketMQ，用于事件发布和异步任务。
-- **配置中心**：动态配置分账限额、手续费承担方等业务规则。
+## 3.7 电子签约平台
 
-**文档版本**：1.0  
-**最后更新**：2023-10-27  
-**设计者**：软件架构师
 
-## 3.6 行业钱包系统
+
+# 电子签约平台模块设计文档
+
+## 1. 概述
+
+### 1.1 目的
+电子签约平台作为“天财分账”业务中关系绑定的核心法律流程执行模块，旨在为总部、门店、供应商、股东等角色提供安全、合规、便捷的电子协议签署与身份认证集成服务。其主要目的是：
+1. **法律合规**：通过电子签约完成《分账授权协议》、《代付授权协议》等法律文件的签署，建立合法有效的资金划转授权关系。
+2. **流程引导**：为不同签约场景提供标准化的H5页面，引导用户完成协议查看、确认、签署及身份认证流程。
+3. **证据链留存**：完整记录签约过程（时间戳、IP、用户操作、协议版本等），生成不可篡改的签约证据包，满足司法存证要求。
+4. **认证集成**：无缝集成认证系统的打款验证和人脸验证能力，作为用户身份核验的统一入口。
+
+### 1.2 范围
+本模块专注于电子签约流程的管理与执行，不处理具体的账户绑定或分账业务逻辑。核心职责包括：
+- **协议模板管理**：维护不同场景（归集、批量付款、会员结算）的协议模板及版本。
+- **签约流程编排**：根据业务场景，动态生成签约流程（协议签署→身份认证→结果回调）。
+- **H5页面服务**：提供响应式H5页面，用于协议展示、签署确认及认证跳转。
+- **签约记录管理**：存储完整的签约过程数据与证据链。
+- **与认证系统集成**：调用认证系统API发起验证，并接收其验证结果回调。
+- **签约状态同步**：通过事件通知行业钱包系统签约结果，驱动后续业务流转。
+
+### 1.3 设计原则
+- **合规先行**：所有流程设计符合《电子签名法》及相关金融监管要求。
+- **用户体验**：流程简洁明了，移动端友好，减少用户操作步骤。
+- **安全可靠**：协议内容防篡改，签署过程可追溯，数据传输加密。
+- **高可用**：作为关键业务入口，需保证高可用性与快速响应。
+- **解耦设计**：与具体业务逻辑解耦，通过标准API和事件提供服务。
+
+## 2. 接口设计
+
+### 2.1 API端点 (RESTful)
+
+#### 2.1.1 创建签约流程
+- **端点**: `POST /api/v1/contracts/processes`
+- **描述**: 由行业钱包系统调用，根据业务场景创建一条签约流程实例。
+- **认证**: 需要调用方API密钥认证。
+- **请求头**:
+    - `X-Client-Id`: 调用方标识（如 `wallet_system`）
+    - `X-Signature`: 请求签名
+- **请求体**:
+```json
+{
+  "requestId": "wallet_req_20231028001", // 调用方唯一请求ID，用于幂等
+  "bizScene": "TIANCAI_COLLECTION", // 业务场景: TIANCAI_COLLECTION(归集), TIANCAI_BATCH_PAY(批量付款), TIANCAI_MEMBER_SETTLE(会员结算)
+  "bizReferenceNo": "bind_20231028001", // 关联的业务唯一号（如关系绑定流水号）
+  "contractType": "COLLECTION_AUTHORIZATION", // 协议类型: COLLECTION_AUTHORIZATION(分账授权协议), PAYMENT_AUTHORIZATION(代付授权协议)
+  "parties": [
+    {
+      "partyRole": "PAYER", // 参与方角色: PAYER(付方), PAYEE(收方), 对应业务中的总部、门店等
+      "partyType": "CORPORATE", // 参与方类型: CORPORATE(企业), PERSONAL(个人)
+      "partyName": "北京天财科技有限公司", // 参与方名称
+      "certificateType": "UNIFIED_SOCIAL_CREDIT_CODE", // 证件类型: UNIFIED_SOCIAL_CREDIT_CODE(统一社会信用代码), ID_CARD(身份证)
+      "certificateNo": "91110108MA01XXXXXX", // 证件号码
+      "contactPhone": "13800138000", // 联系人手机号（用于短信验证）
+      "accountInfo": { // 账户信息（可选，用于预填或展示）
+        "accountNo": "1101234567890123456",
+        "accountName": "北京天财科技有限公司",
+        "bankCode": "ICBC"
+      }
+    },
+    {
+      "partyRole": "PAYEE",
+      "partyType": "CORPORATE",
+      "partyName": "上海浦东门店有限公司",
+      "certificateType": "UNIFIED_SOCIAL_CREDIT_CODE",
+      "certificateNo": "91310115MA1XXXXXXX",
+      "contactPhone": "13900139000",
+      "accountInfo": {
+        "accountNo": "3109876543210987654",
+        "accountName": "上海浦东门店有限公司",
+        "bankCode": "CCB"
+      }
+    }
+  ],
+  "contractVariables": { // 协议变量，用于填充模板
+    "effectiveDate": "2023-11-01",
+    "expiryDate": "2024-10-31",
+    "dailyLimit": "100000.00",
+    "singleLimit": "50000.00"
+  },
+  "callbackUrl": "https://wallet.example.com/callback/contract", // 签约结果异步回调地址
+  "redirectUrl": "https://merchant.example.com/result?bizNo={bizReferenceNo}" // 签约完成后跳转回商户页面的地址
+}
+```
+- **成功响应** (201 Created):
+```json
+{
+  "code": "SUCCESS",
+  "message": "签约流程创建成功",
+  "data": {
+    "processId": "proc_9k2jhs83la5", // 本系统生成的签约流程ID
+    "status": "INITIATED",
+    "nextActions": [ // 下一步操作指引（按参与方分组）
+      {
+        "partyRole": "PAYER",
+        "partyName": "北京天财科技有限公司",
+        "actionType": "SIGN_CONTRACT", // 操作类型: SIGN_CONTRACT(签署协议), VERIFY_IDENTITY(身份认证)
+        "actionUrl": "https://h5.e-sign.com/contract?token=eyJhbGciOi...&party=PAYER", // H5页面地址（带临时令牌）
+        "expiresAt": "2023-10-28T14:30:00+08:00" // 链接有效期
+      },
+      {
+        "partyRole": "PAYEE",
+        "partyName": "上海浦东门店有限公司",
+        "actionType": "SIGN_CONTRACT",
+        "actionUrl": "https://h5.e-sign.com/contract?token=eyJhbGciOi...&party=PAYEE",
+        "expiresAt": "2023-10-28T14:30:00+08:00"
+      }
+    ]
+  }
+}
+```
+
+#### 2.1.2 查询签约流程状态
+- **端点**: `GET /api/v1/contracts/processes/{processId}`
+- **描述**: 查询签约流程的详细状态、各参与方进度及最终结果。
+- **成功响应**:
+```json
+{
+  "code": "SUCCESS",
+  "data": {
+    "processId": "proc_9k2jhs83la5",
+    "requestId": "wallet_req_20231028001",
+    "bizScene": "TIANCAI_COLLECTION",
+    "bizReferenceNo": "bind_20231028001",
+    "contractType": "COLLECTION_AUTHORIZATION",
+    "status": "IN_PROGRESS", // 整体状态: INITIATED, IN_PROGRESS, COMPLETED, CANCELLED, EXPIRED
+    "parties": [
+      {
+        "partyRole": "PAYER",
+        "partyName": "北京天财科技有限公司",
+        "signStatus": "SIGNED", // 签署状态: PENDING, SIGNED, REJECTED
+        "verifyStatus": "PENDING", // 认证状态: PENDING, VERIFIED, FAILED
+        "signedAt": "2023-10-28T10:15:30+08:00",
+        "signedIp": "192.168.1.100",
+        "userAgent": "Mozilla/5.0..."
+      },
+      {
+        "partyRole": "PAYEE",
+        "partyName": "上海浦东门店有限公司",
+        "signStatus": "PENDING",
+        "verifyStatus": "PENDING",
+        "signedAt": null
+      }
+    ],
+    "contractDocument": {
+      "documentId": "doc_7s82kja93n2",
+      "downloadUrl": "https://h5.e-sign.com/download/doc_7s82kja93n2", // 已签署协议PDF下载地址（仅当所有方签署完成后生成）
+      "hash": "a1b2c3d4e5f6..." // 协议文件哈希值，用于防篡改校验
+    },
+    "evidencePackage": { // 证据包（仅当流程完成）
+      "packageId": "evi_8k3jls92ma1",
+      "downloadUrl": "https://h5.e-sign.com/download/evi_8k3jls92ma1"
+    },
+    "expiresAt": "2023-10-29T10:00:00+08:00",
+    "createdAt": "2023-10-28T10:00:00+08:00",
+    "updatedAt": "2023-10-28T10:15:30+08:00"
+  }
+}
+```
+
+#### 2.1.3 接收认证系统回调
+- **端点**: `POST /api/v1/webhook/verification` （由认证系统调用）
+- **描述**: 接收人脸验证或打款验证的结果回调，更新对应签约流程的认证状态。
+- **认证**: 通过请求签名验证（`X-Signature`）确保回调来源可信。
+- **请求体**:
+```json
+{
+  "eventType": "VERIFICATION_COMPLETED", // 事件类型
+  "timestamp": "2023-10-28T10:20:15+08:00",
+  "signature": "签名串",
+  "data": {
+    "verificationId": "ver_8k3jhs82na1",
+    "bizScene": "TIANCAI_BINDING",
+    "bizReferenceNo": "bind_20231028001", // 与签约流程的bizReferenceNo关联
+    "method": "FACE", // 或 TRANSFER_PAYMENT
+    "status": "SUCCESS", // 或 FAILED
+    "partyInfo": { // 标识是哪个参与方
+      "partyRole": "PAYER",
+      "certificateNo": "91110108MA01XXXXXX"
+    },
+    "evidence": { ... }, // 验证证据
+    "failureReason": null
+  }
+}
+```
+- **成功响应**:
+```json
+{
+  "code": "SUCCESS",
+  "message": "回调处理成功"
+}
+```
+
+#### 2.1.4 生成协议预览
+- **端点**: `GET /api/v1/contracts/templates/preview`
+- **描述**: 根据协议类型和变量，生成协议预览内容（HTML/PDF），用于前端展示。
+- **查询参数**:
+    - `contractType`: 协议类型
+    - `variables`: URL编码的JSON字符串，包含协议变量
+- **成功响应**:
+```json
+{
+  "code": "SUCCESS",
+  "data": {
+    "htmlContent": "<html>...协议预览HTML...</html>",
+    "variablesUsed": {
+      "effectiveDate": "2023-11-01",
+      "expiryDate": "2024-10-31"
+    }
+  }
+}
+```
+
+### 2.2 发布/消费的事件
+
+#### 2.2.1 发布的事件
+电子签约平台在关键节点向消息中间件发布事件，供行业钱包系统等订阅。
+
+1. **ContractProcessInitiatedEvent** (签约流程已创建)
+    - **Topic**: `esign.events.process.initiated`
+    - **触发时机**: 成功创建签约流程后。
+    - **Payload**:
+    ```json
+    {
+      "eventId": "evt_esign_001",
+      "eventType": "CONTRACT_PROCESS_INITIATED",
+      "timestamp": "2023-10-28T10:00:00+08:00",
+      "data": {
+        "processId": "proc_9k2jhs83la5",
+        "bizScene": "TIANCAI_COLLECTION",
+        "bizReferenceNo": "bind_20231028001",
+        "contractType": "COLLECTION_AUTHORIZATION",
+        "status": "INITIATED",
+        "parties": [ ... ],
+        "expiresAt": "2023-10-29T10:00:00+08:00"
+      }
+    }
+    ```
+
+2. **ContractPartySignedEvent** (参与方已签署)
+    - **Topic**: `esign.events.party.signed`
+    - **触发时机**: 任一参与方完成协议签署操作。
+    - **Payload**:
+    ```json
+    {
+      "eventId": "evt_esign_002",
+      "eventType": "CONTRACT_PARTY_SIGNED",
+      "timestamp": "2023-10-28T10:15:30+08:00",
+      "data": {
+        "processId": "proc_9k2jhs83la5",
+        "bizReferenceNo": "bind_20231028001",
+        "partyRole": "PAYER",
+        "partyName": "北京天财科技有限公司",
+        "signedAt": "2023-10-28T10:15:30+08:00",
+        "signMethod": "SMS_VERIFICATION", // 签署方式: SMS_VERIFICATION, PASSWORD, etc.
+        "remainingParties": ["PAYEE"] // 剩余待签署方
+      }
+    }
+    ```
+
+3. **ContractProcessCompletedEvent** (签约流程已完成)
+    - **Topic**: `esign.events.process.completed`
+    - **触发时机**: 所有参与方均完成签署和认证，流程最终完成。
+    - **Payload**:
+    ```json
+    {
+      "eventId": "evt_esign_003",
+      "eventType": "CONTRACT_PROCESS_COMPLETED",
+      "timestamp": "2023-10-28T10:25:00+08:00",
+      "data": {
+        "processId": "proc_9k2jhs83la5",
+        "bizScene": "TIANCAI_COLLECTION",
+        "bizReferenceNo": "bind_20231028001",
+        "contractType": "COLLECTION_AUTHORIZATION",
+        "status": "COMPLETED",
+        "completionTime": "2023-10-28T10:25:00+08:00",
+        "contractDocument": {
+          "documentId": "doc_7s82kja93n2",
+          "hash": "a1b2c3d4e5f6..."
+        },
+        "evidencePackageId": "evi_8k3jls92ma1"
+      }
+    }
+    ```
+
+4. **ContractProcessFailedEvent** (签约流程已失败)
+    - **Topic**: `esign.events.process.failed`
+    - **触发时机**: 流程因超时、用户拒绝、认证失败等原因最终失败。
+    - **Payload**:
+    ```json
+    {
+      "eventId": "evt_esign_004",
+      "eventType": "CONTRACT_PROCESS_FAILED",
+      "timestamp": "2023-10-28T10:30:00+08:00",
+      "data": {
+        "processId": "proc_9k2jhs83la5",
+        "bizReferenceNo": "bind_20231028001",
+        "status": "CANCELLED", // 或 EXPIRED
+        "failureReason": "VERIFICATION_FAILED", // 失败原因码
+        "failureDetail": "PAYER身份认证失败",
+        "failedAt": "2023-10-28T10:30:00+08:00"
+      }
+    }
+    ```
+
+#### 2.2.2 消费的事件
+电子签约平台消费来自认证系统的事件，以更新认证状态。
+
+1. **VerificationCompletedEvent** (来自认证系统)
+    - **Topic**: `verification.events.completed`
+    - **处理逻辑**: 根据`bizReferenceNo`和`partyInfo`找到对应签约流程和参与方，更新其认证状态。如果所有参与方均完成认证且已签署，则触发流程完成。
+
+## 3. 数据模型
+
+### 3.1 核心表设计
+
+#### 表: `contract_process` (签约流程表)
+存储签约流程的主信息。
+| 字段名 | 类型 | 必填 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint(20) | 是 | AUTO_INCREMENT | 自增主键 |
+| `process_id` | varchar(32) | 是 | | **业务唯一流程ID**，全局唯一索引 `uk_process_id` |
+| `request_id` | varchar(64) | 是 | | **调用方请求ID**，与`client_id`联合唯一索引 `uk_request_client` |
+| `client_id` | varchar(32) | 是 | | **调用方标识** (如 `wallet_system`) |
+| `biz_scene` | varchar(32) | 是 | | **业务场景** |
+| `biz_reference_no` | varchar(64) | 是 | | **关联业务流水号**，索引 `idx_biz_ref` |
+| `contract_type` | varchar(50) | 是 | | **协议类型** |
+| `contract_template_id` | varchar(32) | 是 | | **使用的协议模板ID**，关联`contract_template`表 |
+| `contract_variables_json` | json | 是 | | **协议变量**，JSON格式 |
+| `status` | varchar(20) | 是 | `INITIATED` | **整体状态**: `INITIATED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`, `EXPIRED` |
+| `callback_url` | varchar(512) | 是 | | **异步回调地址** |
+| `redirect_url` | varchar(512) | 否 | NULL | **完成跳转地址** |
+| `contract_document_id` | varchar(32) | 否 | NULL | **最终协议文件ID**，关联`contract_document`表 |
+| `evidence_package_id` | varchar(32) | 否 | NULL | **证据包ID** |
+| `expires_at` | datetime | 是 | | **流程过期时间**（如创建后24小时） |
+| `completed_at` | datetime | 否 | NULL | **完成时间** |
+| `failure_reason` | varchar(50) | 否 | NULL | **失败原因码** |
+| `failure_detail` | varchar(255) | 否 | NULL | **失败详情** |
+| `created_at` | datetime | 是 | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | 是 | CURRENT_TIMESTAMP ON UPDATE | |
+
+#### 表: `contract_party` (签约参与方表)
+存储流程中各参与方的信息与进度。
+| 字段名 | 类型 | 必填 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint(20) | 是 | AUTO_INCREMENT | 主键 |
+| `process_id` | varchar(32) | 是 | | **关联流程ID**，外键 `fk_process_id`，联合索引 `idx_process_party` |
+| `party_role` | varchar(20) | 是 | | **参与方角色** (`PAYER`, `PAYEE`) |
+| `party_type` | varchar(20) | 是 | | **参与方类型** (`CORPORATE`, `PERSONAL`) |
+| `party_name` | varchar(100) | 是 | | **参与方名称** |
+| `certificate_type` | varchar(30) | 是 | | **证件类型** |
+| `certificate_no` | varchar(50) | 是 | | **证件号码**，索引 `idx_cert_no` |
+| `contact_phone` | varchar(20) | 是 | | **联系人手机号** |
+| `account_info_json` | json | 否 | NULL | **账户信息**，JSON格式 |
+| `sign_status` | varchar(20) | 是 | `PENDING` | **签署状态**: `PENDING`, `SIGNED`, `REJECTED` |
+| `verify_status` | varchar(20) | 是 | `PENDING` | **认证状态**: `PENDING`, `VERIFIED`, `FAILED` |
+| `verification_id` | varchar(32) | 否 | NULL | **关联的认证记录ID**（来自认证系统） |
+| `verification_method` | varchar(20) | 否 | NULL | **认证方法** (`FACE`, `TRANSFER_PAYMENT`) |
+| `signed_at` | datetime | 否 | NULL | **签署时间** |
+| `signed_ip` | varchar(45) | 否 | NULL | **签署IP** |
+| `signed_user_agent` | text | 否 | NULL | **签署User-Agent** |
+| `sign_method` | varchar(30) | 否 | NULL | **签署方式** (`SMS_VERIFICATION`, `PASSWORD`) |
+| `sms_verify_code` | varchar(10) | 否 | NULL | **短信验证码**（加密存储） |
+| `sms_sent_at` | datetime | 否 | NULL | **短信发送时间** |
+| `token` | varchar(64) | 是 | | **临时访问令牌**，用于H5页面鉴权，索引 `idx_token` |
+| `token_expires_at` | datetime | 是 | | **令牌过期时间** |
+| `created_at` | datetime | 是 | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | 是 | CURRENT_TIMESTAMP ON UPDATE | |
+
+#### 表: `contract_template` (协议模板表)
+存储各类协议的模板内容。
+| 字段名 | 类型 | 必填 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint(20) | 是 | AUTO_INCREMENT | 主键 |
+| `template_id` | varchar(32) | 是 | | **模板ID**，唯一索引 `uk_template_id` |
+| `template_name` | varchar(100) | 是 | | **模板名称** |
+| `contract_type` | varchar(50) | 是 | | **协议类型**，索引 `idx_contract_type` |
+| `biz_scene` | varchar(32) | 是 | | **适用业务场景** |
+| `version` | varchar(10) | 是 | | **模板版本**，格式如`1.0.0` |
+| `content_html` | text | 是 | | **模板HTML内容**，含变量占位符 `{{variable}}` |
+| `variables_definition_json` | json | 是 | | **变量定义**，描述每个变量的名称、类型、必填、示例 |
+| `effective_date` | date | 是 | | **生效日期** |
+| `expiry_date` | date | 否 | NULL | **失效日期** |
+| `is_active` | tinyint(1) | 是 | 1 | **是否启用** |
+| `created_by` | varchar(50) | 是 | | **创建人** |
+| `created_at` | datetime | 是 | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | 是 | CURRENT_TIMESTAMP ON UPDATE | |
+
+#### 表: `contract_document` (协议文件表)
+存储最终生成的已签署协议文件。
+| 字段名 | 类型 | 必填 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint(20) | 是 | AUTO_INCREMENT | 主键 |
+| `document_id` | varchar(32) | 是 | | **文件ID**，唯一索引 `uk_document_id` |
+| `process_id` | varchar(32) | 是 | | **关联流程ID**，索引 `idx_process_id` |
+| `file_hash` | varchar(64) | 是 | | **文件哈希值** (SHA-256) |
+| `file_size` | int | 是 | | **文件大小** (字节) |
+| `storage_path` | varchar(512) | 是 | | **存储路径** (对象存储Key) |
+| `download_url` | varchar(512) | 是 | | **下载地址** |
+| `created_at` | datetime | 是 | CURRENT_TIMESTAMP | |
+
+#### 表: `evidence_package` (证据包表)
+存储签约过程的完整证据链。
+| 字段名 | 类型 | 必填 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint(20) | 是 | AUTO_INCREMENT | 主键 |
+| `package_id` | varchar(32) | 是 | | **证据包ID**，唯一索引 |
+| `process_id` | varchar(32) | 是 | | **关联流程ID** |
+| `evidence_json` | json | 是 | | **证据内容**，包含：流程记录、各方签署记录、认证记录、时间戳证书等 |
+| `tsa_certificate` | text | 否 | NULL | **时间戳权威证书** |
+| `storage_path` | varchar(512) | 是 | | **存储路径** |
+| `created_at` | datetime | 是 | CURRENT_TIMESTAMP | |
+
+### 3.2 与其他模块的关系
+- **行业钱包系统**: 是电子签约平台的主要调用方，发起签约流程创建请求，并订阅签约结果事件以更新绑定关系状态。
+- **认证系统**: 
+  - **调用关系**: 电子签约平台在需要身份认证时，调用认证系统的API发起人脸验证或打款验证。
+  - **回调关系**: 认证系统通过Webhook回调电子签约平台，通知验证结果。
+- **短信网关**: 用于发送协议签署的短信验证码。
+- **对象存储**: 用于存储生成的协议PDF文件和证据包文件。
+- **时间戳服务**: 用于对关键操作（如签署、认证完成）加盖可信时间戳。
+
+## 4. 业务逻辑
+
+### 4.1 核心算法
+
+#### 4.1.1 协议模板渲染
+- **输入**: 模板HTML内容 + 协议变量键值对
+- **过程**:
+  1. 解析模板中的变量占位符 `{{variableName}}`
+  2. 根据变量定义校验变量值的类型和必填性
+  3. 进行HTML转义，防止XSS攻击
+  4. 替换占位符为实际值
+  5. 添加水印、页眉页脚等固定内容
+- **输出**: 渲染后的HTML，可直接在H5页面展示
+
+#### 4.1.2 签约流程状态机
+```python
+class ContractProcessStateMachine:
+    states = ['INITIATED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'EXPIRED']
+    
+    def on_party_signed(self, process_id, party_role):
+        """当一方签署时"""
+        process = get_process(process_id)
+        # 更新该方签署状态
+        update_party_sign_status(process_id, party_role, 'SIGNED')
+        
+        # 检查是否所有方都已签署
+        all_signed = check_all_parties_signed(process_id)
+        if all_signed:
+            # 所有方已签署，检查认证状态
+            all_verified = check_all_parties_verified(process_id)
+            if all_verified:
+                # 全部完成，生成最终协议文件
+                generate_final_document(process_id)
+                process.update_status('COMPLETED')
+                publish_completed_event(process)
+            else:
+                # 等待认证完成
+                process.update_status('IN_PROGRESS')
+        else:
+            process.update_status('IN_PROGRESS')
+        
+        publish_party_signed_event(process, party_role)
+    
+    def on_party_verified(self, process_id, party_role, success):
+        """当一方认证完成时"""
+        status = 'VERIFIED' if success else 'FAILED'
+        update_party_verify_status(process_id, party_role, status)
+        
+        if not success:
+            # 认证失败，整个流程失败
+            process.update_status('CANCELLED', failure_reason='VERIFICATION_FAILED')
+            publish_failed_event(process)
+            return
+        
+        # 检查是否所有方都已完成认证和签署
+        all_signed = check_all_parties_signed(process_id)
+        all_verified = check_all_parties_verified(process_id)
+        
+        if all_signed and all_verified:
+            generate_final_document(process_id)
+            process.update_status('COMPLETED')
+            publish_completed_event(process)
+```
+
+#### 4.1.3 短信验证码生成与验证
+- **生成**: 6位数字随机码，有效期5分钟
+- **存储**: 加密存储（如AES加密），避免明文泄露
+- **验证**: 比对用户输入与存储的加密值，区分大小写，连续错误5次锁定1小时
+
+### 4.2 业务规则
+
+1. **签约流程有效期**: 创建后 **24小时** 内必须完成，超时自动置为 `EXPIRED`。
+2. **签署顺序**: 支持并行签署（所有参与方可同时签署），无强制顺序要求。
+3. **身份认证时机**:
+   - **对公账户**: 必须在签署协议后，通过打款验证完成认证。
+   - **对私账户**: 优先在签署协议前通过人脸验证完成认证；若人脸验证失败或用户拒绝，可在签署后通过打款验证完成。
+4. **协议版本控制**: 使用中的协议模板不可修改，只能发布新版本。新发起的流程使用最新生效版本的模板。
+5. **证据链要求**:
+   - 必须记录: 协议内容、签署时间、签署IP、User-Agent、短信验证码发送记录、认证结果。
+   - 关键操作必须加盖可信时间戳。
+   - 最终证据包必须包含所有原始数据的哈希值，确保不可篡改。
+6. **重试与幂等**:
+   - 使用 `request_id` + `client_id` 保证流程创建幂等。
+   - 短信验证码发送失败自动重试2次。
+   - 协议文件生成失败可手动触发重试。
+
+### 4.3 验证逻辑
+
+#### 4.3.1 创建流程请求校验
+```python
+def validate_create_request(request):
+    # 1. 基本参数校验
+    required_fields = ['requestId', 'bizScene', 'bizReferenceNo', 'contractType', 'parties']
+    for field in required_fields:
+        if not getattr(request, field, None):
+            raise ValidationError(f"缺少必要参数: {field}")
+    
+    # 2. 业务场景与协议类型匹配校验
+    valid_scene_type_map = {
+        'TIANCAI_COLLECTION': ['COLLECTION_AUTHORIZATION'],
+        'TIANCAI_BATCH_PAY': ['PAYMENT_AUTHORIZATION'],
+        'TIANCAI_MEMBER_SETTLE': ['PAYMENT_AUTHORIZATION']
+    }
+    if request.contractType not in valid_scene_type_map.get(request.bizScene, []):
+        raise ValidationError(f"业务场景[{request.bizScene}]不支持协议类型[{request.contractType}]")
+    
+    # 3. 参与方校验
+    if len(request.parties) < 2:
+        raise ValidationError("至少需要两个参与方")
+    
+    payer_count = sum(1 for p in request.parties if p.partyRole == 'PAYER')
+    payee_count = sum(1 for p in request.parties if p.partyRole == 'PAYEE')
+    
+    # 根据业务场景校验参与方角色组合
+    if request.bizScene == 'TIANCAI_COLLECTION':
+        # 归集: 1个PAYER(总部), 至少1个PAYEE(门店)
+        if payer_count != 1 or payee_count < 1:
+            raise ValidationError("归集场景需要1个付方(总部)和至少1个收方(门店)")
+    
+    # 4. 参与方信息校验
+    for party in request.parties:
+        if party.partyType == 'CORPORATE':
+            if not party.certificateNo or len(party.certificateNo) < 15:
+                raise ValidationError(f"企业参与方[{party.partyName}]的统一社会信用代码无效")
+        elif party.partyType == 'PERSONAL':
+            if not validate_id_card(party.certificateNo):
+                raise ValidationError(f"个人参与方[{party.partyName}]的身份证号无效")
+        
+        # 手机号格式校验
+        if not validate_phone(party.contactPhone):
+            raise ValidationError(f"参与方[{party.partyName}]的手机号格式无效")
+    
+    # 5. 幂等校验
+    existing = ContractProcess.find_by_request(request.requestId, request.client_id)
+    if existing:
+        return existing
+    
+    # 6. 协议变量校验
+    template = ContractTemplate.get_active_by_type(request.contractType)
+    validate_template_variables(template, request.contractVariables)
+```
+
+#### 4.3.2 H5页面访问令牌校验
+```python
+def validate_h5_access(token, party_role):
+    """
+    验证H5页面访问令牌的有效性
+    """
+    # 1. 查找对应的参与方记录
+    party = ContractParty.find_by_token(token)
+    if not party:
+        raise AuthenticationError("无效的访问令牌")
+    
+    # 2. 检查令牌是否过期
+    if party.token_expires_at < current_time():
+        raise AuthenticationError("访问令牌已过期")
+    
+    # 3. 检查流程状态
+    process = ContractProcess.find_by_id(party.process_id)
+    if process.status in ['COMPLETED', 'CANCELLED', 'EXPIRED']:
+        raise BusinessError("签约流程已结束")
+    
+    # 4. 检查角色匹配
+    if party.party_role != party_role:
+        raise AuthenticationError("访问令牌与角色不匹配")
+    
+    # 5. 检查是否已签署（防止重复签署）
+    if party.sign_status == 'SIGNED':
+        raise BusinessError("您已签署过本协议")
+    
+    return party, process
+```
+
+## 5. 时序图
+
+### 5.1 归集场景签约流程（总部与门店）
+```mermaid
+sequenceDiagram
+    participant 总部 as 总部用户
+    participant 门店 as 门店用户
+    participant 行业钱包系统 as 钱包系统
+    participant 电子签约平台
+    participant 认证系统
+    participant 短信网关
+    participant 消息队列 as MQ
+
+    钱包系统->>电子签约平台: 1. POST /contracts/processes (创建签约流程)
+    电子签约平台->>电子签约平台: 2. 校验请求，生成流程记录
+    电子签约平台->>短信网关: 3. 发送签署短信通知(总部、门店)
+    电子签约平台-->>钱包系统: 4. 返回流程ID和签署链接
+    电子签约平台->>MQ: 5. 发布ContractProcessInitiatedEvent
+    
+    总部用户->>电子签约平台H5: 6. 访问总部签署链接
+    电子签约平台H5->>电子签约平台: 7. 验证token，渲染协议页面
+    电子签约平台-->>总部用户: 8. 展示协议内容
+    总部用户->>电子签约平台H5: 9. 点击"同意并签署"
+    电子签约平台H5->>短信网关: 10. 请求发送短信验证码
+    短信网关-->>总部用户: 11. 收到验证码短信
+    总部用户->>电子签约平台H5: 12. 输入验证码并提交
+    电子签约平台H5->>电子签约平台: 13. 验证验证码，记录签署
+    电子签约平台->>MQ: 14. 发布ContractPartySignedEvent(总部)
+    电子签约平台-->>总部用户: 15. 提示签署成功，等待门店签署
+    
+    门店用户->>电子签约平台H5: 16. 访问门店签署链接
+    ... 类似总部签署流程 ...
+    电子签约平台->>MQ: 17. 发布ContractPartySignedEvent(门店)
+    
+    Note over 电子签约平台: 所有方签署完成，开始身份认证
+    
+    电子签约平台->>认证系统: 18. POST /verification/face (门店-对私)
+    认证系统-->>电子签约平台: 19. 返回redirectUrl
+    电子签约平台-->>门店用户: 20. 重定向到人脸识别H5
+    门店用户->>认证系统H5: 21. 完成人脸识别
+    认证系统->>电子签约平台: 22. Webhook回调验证结果
+    电子签约平台->>电子签约平台: 23. 更新门店认证状态
+    
+    电子签约平台->>认证系统: 24. POST /verification/transfer-payment (总部-对公)
+    认证系统->>认证系统: 25. 执行打款
+    认证系统-->>总部用户银行账户: 26. 小额打款入账
+    总部用户->>电子签约平台H5: 27. 查询并回填打款金额
+    电子签约平台->>认证系统: 28. 提交验证码
+    认证系统->>电子签约平台: 29. Webhook回调验证结果
+    电子签约平台->>电子签约平台: 30. 更新总部认证状态
+    
+    Note over 电子签约平台: 所有认证完成
+    
+    电子签约平台->>电子签约平台: 31. 生成最终协议PDF和证据包
+    电子签约平台->>MQ: 32. 发布ContractProcessCompletedEvent
+    电子签约平台->>钱包系统: 33. 异步回调(callbackUrl)
+    电子签约平台-->>总部用户: 34. 重定向到redirectUrl
+    电子签约平台-->>门店用户: 35. 重定向到redirectUrl
+```
+
+### 5.2 批量付款开通流程（总部开通代付权限）
+```mermaid
+sequenceDiagram
+    participant 总部 as 总部用户
+    participant 行业钱包系统 as 钱包系统
+    participant 电子签约平台
+    participant 认证系统
+
+    钱包系统->>电子签约平台: 1. POST /contracts/processes (开通付款)
+    电子签约平台->>电子签约平台: 2. 创建流程(只有总部一个参与方)
+    电子签约平台-->>钱包系统: 3. 返回签署链接
+    
+    总部用户->>电子签约平台H5: 4. 访问签署链接
+    电子签约平台H5->>电子签约平台: 5. 渲染《代付授权协议》
+    电子签约平台-->>总部用户: 6. 展示协议
+    总部用户->>电子签约平台H5: 7. 同意并签署(短信验证)
+    电子签约平台->>电子签约平台: 8. 记录签署
+    
+    电子签约平台->>认证系统: 9. POST /verification/transfer-payment (总部对公认证)
+    认证系统-->>总部用户银行账户: 10. 小额打款
+    总部用户->>电子签约平台H5: 11. 回填打款金额
+    电子签约平台->>认证系统: 12. 提交验证
+    认证系统->>电子签约平台: 13. Webhook回调成功
+    
+    电子签约平台->>电子签约平台: 14. 流程完成，生成证据
+    电子签约平台->>钱包系统: 15. 回调通知开通成功
+    钱包系统->>钱包系统: 16. 更新总部"开通付款"状态
+```
+
+## 6. 错误处理
+
+### 6.1 预期错误码列表
+| HTTP状态码 | 错误码 | 描述 | 处理建议 |
+| :--- | :--- | :--- | :--- |
+| 400 | `INVALID_PARAMETER` | 请求参数缺失或格式错误 | 检查请求体，参考API文档 |
+| 400 | `INVALID_PARTY_CONFIG` | 参与方配置不符合业务场景规则 | 调整参与方角色和数量 |
+| 400 | `INVALID_TEMPLATE_VARIABLES` | 协议变量缺失或值无效 | 检查变量是否符合模板定义 |
+| 409 | `DUPLICATE_REQUEST` | 重复的请求ID | 使用原`processId`查询状态 |
+| 404 | `PROCESS_NOT_FOUND` | 签约流程不存在 | 检查`processId`是否正确 |
+| 404 | `TEMPLATE_NOT_FOUND` | 协议模板未找到 | 检查`contractType`和版本 |
+| 403 | `INVALID_ACCESS_TOKEN` | H5访问令牌无效或过期 | 重新获取签署链接 |
+| 403 | `ALREADY_SIGNED` | 参与方已签署，不可重复签署 | 查询当前签署状态 |
+| 403 | `SMS_VERIFICATION_FAILED` | 短信验证码错误或过期 | 重新获取验证码 |
+| 403 | `PROCESS_EXPIRED` | 签约流程已过期 | 重新发起签约流程 |
+| 403 | `PROCESS_COMPLETED` | 签约流程已完成 | 无需重复操作 |
+| 429 | `SMS_RATE_LIMIT` | 短信发送频率超限 | 稍后再试 |
+| 500 | `DOCUMENT_GENERATION_FAILED` | 协议文件生成失败 | 系统自动重试，可手动触发 |
+| 503 | `CERTIFICATION_SERVICE_UNAVAILABLE` | 认证系统不可用 | 系统自动重试，业务方降级处理 |
+
+### 6.2 处理策略
+1. **客户端错误 (4xx)**: 提供清晰的错误信息，指导用户或调用方修正。
+2. **服务端错误 (5xx)**:
+   - **依赖服务失败**（认证系统、短信网关）: 实施重试机制（最多3次，指数退避），最终失败则更新流程状态为失败，并记录原因。
+   - **文件生成失败**: 异步重试队列处理，支持手动触发重新生成。
+   - **回调通知失败**: 向`callbackUrl`发送回调时，采用重试机制（1, 5, 15, 30分钟），最多5次。
+3. **超时处理**:
+   - 定期扫描`INITIATED`和`IN_PROGRESS`状态且`expires_at`已过的流程，自动更新为`EXPIRED`。
+   - 发布`ContractProcessFailedEvent`通知相关系统。
+4. **监控告警**:
+   - 监控关键指标：流程创建量、签署成功率、认证成功率、平均完成时间、错误率。
+   - 设置告警：失败率突增、依赖服务不可用、文件生成积压。
+
+## 7. 依赖说明
+
+### 7.1 上游依赖（电子签约平台调用）
+
+| 依赖系统 | 交互目的 | 接口方式 | 关键要求 |
+| :--- | :--- | :--- | :--- |
+| **认证系统** | 发起人脸/打款验证 | 同步REST API + 接收Webhook | 高可用，明确的验证结果回调机制 |
+| **短信网关** | 发送签署验证码和通知短信 | 同步/异步API | 高到达率，支持模板短信，发送状态回执 |
+| **对象存储** | 存储协议PDF和证据包 | SDK (如S3协议) | 高可靠，支持生成预签名下载URL |
+| **时间戳服务** | 为关键操作加盖可信时间戳 | API | 符合国密标准，司法认可 |
+| **消息队列 (Kafka)** | 发布领域事件 | 消息发布 | 高吞吐，保证至少一次投递 |
+
+### 7.2 下游依赖（调用电子签约平台）
+
+| 调用方 | 交互场景 | 集成方式 | 注意事项 |
+| :--- | :--- | :--- | :--- |
+| **行业钱包系统** | 关系绑定流程中的签约环节 | 同步REST API + 事件订阅 + 异步回调 | 需处理`callbackUrl`回调，实现幂等，关注流程有效期 |
+| **认证系统** | 人脸验证结果回调 | Webhook回调 | 需验证回调签名，确保来源可信 |
+
+### 7.3 集成要点
+1. **安全通信**:
+   - 所有API调用通过API Gateway，使用双向TLS和请求签名。
+   - H5页面链接使用短期有效的JWT令牌，防止篡改和重放。
+   - 敏感数据（如短信验证码）加密存储。
+
+2. **异步处理与最终一致性**:
+   - 协议文件生成、证据打包等耗时操作采用异步队列处理。
+   - 状态更新、事件发布、回调通知在本地事务中完成，确保原子性。
+   - 通过定期补偿任务处理异常状态（如回调失败、文件生成失败）。
+
+3. **合规与审计**:
+   - 所有操作日志留存不少于5年。
+   - 证据包符合《电子签名法》要求，支持司法出证。
+   - 定期进行安全审计和渗透测试。
+
+4. **性能与扩展性**:
+   - H5页面静态资源CDN加速。
+   - 协议模板缓存，减少数据库查询。
+   - 支持水平扩展，应对签约高峰。
+
+## 3.8 钱包APP/商服平台
+
+
+
+# 钱包APP/商服平台模块设计文档
+
+## 1. 概述
+
+### 1.1 目的
+钱包APP/商服平台模块是面向**天财机构**及其下属**总部**、**门店**等角色用户的**前端业务操作平台**。本模块作为天财分账业务的**用户交互层**，提供直观、便捷的界面，引导用户完成账户开通、关系绑定、分账指令发起、交易查询等全流程操作。它是连接天财业务用户与后端核心系统（三代系统、行业钱包系统）的**关键桥梁**，旨在提升用户体验和业务处理效率。
+
+### 1.2 范围
+- **用户门户**：为天财、总部、门店等不同角色提供专属的业务操作界面。
+- **账户管理**：展示天财专用账户信息、状态，支持银行卡绑定与管理。
+- **关系绑定流程引导**：通过H5页面集成电子签约、人脸/打款认证，引导用户完成分账关系建立的法律流程。
+- **分账业务发起**：提供归集、批量付款、会员结算等场景的业务发起界面与表单。
+- **交易与账单查询**：提供分账记录、账户流水、对账单的查询与下载功能。
+- **消息与通知**：向用户推送业务处理结果、认证提醒等重要通知。
+
+## 2. 接口设计
+
+### 2.1 API端点 (RESTful)
+
+#### 2.1.1 用户与权限接口
+- **GET /api/v1/user/current**
+    - **描述**：获取当前登录用户的身份信息、所属机构及角色列表。
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "data": {
+          "user_id": "user_tc_admin_001",
+          "user_name": "天财管理员",
+          "institution_code": "TIANCAI",
+          "roles": ["TIANCAI_ADMIN"], // 用户角色：TIANCAI_ADMIN, HEADQUARTERS_ADMIN, STORE_OPERATOR
+          "managed_merchants": ["M100001", "M100002"], // 可管理的商户列表
+          "permissions": ["ACCOUNT_VIEW", "SPLIT_ORDER_CREATE"]
+        }
+      }
+      ```
+
+#### 2.1.2 账户信息接口
+- **GET /api/v1/accounts**
+    - **描述**：获取当前用户有权查看的天财专用账户列表。
+    - **查询参数**：
+        - `merchant_no` (可选)：筛选指定商户的账户。
+        - `account_role` (可选)：筛选指定角色的账户（HEADQUARTERS/STORE/RECEIVER）。
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "data": {
+          "accounts": [
+            {
+              "tiancai_account_id": "TCA_20231011001",
+              "account_no": "3010001001",
+              "account_role": "HEADQUARTERS",
+              "merchant_no": "M100001",
+              "merchant_name": "天财品牌总部",
+              "status": "ACTIVE",
+              "balance": 5000000, // 余额（分）
+              "currency": "CNY",
+              "bank_cards": [
+                {
+                  "card_id": "bc_001",
+                  "bank_name": "中国工商银行",
+                  "card_no_suffix": "1234",
+                  "is_default": true,
+                  "status": "BOUND"
+                }
+              ],
+              "created_at": "2023-10-11T10:00:00Z"
+            }
+          ]
+        }
+      }
+      ```
+
+#### 2.1.3 关系绑定流程接口
+- **POST /api/v1/relation-bindings/initiate**
+    - **描述**：发起关系绑定流程。根据场景生成签约链接或唤起认证流程。
+    - **请求体**：
+      ```json
+      {
+        "scene": "COLLECTION", // COLLECTION, BATCH_PAY, MEMBER_SETTLE, PAYMENT_AUTH
+        "payer": {
+          "tiancai_account_id": "TCA_20231011001",
+          "merchant_no": "M100001"
+        },
+        "payee": {
+          "tiancai_account_id": "TCA_20231011002",
+          "merchant_no": "M100002",
+          "account_role": "RECEIVER", // 仅BATCH_PAY场景需要
+          "bank_card": { // 仅当payee为RECEIVER且需要绑卡时
+            "bank_name": "中国建设银行",
+            "card_no": "6217000010001234567",
+            "account_name": "张三"
+          }
+        }
+      }
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "data": {
+          "process_id": "BIND_PROC_001",
+          "next_action": "SIGN_CONTRACT", // SIGN_CONTRACT, FACE_AUTH, REMIT_AUTH, COMPLETE
+          "action_url": "https://esign.lakala.com/h5/contract?token=xyz", // H5签约页面URL
+          "expires_in": 1800 // 操作有效期（秒）
+        }
+      }
+      ```
+
+#### 2.1.4 分账业务发起接口
+- **POST /api/v1/split-orders**
+    - **描述**：发起分账指令（归集、批量付款、会员结算）。请求将被转发至三代系统。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "front_req_20231011001", // 前端生成，用于幂等
+        "biz_scene": "COLLECTION",
+        "payer_account_id": "TCA_20231011001",
+        "payee_list": [
+          {
+            "payee_account_id": "TCA_20231011002",
+            "amount": 10000,
+            "memo": "门店日结归集"
+          }
+        ],
+        "total_amount": 10000,
+        "biz_ref_no": "TC_DAILY_001",
+        "callback_url": "https://wallet-app.lakala.com/api/callback/tiancai" // 本模块回调地址，用于接收三代回调后通知前端
+      }
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "data": {
+          "split_order_id": "SO_202310110001",
+          "status": "PROCESSING",
+          "estimated_completion_time": 30 // 预计处理时间（秒）
+        }
+      }
+      ```
+
+#### 2.1.5 查询接口
+- **GET /api/v1/split-orders**
+    - **描述**：分页查询分账订单列表。
+- **GET /api/v1/split-orders/{split_order_id}**
+    - **描述**：查询分账订单详情。
+- **GET /api/v1/transactions**
+    - **描述**：查询账户动账流水。
+- **GET /api/v1/statements**
+    - **描述**：查询并下载对账单（机构层面分账、提款、收单账单）。
+
+#### 2.1.6 回调接口 (供三代系统调用)
+- **POST /api/internal/callback/tiancai**
+    - **描述**：接收三代系统异步回调，更新前端状态并通过WebSocket等通道通知用户。
+    - **请求体**：
+      ```json
+      {
+        "split_order_id": "SO_202310110001",
+        "status": "SUCCESS",
+        "result_data": {
+          "actual_amount": 10000,
+          "finish_time": "2023-10-11T10:05:00Z"
+        },
+        "error_info": null,
+        "timestamp": "2023-10-11T10:05:00Z"
+      }
+      ```
+
+### 2.2 发布/消费的事件
+
+#### 2.2.1 消费的事件
+- **SplitOrderStatusChangedEvent** (来自三代系统回调)：消费分账订单状态变更事件，用于更新前端状态和推送用户通知。
+- **RelationBindingCompletedEvent** (来自电子签约平台/行业钱包系统回调)：消费关系绑定完成事件，更新绑定状态。
+
+#### 2.2.2 发布的事件 (前端内部事件，用于驱动UI)
+- **UserNotificationEvent**：向特定用户推送业务通知。
+  ```json
+  {
+    "event_type": "USER_NOTIFICATION",
+    "user_id": "user_tc_admin_001",
+    "notification": {
+      "title": "分账成功",
+      "content": "分账订单 SO_202310110001 处理成功，金额100.00元。",
+      "type": "SUCCESS",
+      "related_order_id": "SO_202310110001",
+      "timestamp": "2023-10-11T10:05:00Z"
+    }
+  }
+  ```
+
+## 3. 数据模型
+
+### 3.1 核心表设计
+
+#### 表：`user` (用户表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `user_id` | varchar(64) | Y | | **用户唯一标识**，与IAM系统对齐 |
+| `user_name` | varchar(100) | Y | | 用户姓名 |
+| `institution_code` | varchar(20) | Y | | 所属机构代码，如`TIANCAI` |
+| `role_codes` | json | Y | `[]` | 角色代码列表 |
+| `managed_merchant_nos` | json | Y | `[]` | 可管理的收单商户号列表 |
+| `status` | varchar(20) | Y | `ACTIVE` | 状态 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+
+#### 表：`frontend_split_order` (前端分账订单表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `front_order_id` | varchar(32) | Y | | 前端订单号，用于关联前端会话 |
+| `split_order_id` | varchar(32) | Y | | 三代系统分账订单号 |
+| `request_id` | varchar(64) | Y | | 前端请求流水号，用于幂等 |
+| `user_id` | varchar(64) | Y | | 发起用户ID |
+| `biz_scene` | varchar(20) | Y | | 业务场景 |
+| `payer_account_id` | varchar(32) | Y | | 付方账户ID |
+| `total_amount` | decimal(15,2) | Y | | 总金额 |
+| `status` | varchar(20) | Y | `INIT` | 状态：`INIT`, `PROCESSING`, `SUCCESS`, `FAILED` |
+| `callback_received` | tinyint(1) | Y | 0 | 是否已收到三代回调 |
+| `ui_status` | varchar(20) | Y | `PENDING_SUBMIT` | UI状态：`PENDING_SUBMIT`, `SUBMITTED`, `SHOW_RESULT` |
+| `form_data` | json | Y | | 前端表单提交的原始数据 |
+| `result_data` | json | N | | 三代回调的结果数据 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | |
+
+#### 表：`relation_binding_flow` (关系绑定流程表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `flow_id` | varchar(32) | Y | | 前端绑定流程ID |
+| `process_id` | varchar(32) | Y | | 后端流程ID（三代或钱包系统） |
+| `scene` | varchar(20) | Y | | 绑定场景 |
+| `payer_info` | json | Y | | 付方信息 |
+| `payee_info` | json | Y | | 收方信息 |
+| `current_step` | varchar(30) | Y | | 当前步骤：`INIT`, `SIGNING`, `AUTHING`, `COMPLETED` |
+| `step_data` | json | N | | 各步骤的临时数据（如签约token） |
+| `expire_time` | datetime | N | | 流程过期时间 |
+| `user_id` | varchar(64) | Y | | 操作用户 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+
+#### 表：`user_notification` (用户通知表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `user_id` | varchar(64) | Y | | 目标用户ID |
+| `title` | varchar(200) | Y | | 通知标题 |
+| `content` | text | Y | | 通知内容 |
+| `type` | varchar(20) | Y | | 类型：`SUCCESS`, `WARNING`, `ERROR`, `INFO` |
+| `related_id` | varchar(64) | N | | 关联业务ID（如订单号） |
+| `read` | tinyint(1) | Y | 0 | 是否已读 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+
+### 3.2 与其他模块的关系
+- **三代系统**：通过`frontend_split_order.split_order_id`关联分账订单；通过回调接口接收处理结果。
+- **行业钱包系统/电子签约平台**：通过`relation_binding_flow.process_id`关联绑定流程；通过H5页面嵌入或重定向进行交互。
+- **账户系统**：间接通过三代系统或行业钱包系统获取账户数据，本地不持久化核心账户信息。
+- **对账单系统**：通过接口获取账单数据，提供下载链接。
+
+## 4. 业务逻辑
+
+### 4.1 核心算法与规则
+
+#### 4.1.1 用户权限与数据隔离
+```python
+def get_accessible_accounts(user_id):
+    """
+    根据用户角色和管理的商户，返回可查看的账户列表。
+    规则：
+    1. TIANCAI_ADMIN: 可查看所有天财机构下的账户。
+    2. HEADQUARTERS_ADMIN: 仅可查看所属总部商户及其关联门店的账户。
+    3. STORE_OPERATOR: 仅可查看所属门店的账户。
+    """
+    user = get_user(user_id)
+    if 'TIANCAI_ADMIN' in user.role_codes:
+        return query_all_tiancai_accounts()
+    elif 'HEADQUARTERS_ADMIN' in user.role_codes:
+        # 获取该总部管理的所有门店商户号
+        managed_stores = get_managed_stores(user.managed_merchant_nos)
+        return query_accounts_by_merchants([user.managed_merchant_nos] + managed_stores)
+    else:
+        return query_accounts_by_merchants(user.managed_merchant_nos)
+```
+
+#### 4.1.2 关系绑定流程引导引擎
+```python
+def determine_binding_steps(scene, payer_role, payee_role, payee_has_bank_card):
+    """
+    根据业务场景和账户角色，确定关系绑定所需的步骤序列。
+    返回如：['SIGN_CONTRACT', 'FACE_AUTH']。
+    """
+    steps = []
+    
+    if scene in ['COLLECTION', 'MEMBER_SETTLE']:
+        # 总部与门店间绑定：需签署《分账协议》
+        steps.append('SIGN_CONTRACT')
+        # 根据账户类型决定认证方式
+        if payee_role == 'STORE':  # 门店为对私账户？需确认，此处为示例
+            steps.append('FACE_AUTH')
+        else:
+            steps.append('REMIT_AUTH')
+    
+    elif scene == 'BATCH_PAY':
+        # 总部与接收方绑定：需签署《代付授权协议》
+        steps.append('SIGN_CONTRACT')
+        if not payee_has_bank_card:
+            steps.append('BIND_BANK_CARD')  # 引导绑卡
+        steps.append('REMIT_AUTH')  # 接收方通常为对公账户
+    
+    elif scene == 'PAYMENT_AUTH':
+        # 开通付款权限：总部签署《代付授权协议》
+        steps.append('SIGN_CONTRACT')
+    
+    return steps
+```
+
+#### 4.1.3 分账请求预处理与幂等
+```python
+def submit_split_order(user_id, form_data):
+    """
+    提交分账请求前端处理逻辑。
+    1. 生成前端订单号和幂等ID。
+    2. 保存表单数据。
+    3. 调用三代接口。
+    4. 启动轮询或等待回调。
+    """
+    front_order_id = generate_front_order_id()
+    request_id = f"{user_id}_{timestamp}_{random_suffix}"
+    
+    # 幂等检查：基于(request_id, user_id)防止重复提交
+    if duplicate_request_exists(request_id, user_id):
+        return get_existing_order(request_id)
+    
+    # 保存前端订单记录
+    save_frontend_order(front_order_id, request_id, user_id, form_data, status='INIT')
+    
+    # 构建调用三代的请求体
+    backend_request = transform_to_backend_request(form_data, request_id)
+    
+    try:
+        # 同步调用三代接口
+        response = call_generation3_api('/split-orders', backend_request)
+        split_order_id = response['split_order_id']
+        
+        # 更新关联关系
+        update_frontend_order(front_order_id, split_order_id=split_order_id, status='PROCESSING')
+        
+        # 启动后台任务轮询状态（备用，主要靠回调）
+        start_status_polling(front_order_id, split_order_id)
+        
+        return {'front_order_id': front_order_id, 'status': 'PROCESSING'}
+    except Exception as e:
+        update_frontend_order(front_order_id, status='FAILED', error=str(e))
+        raise
+```
+
+### 4.2 验证逻辑
+- **用户会话验证**：所有API请求需携带有效的身份令牌（JWT），验证用户身份和权限。
+- **数据归属验证**：用户发起的操作（如查询账户、发起分账）必须验证其是否有权操作目标商户/账户。
+- **表单验证**：
+    - 金额：必须为正数，符合金额格式，不超过账户余额或业务限额。
+    - 业务场景与账户角色匹配：如归集场景，付方必须是门店，收方必须是总部。
+    - 关系绑定前置检查：发起分账前，校验付方与收方是否已完成必要的关系绑定。
+- **流程状态验证**：防止重复发起已进行中的绑定流程或订单。
+
+## 5. 时序图
+
+### 5.1 用户发起分账（归集）流程
+```mermaid
+sequenceDiagram
+    participant U as 用户(门店操作员)
+    participant FE as 钱包APP前端
+    participant BE as 钱包APP后端
+    participant G3 as 三代系统
+    participant W as 行业钱包系统
+    participant A as 账户系统
+
+    U->>FE: 1. 登录，进入归集页面
+    FE->>BE: 2. GET /accounts (获取可操作账户)
+    BE-->>FE: 3. 返回账户列表（门店收款账户）
+    U->>FE: 4. 选择付方账户，输入金额、选择总部收方
+    FE->>BE: 5. 前置校验（余额、关系绑定状态）
+    BE-->>FE: 6. 校验通过
+    U->>FE: 7. 确认提交
+    FE->>BE: 8. POST /split-orders (提交分账请求)
+    BE->>BE: 9. 生成front_order_id, 保存表单
+    BE->>G3: 10. POST /split-orders (转发请求)
+    G3-->>BE: 11. 返回受理成功(split_order_id)
+    BE->>BE: 12. 关联订单号，更新状态为PROCESSING
+    BE-->>FE: 13. 返回受理成功，跳转处理中页面
+    FE->>BE: 14. 轮询订单状态（或等待WebSocket推送）
+    
+    Note over G3,W,A: 后端分账处理（同三代设计）
+    G3->>W: 处理分账
+    W->>A: 执行账务
+    A-->>W: 返回结果
+    W-->>G3: 回调通知完成
+    
+    G3->>BE: 15. POST /callback/tiancai (异步回调)
+    BE->>BE: 16. 更新订单状态为SUCCESS，生成用户通知
+    BE->>FE: 17. 通过WebSocket推送通知
+    FE->>U: 18. 展示处理成功结果
+```
+
+### 5.2 关系绑定（签约认证）流程
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant FE as 钱包APP前端(H5/App)
+    participant BE as 钱包APP后端
+    participant G3 as 三代系统
+    participant ES as 电子签约平台
+    participant Auth as 认证系统
+
+    U->>FE: 1. 发起关系绑定
+    FE->>BE: 2. POST /relation-bindings/initiate
+    BE->>G3: 3. 调用接口获取签约流程ID
+    G3->>ES: 4. 创建签约任务
+    ES-->>G3: 5. 返回签约H5 URL
+    G3-->>BE: 6. 返回next_action和action_url
+    BE-->>FE: 7. 返回签约链接
+    FE->>U: 8. 跳转至签约H5页面
+    U->>ES: 9. 在H5页面阅读并签署协议
+    ES->>ES: 10. 签约完成
+    ES->>G3: 11. 回调通知签约结果
+    G3->>BE: 12. 回调通知，下一步为人脸认证
+    BE-->>FE: 13. 推送新步骤（人脸认证）
+    FE->>Auth: 14. 唤起人脸认证SDK
+    U->>Auth: 15. 刷脸认证
+    Auth-->>BE: 16. 认证结果回调
+    BE->>BE: 17. 更新绑定流程状态为COMPLETED
+    BE-->>FE: 18. 通知绑定成功
+    FE->>U: 19. 展示绑定成功，返回业务页面
+```
+
+## 6. 错误处理
+
+| 错误场景 | HTTP 状态码 | 前端处理策略 |
+| :--- | :--- | :--- |
+| **用户未登录/令牌失效** | 401 | 跳转至登录页面。 |
+| **权限不足** | 403 | 显示“无权访问”提示，引导用户联系管理员。 |
+| **账户余额不足** | 422 | 表单提交前校验，提示用户“余额不足”。 |
+| **关系未绑定** | 422 | 引导用户先完成关系绑定流程，提供“去绑定”按钮。 |
+| **表单验证失败** (金额格式错误等) | 400 | 在表单字段旁显示具体错误提示。 |
+| **调用三代系统失败** | 502 | 显示“系统繁忙，请稍后重试”，并记录日志。 |
+| **异步回调超时** (未收到三代回调) | - | 前端轮询查询订单状态，显示“处理中，请稍后查看结果”。 |
+| **签约或认证流程中断/失败** | - | 引导用户重新发起流程，并显示具体失败原因（如“人脸识别失败”）。 |
+| **网络异常** | - | 显示网络错误提示，提供“重试”按钮。 |
+
+**通用策略**：
+- **友好提示**：所有错误向用户展示清晰、友好的提示信息，避免技术细节。
+- **自动重试**：对于网络抖动等临时错误，前端可自动重试1-2次。
+- **状态同步**：通过轮询和WebSocket双机制确保前端状态与后端同步。
+- **离线缓存**：对于提交失败的表单，可临时缓存本地，待网络恢复后提示用户重新提交。
+- **监控与上报**：前端异常通过监控SDK上报，便于排查问题。
+
+## 7. 依赖说明
+
+### 7.1 上游依赖
+1. **三代系统**
+   - **交互方式**：同步REST API调用（提交业务请求、查询） + 异步HTTP回调（接收结果）。
+   - **职责**：业务请求的实际处理入口和状态权威来源。
+   - **关键点**：
+     - 本模块需严格遵循三代系统的接口规范。
+     - 异步回调必须幂等处理。
+     - 需处理三代系统不可用时的降级（如显示“系统维护中”）。
+
+2. **电子签约平台 (H5页面)**
+   - **交互方式**：前端直接重定向或WebView嵌入。
+   - **职责**：提供签约界面，完成法律流程。
+   - **关键点**：需处理签约页面的返回回调，管理会话状态。
+
+3. **认证系统 (SDK)**
+   - **交互方式**：前端集成SDK（人脸识别）。
+   - **职责**：提供生物识别认证能力。
+   - **关键点**：需处理SDK初始化失败、认证超时等异常。
+
+### 7.2 下游依赖
+1. **用户浏览器/移动端APP**
+   - **交互方式**：HTTP/HTTPS, WebSocket。
+   - **职责**：渲染界面，执行用户交互。
+   - **关键点**：需兼容主流浏览器和移动端版本，考虑弱网环境。
+
+### 7.3 设计原则
+- **用户为中心**：界面设计简洁，流程引导清晰，减少用户操作步骤。
+- **状态可追踪**：任何异步操作都提供明确的状态提示和查询入口。
+- **前后端分离**：前端负责展示和交互，后端负责业务逻辑聚合和接口转发。
+- **安全优先**：敏感操作（如确认付款）需二次确认；数据传输加密。
+- **性能体验**：关键接口快速响应，大量数据列表分页加载，利用缓存减少重复请求。
+
+## 3.9 行业钱包系统
 
 
 
@@ -2286,1802 +3783,751 @@ sequenceDiagram
 ## 1. 概述
 
 ### 1.1 目的
-本模块是“天财商龙”分账业务的**核心资金处理与业务逻辑中枢**。它作为三代系统与底层账户系统之间的桥梁，负责管理钱包层级的业务实体（账户、关系、分账指令），执行复杂的业务校验与流程编排，并最终驱动底层账户完成资金划转。其核心价值在于封装了天财业务特有的分账规则、状态管理和数据一致性保障。
+行业钱包系统是“天财分账业务”的**核心业务逻辑处理引擎**。它作为连接业务入口（三代系统）、底层账户（账户系统）和法律流程（电子签约平台）的枢纽，负责处理天财专用账户的开通、关系绑定、分账指令执行等核心业务流程。本模块旨在为天财提供一套安全、高效、可扩展的资金分账解决方案，支撑归集、批量付款、会员结算三大核心场景。
 
 ### 1.2 范围
-- **钱包账户管理**：接收三代系统指令，为天财商户开立并管理钱包层级的账户模型，并与底层账户系统（账户系统）的实体进行关联映射。
-- **关系绑定校验**：在分账指令执行前，对三代系统发起的绑定关系进行最终的业务逻辑校验，确保付方与收方的关系合法、有效且具备分账权限。
-- **分账指令处理**：接收三代系统的分账请求（归集、批量付款、会员结算），执行钱包层级的业务校验、状态流转，并调用账户系统完成资金划转。
-- **数据同步**：将分账交易的核心数据同步至业务核心，确保交易流水完整；并响应三代系统的各类查询请求。
-- **状态机管理**：维护分账指令在钱包层的完整状态流转，确保业务过程可追溯、可监控。
-
-### 1.3 非范围
-- 商户进件、协议签署与身份认证流程编排（由三代系统处理）。
-- 底层账户的物理创建、状态标记与原子化记账操作（由账户系统处理）。
-- 电子协议的生成、签署与认证服务执行（由电子签约平台处理）。
-- 交易资金的清算、结算与计费（由清结算系统、计费中台处理）。
-- 对账单的最终生成与提供（由对账单系统处理）。
+- **天财账户开通协调**：接收账户创建事件，协调完成天财专用账户在钱包层的初始化与状态同步。
+- **关系绑定流程驱动**：作为关系绑定的发起方和协调者，调用电子签约平台完成协议签署与身份认证，并将结果同步至账户系统。
+- **分账指令处理**：接收并处理来自三代系统的分账指令，执行严格的业务规则校验、账户关系验证、账务指令生成与执行。
+- **业务场景适配**：针对归集、批量付款、会员结算三种不同场景，定制化处理流程与校验规则。
+- **状态管理与对账**：维护分账订单的生命周期状态，提供查询接口，并与对账单系统协同确保账务一致性。
+- **异常处理与补偿**：设计健壮的重试、冲正、人工干预机制，保障资金安全与业务连续性。
 
 ## 2. 接口设计
 
-### 2.1 REST API 端点（供三代系统调用）
-
-#### 2.1.1 账户管理
-- **POST /api/v1/wallet/accounts**：创建天财专用钱包账户
-    - **请求体**：`CreateWalletAccountRequest`
-    - **响应**：`WalletAccountResponse`
-- **GET /api/v1/wallet/accounts/{walletAccountId}**：查询钱包账户详情
-    - **响应**：`WalletAccountDetailResponse`
-- **GET /api/v1/wallet/accounts/by-merchant/{merchantNo}**：查询商户名下所有钱包账户
-    - **响应**：`List<WalletAccountSimpleResponse>`
-
-#### 2.1.2 关系绑定校验
-- **POST /api/v1/wallet/bindings/validate**：校验绑定关系有效性（分账前置调用）
-    - **请求体**：`ValidateBindingRequest`
-    - **响应**：`ValidateBindingResponse`
-
-#### 2.1.3 分账指令执行
-- **POST /api/v1/wallet/transfer**：执行分账（资金划转）
-    - **请求体**：`ExecuteTransferRequest`
-    - **响应**：`ExecuteTransferResponse` (返回钱包侧指令号，结果异步回调)
-- **GET /api/v1/wallet/transfer-orders/{walletOrderNo}**：查询分账指令状态
-    - **响应**：`WalletTransferOrderDetailResponse`
-- **POST /api/v1/wallet/transfer-orders/{walletOrderNo}/query**：主动向下游（账户系统）查询指令状态（用于补偿）
-    - **响应**：`BaseResponse`
-
-#### 2.1.4 数据同步
-- **POST /api/v1/wallet/sync/split-trade**：同步分账交易数据至业务核心（内部接口，可由业务核心或定时任务触发）
-    - **请求体**：`SyncSplitTradeRequest`
-    - **响应**：`BaseResponse`
-
-### 2.2 内部接口（供下游系统回调/供本系统调用下游）
-
-- **POST /internal/api/v1/wallet/callback/account-transfer**：账户系统转账结果回调
-    - **请求体**：`AccountTransferCallbackRequest`
-    - **响应**：`BaseResponse`
-
-### 2.3 数据结构
-
-```json
-// CreateWalletAccountRequest (来自三代系统)
-{
-  "requestId": "WALLET_ACC_REQ_001",
-  "merchantNo": "M100001",
-  "accountType": "TIANCAI_COLLECT", // COLLECT, RECEIVE
-  "accountName": "北京总店天财收款账户",
-  "parentMerchantNo": "M100000", // 门店账户时必填
-  "settlementMode": "ACTIVE" // 结算模式
-}
-
-// WalletAccountResponse
-{
-  "walletAccountId": "WACC202310270001",
-  "merchantNo": "M100001",
-  "accountType": "TIANCAI_COLLECT",
-  "accountName": "北京总店天财收款账户",
-  "underlyingAccountNo": "ACC202310270001", // 底层账户号
-  "status": "ACTIVE",
-  "createTime": "2023-10-27T10:05:00Z"
-}
-
-// ValidateBindingRequest
-{
-  "requestId": "VALIDATE_BIND_REQ_001",
-  "bindingId": "BIND_001",
-  "bizType": "COLLECTION",
-  "payerWalletAccountId": "WACC_STORE_001",
-  "receiverWalletAccountId": "WACC_HQ_001",
-  "payerMerchantNo": "M100001",
-  "receiverMerchantNo": "M100000"
-}
-
-// ExecuteTransferRequest
-{
-  "requestId": "EXEC_TRANSFER_REQ_001",
-  "bizOrderNo": "SPLIT202310270001", // 三代系统分账指令号
-  "bizType": "COLLECTION",
-  "payerWalletAccountId": "WACC_STORE_001",
-  "receiverWalletAccountId": "WACC_HQ_001",
-  "amount": "10000.00",
-  "currency": "CNY",
-  "bindingId": "BIND_001",
-  "memo": "2023年10月营业款归集"
-}
-
-// AccountTransferCallbackRequest (来自账户系统)
-{
-  "requestId": "ACC_CALLBACK_001", // 账户系统转账请求的requestId
-  "transferStatus": "SUCCESS", // SUCCESS, FAILED
-  "walletSystemAccountId": "WACC_STORE_001", // 付方钱包账户ID（用于关联）
-  "bizOrderNo": "SPLIT202310270001", // 关联的业务订单号
-  "underlyingTransactionNo": "TX202310270001", // 底层流水号
-  "failReason": "余额不足",
-  "timestamp": "2023-10-27T14:35:00Z"
-}
-```
-
-### 2.4 发布的事件
-行业钱包系统作为事件生产者，发布以下领域事件：
-
-- **WalletTransferOrderCreatedEvent**：钱包分账指令已创建（待执行）。
-    ```json
-    {
-      "eventId": "EVT_WALLET_ORDER_CREATED_001",
-      "eventType": "WALLET_TRANSFER_ORDER_CREATED",
-      "timestamp": "2023-10-27T14:30:00Z",
-      "data": {
-        "walletOrderNo": "WTO202310270001",
-        "bizOrderNo": "SPLIT202310270001",
-        "bizType": "COLLECTION",
-        "payerWalletAccountId": "WACC_STORE_001",
-        "receiverWalletAccountId": "WACC_HQ_001",
-        "amount": "10000.00",
-        "status": "CREATED"
-      }
-    }
-    ```
-- **WalletTransferOrderCompletedEvent**：钱包分账指令执行完成（成功/失败）。
-- **SplitTradeDataPreparedEvent**：分账交易数据已准备就绪，可供业务核心同步。
-
-### 2.5 消费的事件
-行业钱包系统作为事件消费者，订阅以下事件以触发或更新业务：
-
-- **BindingRelationshipEstablishedEvent** (来自三代系统)：缓存绑定关系信息，用于后续校验。
-- **AccountCreatedEvent** (来自账户系统)：更新本地钱包账户的底层账户号映射及状态。
-- **AccountStatusChangedEvent** (来自账户系统)：同步底层账户状态至钱包账户，若账户冻结则可能影响分账。
-
-## 3. 数据模型
-
-### 3.1 核心表设计
-
-#### 表：`wallet_account` (钱包账户表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| wallet_account_id | varchar(32) | Y | 钱包账户ID，全局唯一 | UK |
-| merchant_no | varchar(32) | Y | 所属商户号 | IDX |
-| account_type | varchar(32) | Y | 账户类型：TIANCAI_COLLECT, TIANCAI_RECEIVE | IDX |
-| account_name | varchar(128) | Y | 账户名称 | |
-| underlying_account_no | varchar(32) | Y | 底层账户号（账户系统） | UK |
-| parent_merchant_no | varchar(32) | N | 上级总部商户号（门店账户时必填） | IDX |
-| settlement_mode | varchar(16) | Y | 结算模式：ACTIVE, PASSIVE | |
-| status | varchar(16) | Y | 状态：CREATING, ACTIVE, FROZEN, CLOSED | IDX |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
-
-#### 表：`wallet_binding_cache` (绑定关系缓存表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| binding_id | varchar(32) | Y | 绑定关系ID | UK |
-| biz_type | varchar(32) | Y | 业务类型 | IDX |
-| payer_wallet_account_id | varchar(32) | Y | 付方钱包账户ID | IDX |
-| receiver_wallet_account_id | varchar(32) | Y | 收方钱包账户ID | IDX |
-| status | varchar(16) | Y | 状态：SUCCESS, FAILED, CANCELED | IDX |
-| effective_date | date | N | 生效日期 | |
-| expiry_date | date | N | 失效日期 | |
-| extra_info | json | N | 扩展信息（如归集比例） | |
-| last_validated_time | datetime | N | 最后校验时间 | |
-| create_time | datetime | Y | 创建时间 | |
-| update_time | datetime | Y | 更新时间 | |
-
-#### 表：`wallet_transfer_order` (钱包分账指令表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| wallet_order_no | varchar(32) | Y | 钱包侧分账指令号 | UK |
-| biz_order_no | varchar(32) | Y | 三代系统业务订单号 | UK |
-| biz_type | varchar(32) | Y | 业务类型 | IDX |
-| payer_wallet_account_id | varchar(32) | Y | 付方钱包账户ID | IDX |
-| receiver_wallet_account_id | varchar(32) | Y | 收方钱包账户ID | IDX |
-| amount | decimal(15,2) | Y | 分账金额 | |
-| currency | char(3) | Y | 币种 | |
-| binding_id | varchar(32) | Y | 关联的绑定关系ID | IDX |
-| status | varchar(16) | Y | 状态：CREATED, VALIDATING, PROCESSING, SUCCESS, FAILED | IDX |
-| underlying_request_id | varchar(32) | N | 调用账户系统的请求ID | UK |
-| underlying_transaction_no | varchar(32) | N | 底层流水号 | |
-| fail_reason | varchar(256) | N | 失败原因 | |
-| memo | varchar(256) | N | 备注 | |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
-
-#### 表：`split_trade_sync_record` (分账交易同步记录表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| wallet_order_no | varchar(32) | Y | 钱包侧分账指令号 | UK |
-| biz_order_no | varchar(32) | Y | 三代系统业务订单号 | IDX |
-| sync_status | varchar(16) | Y | 同步状态：PENDING, SUCCESS, FAILED | IDX |
-| sync_target | varchar(32) | Y | 同步目标系统：BUSINESS_CORE | |
-| retry_count | int(11) | Y | 重试次数 | |
-| last_sync_time | datetime | N | 最后同步时间 | |
-| fail_reason | varchar(256) | N | 同步失败原因 | |
-| create_time | datetime | Y | 创建时间 | |
-| update_time | datetime | Y | 更新时间 | |
-
-### 3.2 与其他模块的关系
-- **三代系统**：**主要服务调用方**。接收其开户、分账等指令，并异步回调分账结果。两者通过 `biz_order_no` 和 `binding_id` 等字段强关联。
-- **账户系统**：**核心下游依赖**。通过同步RPC调用，驱动账户系统完成账户创建和资金划转。通过 `underlying_account_no` 和 `underlying_request_id` 关联。
-- **业务核心**：**数据同步下游**。通过异步消息或接口调用，将分账交易数据同步至业务核心，确保交易流水完整。
-- **清结算系统**：**配置关联方**。钱包账户的 `settlement_mode` 配置需与清结算系统保持一致，但无直接接口调用。
-- **对账单系统**：**间接数据提供方**。通过账户系统发布的动账事件生成明细，本模块不直接交互。
-- **电子签约平台**：**无直接交互**。绑定关系信息通过三代系统传递。
-
-## 4. 业务逻辑
-
-### 4.1 核心算法
-- **钱包账户ID生成**：`WACC` + `年月日` + `6位序列号` (如 `WACC20231027000001`)。
-- **钱包分账指令号生成**：`WTO` + `年月日` + `6位序列号` (如 `WTO20231027000001`)。
-- **绑定关系缓存更新策略**：消费 `BindingRelationshipEstablishedEvent` 事件，仅缓存状态为 `SUCCESS` 的关系。定期清理过期和失效的缓存。
-- **分账指令状态机**：
-    ```
-    CREATED -> VALIDATING -> PROCESSING -> SUCCESS
-                              |         -> FAILED
-                              |-> FAILED (校验失败)
-    ```
-- **同步重试策略**：向业务核心同步数据失败时，采用指数退避策略重试，最大重试次数可配置（如5次），仍失败则告警人工介入。
-
-### 4.2 业务规则
-1. **账户开立规则**：
-    - 收到三代系统开户请求后，首先在本地创建 `CREATING` 状态的钱包账户记录。
-    - 组装参数调用账户系统创建底层账户，并将返回的 `underlying_account_no` 关联至钱包账户。
-    - 若底层账户创建失败，钱包账户状态置为 `CREATING_FAILED`。
-
-2. **分账执行前校验规则（VALIDATING）**：
-    - **绑定关系校验**：根据 `binding_id` 查询缓存，确认关系状态为 `SUCCESS` 且在有效期内。
-    - **账户状态校验**：付方与收方钱包账户状态必须为 `ACTIVE`，且底层账户状态正常（通过缓存或事件同步得知）。
-    - **业务类型校验**：校验付方与收方的账户类型组合是否符合当前 `bizType`（如归集场景，付方应为门店收款账户，收方应为总部收款账户）。
-    - **付款权限校验**：对于“批量付款”和“会员结算”，需校验付方商户（总部）是否已开通付款（此信息可从三代系统请求中携带或通过缓存获取）。
-    - 任一校验失败，分账指令状态直接转为 `FAILED`。
-
-3. **分账执行规则（PROCESSING）**：
-    - 校验通过后，组装 `InternalTransferRequest` 调用账户系统。
-    - 必须保存账户系统返回的 `requestId` (`underlying_request_id`)，用于关联回调。
-    - 调用账户系统成功后，指令状态转为 `PROCESSING`，等待异步回调。
-
-4. **数据同步规则**：
-    - 分账指令成功后 (`SUCCESS`)，生成 `SplitTradeDataPreparedEvent` 事件，并创建 `split_trade_sync_record` 记录。
-    - 由独立的同步处理器消费事件，或由定时任务扫描 `PENDING` 记录，调用内部接口将数据推送至业务核心。
-
-### 4.3 验证逻辑
-- **开户请求验证**：校验 `requestId` 幂等、商户号是否存在、账户类型是否支持。
-- **分账请求验证**：
-    - 基础校验：金额>0，币种支持，必要字段齐全。
-    - `requestId` 和 `bizOrderNo` 幂等校验，防止重复创建指令。
-- **回调验证**：
-    - 账户系统回调时，需验证签名（如有）。
-    - 根据 `underlying_request_id` 或 `bizOrderNo` 找到对应的 `wallet_transfer_order` 记录，确保状态为 `PROCESSING`，防止重复或错误回调。
-
-## 5. 时序图
-
-### 5.1 天财专用钱包账户开立流程
-```mermaid
-sequenceDiagram
-    participant C as 三代系统
-    participant W as 行业钱包系统
-    participant A as 账户系统
-    participant MQ as 消息队列
-
-    C->>W: POST /wallet/accounts (CreateWalletAccountRequest)
-    W->>W: 1. 幂等校验<br>2. 生成wallet_account_id<br>3. 创建状态为CREATING的记录
-    W->>A: POST /accounts (CreateAccountRequest)
-    Note over A: 创建底层天财专用账户
-    A-->>W: 返回AccountDetailResponse (含underlying_account_no)
-    W->>W: 更新钱包账户记录，状态为ACTIVE，关联底层账户号
-    W-->>C: 返回WalletAccountResponse
-    A->>MQ: 发布AccountCreatedEvent
-    W->>MQ: 消费AccountCreatedEvent，可二次确认状态
-```
-
-### 5.2 分账指令执行与回调流程
-```mermaid
-sequenceDiagram
-    participant C as 三代系统
-    participant W as 行业钱包系统
-    participant A as 账户系统
-    participant BC as 业务核心
-    participant MQ as 消息队列
-
-    C->>W: POST /wallet/transfer (ExecuteTransferRequest)
-    W->>W: 1. 幂等校验<br>2. 生成wallet_order_no，状态CREATED
-    W->>W: 3. 执行分账前校验(VALIDATING)
-    alt 校验失败
-        W->>W: 状态更新为FAILED，记录原因
-        W-->>C: 返回失败响应
-    else 校验成功
-        W->>A: POST /accounts/transfer (InternalTransferRequest)
-        W->>W: 状态更新为PROCESSING，保存underlying_request_id
-        W-->>C: 返回受理成功(含wallet_order_no)
-        A-->>A: 执行底层转账记账
-        A-->>W: 回调 /callback/account-transfer (结果)
-        W->>W: 根据结果更新指令状态(SUCCESS/FAILED)
-        W->>MQ: 发布WalletTransferOrderCompletedEvent
-        W->>MQ: 发布SplitTradeDataPreparedEvent (若成功)
-        Note over MQ,BC: 同步处理器消费事件，推送数据至业务核心
-        W-->>C: (异步) 回调 /callback/split-result
-    end
-```
-
-### 5.3 绑定关系校验流程（分账前置）
-```mermaid
-sequenceDiagram
-    participant C as 三代系统
-    participant W as 行业钱包系统
-    participant MQ as 消息队列
-
-    Note over C: 发起分账前（或作为独立校验接口）
-    C->>W: POST /wallet/bindings/validate (ValidateBindingRequest)
-    W->>W: 1. 查询本地绑定关系缓存
-    alt 缓存命中且有效
-        W-->>C: 返回校验通过
-    else 缓存不存在或已过期
-        W->>W: 2. 可查询三代系统或等待事件（设计上应避免）
-        W-->>C: 返回校验失败(BINDING_INVALID)
-    end
-    Note over MQ: 平时，W持续消费BindingRelationshipEstablishedEvent更新缓存
-```
-
-## 6. 错误处理
-
-### 6.1 预期错误及HTTP状态码
-- **400 Bad Request**：请求参数缺失、格式错误。
-- **404 Not Found**：钱包账户或分账指令不存在。
-- **409 Conflict**：
-    - `DUPLICATE_REQUEST_ID` / `DUPLICATE_BIZ_ORDER_NO`：请求重复。
-    - `BINDING_INVALID`：绑定关系无效或过期。
-    - `PAYER_PERMISSION_DENIED`：付方无付款权限。
-- **422 Unprocessable Entity**：
-    - `ACCOUNT_STATUS_INVALID`：付方或收方账户状态异常。
-    - `ACCOUNT_TYPE_MISMATCH`：账户类型与业务场景不匹配。
-    - `INSUFFICIENT_BALANCE`：付方余额不足（通常由账户系统返回后转换）。
-- **502 Bad Gateway**：调用账户系统超时或返回不可用状态。
-- **500 Internal Server Error**：系统内部错误。
-
-### 6.2 处理策略
-- **同步调用错误**：
-    - 调用账户系统开户或转账时，采用有限次数重试（如3次），重试间隔递增。
-    - 重试失败后，更新业务状态为失败，并记录详细错误信息。对于开户，钱包账户状态为`CREATING_FAILED`；对于分账，指令状态为`FAILED`。
-- **异步回调缺失**：
-    - 设置定时任务，扫描长时间处于`PROCESSING`状态的分账指令（如超过5分钟）。
-    - 调用账户系统的查询接口（需账户系统提供），或通过`underlying_request_id`主动查询，根据查询结果更新本地状态。
-- **数据同步失败**：
-    - 同步业务核心失败时，记录于`split_trade_sync_record`，由重试机制处理。
-    - 达到最大重试次数后告警，需人工排查业务核心接口或网络问题。
-- **状态一致性保障**：
-    - 通过消费`AccountStatusChangedEvent`等事件，定期比对钱包账户与底层账户状态，发现不一致时告警。
-    - 关键状态变更（如`SUCCESS`）需记录操作日志，便于审计和问题追溯。
-
-## 7. 依赖说明
-
-### 7.1 上游模块交互（调用方）
-1. **三代系统**：
-    - **调用关系**：**同步RPC调用（HTTP REST）**。
-    - **关键接口**：`POST /wallet/accounts`, `POST /wallet/transfer`。
-    - **交互要点**：
-        - 三代系统是业务的发起方，需携带完整的业务上下文。
-        - 本模块需对三代系统的请求做严格幂等和业务校验。
-        - 分账执行为异步模式，需立即返回受理结果，并通过回调通知三代系统最终结果。
-
-### 7.2 下游模块交互（被调用方/消费事件）
-1. **账户系统**：
-    - **调用关系**：**同步RPC调用（HTTP REST）**。
-    - **关键接口**：`POST /accounts`, `POST /accounts/transfer`。
-    - **交互要点**：
-        - 本模块是账户系统的主要调用方之一，调用需保证`requestId`全局唯一。
-        - 必须妥善处理账户系统返回的业务错误（如余额不足）和系统错误（超时），并转换为上层业务语义。
-        - 依赖账户系统的异步回调来最终确定分账结果，需实现可靠的回调处理接口。
-
-2. **业务核心**：
-    - **调用关系**：**异步消息驱动 + 可选同步接口调用**。
-    - **关键接口**：`POST /wallet/sync/split-trade` (内部)。
-    - **交互要点**：
-        - 通过发布`SplitTradeDataPreparedEvent`事件触发同步流程。
-        - 同步处理器调用业务核心提供的接口推送数据，需处理失败重试。
-        - 目标是确保每一笔成功的分账，在业务核心都有对应的交易流水记录。
-
-3. **消息队列 (MQ)**：
-    - **交互关系**：**发布与订阅**。
-    - **消费事件**：`BindingRelationshipEstablishedEvent`, `AccountCreatedEvent`, `AccountStatusChangedEvent`。
-    - **发布事件**：`WalletTransferOrderCompletedEvent`, `SplitTradeDataPreparedEvent`。
-    - **交互要点**：确保消息的可靠投递与消费的幂等性。
-
-### 7.3 内部依赖
-- **数据库**：MySQL集群，存储所有钱包层业务数据，要求高可用和事务支持（用于创建指令、更新状态）。
-- **缓存**：Redis集群，用于缓存热点账户信息、有效的绑定关系、以及`requestId`幂等校验结果，提升校验性能。
-- **配置中心**：管理下游系统（账户系统、业务核心）的接口地址、超时时间、重试策略、开关配置等。
-
-**文档版本**：1.0  
-**最后更新**：2023-10-27  
-**设计者**：软件架构师
-
-## 3.7 清结算系统
-
-
-
-
-
-
-# 清结算系统模块设计文档
-
-## 1. 概述
-
-### 1.1 目的
-本模块是支付平台的资金处理中枢，负责为“天财商龙”业务场景提供交易资金的**清算、结算、计费以及退货资金处理**服务。它确保收单交易资金能够按照商户配置（主动/被动结算）准确、及时地流入指定的天财专用账户，并为分账业务提供手续费计算支持。
-
-### 1.2 范围
-- **资金结算**：根据商户配置，将“01待结算账户”中的交易资金，结算至商户指定的收款账户（如天财收款账户）或保留在待结算账户中（被动结算）。
-- **退货资金处理**：处理从天财收款账户发起的退货请求，联动“04退货账户”完成资金扣款与返还。
-- **计费处理**：接收并执行分账交易的手续费计算与扣划。
-- **配置管理**：接收并管理商户的结算模式（主动/被动）与结算账户配置。
-- **对账支持**：为对账单系统提供结算、退货、计费相关的动账明细数据。
-
-### 1.3 非范围
-- 商户进件与账户开立（由三代系统、行业钱包系统、账户系统处理）。
-- 分账业务逻辑与指令执行（由行业钱包系统处理）。
-- 电子协议签署与身份认证（由电子签约平台处理）。
-- 底层账户的资金记账操作（由账户系统执行）。
-
-## 2. 接口设计
-
-### 2.1 REST API 端点（内部调用）
-
-#### 2.1.1 结算配置管理
-- **PUT /internal/api/v1/settlement/config**：更新商户结算配置（由三代系统调用）
-    - **请求体**：`UpdateSettlementConfigRequest`
-    - **响应**：`BaseResponse`
-- **GET /internal/api/v1/settlement/config/{merchantNo}**：查询商户结算配置
-    - **响应**：`SettlementConfigResponse`
-
-#### 2.1.2 资金结算触发
-- **POST /internal/api/v1/settlement/execute**：执行指定批次或商户的结算（可由定时任务或手动触发）
-    - **请求体**：`ExecuteSettlementRequest`
-    - **响应**：`ExecuteSettlementResponse`
-
-#### 2.1.3 退货处理
-- **POST /internal/api/v1/refund/process**：处理从天财收款账户发起的退货（由业务核心或退货网关调用）
-    - **请求体**：`ProcessRefundRequest`
-    - **响应**：`ProcessRefundResponse`
-
-#### 2.1.4 计费触发
-- **POST /internal/api/v1/fee/calculate**：计算并扣划分账交易手续费（由行业钱包系统在分账成功后异步调用）
-    - **请求体**：`CalculateFeeRequest`
-    - **响应**：`CalculateFeeResponse`
-
-### 2.2 数据结构
-
-```json
-// UpdateSettlementConfigRequest (来自三代系统)
-{
-  "requestId": "SETTLE_CFG_REQ_001",
-  "merchantNo": "M100001",
-  "settlementMode": "ACTIVE", // ACTIVE, PASSIVE
-  "settlementAccountNo": "ACC202310270001", // 当mode=ACTIVE时，指定结算至哪个天财收款账户
-  "effectiveTime": "2023-11-01T00:00:00Z" // 配置生效时间
-}
-
-// SettlementConfigResponse
-{
-  "merchantNo": "M100001",
-  "settlementMode": "ACTIVE",
-  "settlementAccountNo": "ACC202310270001",
-  "status": "VALID", // VALID, INVALID
-  "effectiveTime": "2023-11-01T00:00:00Z",
-  "createTime": "2023-10-27T10:05:00Z"
-}
-
-// ExecuteSettlementRequest
-{
-  "requestId": "SETTLE_EXEC_REQ_001",
-  "batchNo": "BATCH20231027", // 结算批次号
-  "merchantNoList": ["M100001", "M100002"], // 指定商户，为空则处理所有待结算商户
-  "settleDate": "2023-10-26", // 结算日期（T-1）
-  "triggerType": "SCHEDULED" // SCHEDULED(定时), MANUAL(手动)
-}
-
-// ProcessRefundRequest
-{
-  "requestId": "REFUND_REQ_001",
-  "refundOrderNo": "REF202310270001",
-  "originalOrderNo": "PAY202310260001",
-  "merchantNo": "M100001",
-  "accountNo": "ACC202310270001", // 发起退货的天财收款账户
-  "refundAmount": "100.00",
-  "currency": "CNY",
-  "reason": "商品质量问题"
-}
-
-// CalculateFeeRequest (来自行业钱包系统)
-{
-  "requestId": "FEE_CALC_REQ_001",
-  "bizOrderNo": "SPLIT202310270001", // 分账指令号
-  "bizType": "COLLECTION", // 业务类型
-  "payerMerchantNo": "M100001",
-  "payerAccountNo": "ACC202310270001",
-  "receiverMerchantNo": "M100000",
-  "receiverAccountNo": "ACC202310270002",
-  "splitAmount": "10000.00",
-  "currency": "CNY",
-  "splitTime": "2023-10-27T14:30:00Z"
-}
-```
-
-### 2.3 发布的事件
-清结算系统作为事件生产者，发布以下领域事件：
-
-- **SettlementCompletedEvent**：一批次或一个商户的结算任务完成。
-    ```json
-    {
-      "eventId": "EVT_SETTLE_COMP_001",
-      "eventType": "SETTLEMENT_COMPLETED",
-      "timestamp": "2023-10-27T02:05:00Z",
-      "data": {
-        "batchNo": "BATCH20231027",
-        "settleDate": "2023-10-26",
-        "merchantNo": "M100001",
-        "settlementMode": "ACTIVE",
-        "settledAmount": "150000.00",
-        "settlementAccountNo": "ACC202310270001",
-        "feeAmount": "150.00",
-        "status": "SUCCESS" // SUCCESS, PARTIAL_SUCCESS, FAILED
-      }
-    }
-    ```
-- **RefundProcessedEvent**：退货处理完成。
-- **FeeCalculatedEvent**：手续费计算并扣划完成。
-
-### 2.4 消费的事件
-清结算系统作为事件消费者，订阅以下事件以触发或关联业务：
-
-- **TradeSettledEvent** (来自业务核心)：交易已清算完成，资金进入“01待结算账户”，可触发结算。
-- **TiancaiAccountConfiguredEvent** (来自三代系统)：感知新开通的天财商户及账户，用于初始化配置。
-
-## 3. 数据模型
-
-### 3.1 核心表设计
-
-#### 表：`settlement_config` (商户结算配置表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| merchant_no | varchar(32) | Y | 商户号 | UK |
-| settlement_mode | varchar(16) | Y | 结算模式：ACTIVE, PASSIVE | |
-| settlement_account_no | varchar(32) | N | 结算账户号（当mode=ACTIVE时必填） | IDX |
-| status | varchar(16) | Y | 状态：VALID, INVALID | |
-| effective_time | datetime | Y | 生效时间 | IDX |
-| create_time | datetime | Y | 创建时间 | |
-| update_time | datetime | Y | 更新时间 | |
-
-#### 表：`settlement_task` (结算任务表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| batch_no | varchar(32) | Y | 结算批次号 | IDX |
-| task_no | varchar(32) | Y | 结算任务号（批次内唯一） | UK |
-| merchant_no | varchar(32) | Y | 商户号 | IDX |
-| settle_date | date | Y | 结算日期（T-1） | IDX |
-| settlement_mode | varchar(16) | Y | 结算模式 | |
-| total_amount | decimal(15,2) | Y | 应结算总金额 | |
-| fee_amount | decimal(15,2) | Y | 手续费金额 | |
-| settled_amount | decimal(15,2) | Y | 实际结算金额 | |
-| settlement_account_no | varchar(32) | N | 结算账户号 | |
-| status | varchar(16) | Y | 状态：PENDING, PROCESSING, SUCCESS, FAILED | IDX |
-| detail_count | int | Y | 关联的动账明细条数 | |
-| start_time | datetime | N | 处理开始时间 | |
-| end_time | datetime | N | 处理完成时间 | |
-| error_msg | varchar(512) | N | 失败原因 | |
-| create_time | datetime | Y | 创建时间 | IDX |
-
-#### 表：`settlement_detail` (结算动账明细表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| task_no | varchar(32) | Y | 所属结算任务号 | IDX |
-| merchant_no | varchar(32) | Y | 商户号 | IDX |
-| trade_no | varchar(32) | Y | 原交易订单号 | IDX |
-| trade_amount | decimal(15,2) | Y | 交易金额 | |
-| settle_amount | decimal(15,2) | Y | 结算金额 | |
-| fee_amount | decimal(15,2) | Y | 手续费金额 | |
-| settle_date | date | Y | 结算日期 | IDX |
-| account_transaction_no | varchar(32) | Y | 关联的账户系统流水号 | UK |
-| status | varchar(16) | Y | 状态：PENDING, SETTLED, FAILED | |
-| create_time | datetime | Y | 创建时间 | |
-
-#### 表：`refund_order` (退货订单表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| refund_order_no | varchar(32) | Y | 退货订单号 | UK |
-| original_order_no | varchar(32) | Y | 原支付订单号 | IDX |
-| merchant_no | varchar(32) | Y | 商户号 | IDX |
-| account_no | varchar(32) | Y | 发起退货的天财收款账户 | IDX |
-| refund_amount | decimal(15,2) | Y | 退货金额 | |
-| currency | char(3) | Y | 币种 | |
-| status | varchar(16) | Y | 状态：CREATED, PROCESSING, SUCCESS, FAILED | IDX |
-| refund_account_transaction_no | varchar(32) | N | 退货资金扣款流水号 | |
-| return_account_transaction_no | varchar(32) | N | 资金返还给用户的流水号 | |
-| fail_reason | varchar(256) | N | 失败原因 | |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
-
-#### 表：`fee_order` (手续费订单表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| fee_order_no | varchar(32) | Y | 手续费订单号 | UK |
-| biz_order_no | varchar(32) | Y | 业务订单号（分账指令号） | UK |
-| biz_type | varchar(32) | Y | 业务类型 | IDX |
-| payer_merchant_no | varchar(32) | Y | 付方商户号 | IDX |
-| payer_account_no | varchar(32) | Y | 付方账户号 | |
-| fee_amount | decimal(15,2) | Y | 手续费金额 | |
-| currency | char(3) | Y | 币种 | |
-| account_transaction_no | varchar(32) | N | 手续费扣款流水号 | |
-| status | varchar(16) | Y | 状态：PENDING, SUCCESS, FAILED, WAIVED | IDX |
-| calculate_time | datetime | Y | 计算时间 | |
-| create_time | datetime | Y | 创建时间 | IDX |
-
-### 3.2 与其他模块的关系
-- **三代系统**：**配置提供方**。接收三代系统同步的商户结算模式与结算账户配置，是结算执行的依据。
-- **账户系统**：**资金操作执行方**。调用账户系统的转账接口，完成从“01待结算账户”到天财收款账户的资金划转，以及退货、手续费扣划等操作。
-- **行业钱包系统**：**计费触发方**。接收行业钱包系统的计费请求，计算分账手续费。
-- **业务核心**：**数据源与触发源**。消费业务核心的`TradeSettledEvent`，感知可结算的交易；接收来自业务核心或退货网关的退货请求。
-- **计费中台**：**费率服务依赖**。调用计费中台获取费率并计算手续费（或由计费中台计算后返回结果）。费率基础数据由三代系统配置后同步至计费中台。
-- **对账单系统**：**数据提供方**。`settlement_detail`, `refund_order`, `fee_order` 表的数据是对账单系统生成“机构层级动账明细”和“天财分账指令账单”的重要数据源。
-
-## 4. 业务逻辑
-
-### 4.1 核心算法
-- **结算批次号生成**：`BATCH` + `结算日期(YYYYMMDD)` + `2位序列号` (如 `BATCH2023102701`)。
-- **结算任务号生成**：`ST` + `结算日期(YYYYMMDD)` + `商户号后6位` + `4位序列号`。
-- **退货订单号生成**：`REF` + `年月日` + `6位序列号`。
-- **手续费订单号生成**：`FEE` + `年月日` + `6位序列号`。
-- **结算执行**：采用“任务分片”机制。每个结算批次(`batch_no`)下，为每个符合条件的商户创建一个结算任务(`task_no`)，并行处理，提高效率。
-
-### 4.2 业务规则
-1. **结算规则**：
-    - **主动结算 (ACTIVE)**：定时（如T+1日凌晨）扫描`settlement_config`中状态为`VALID`且模式为`ACTIVE`的商户，将其在“01待结算账户”中`settle_date`为T-1的交易资金，扣除手续费后，结算至配置的`settlement_account_no`（天财收款账户）。
-    - **被动结算 (PASSIVE)**：资金保留在“01待结算账户”中，不清算系统不执行自动划转，由商户手动发起提款。
-    - 结算前需通过账户系统校验目标天财收款账户状态为`ACTIVE`。
-
-2. **退货规则**：
-    - 仅支持从天财收款账户(`TIANCAI_COLLECT`)发起退货。
-    - 退货时，先从发起退货的天财收款账户扣减相应金额至“04退货账户”，然后由“04退货账户”将资金返还给用户原支付账户。
-    - 需校验天财收款账户的可用余额是否充足。
-
-3. **计费规则**：
-    - 分账交易产生手续费，由付方承担。
-    - 费率信息由三代系统配置，并同步至计费中台。清结算系统调用计费中台计算具体金额。
-    - 手续费从天财收款账户（付方）的可用余额中实时扣划。
-
-### 4.3 验证逻辑
-- **结算配置验证**：接收三代系统配置时，需校验指定的`settlement_account_no`是否存在、是否为天财收款账户、是否属于该商户。
-- **结算执行验证**：执行每个结算任务前，复核商户配置是否仍有效、结算账户状态是否正常。
-- **退货请求验证**：校验退货金额是否小于等于原订单金额、原订单是否已结算、天财收款账户状态和余额是否允许扣款。
-- **计费请求验证**：校验业务订单号是否已计算过手续费（幂等）、付方账户信息是否有效。
-
-## 5. 时序图
-
-### 5.1 主动结算流程 (T+1日定时任务)
-```mermaid
-sequenceDiagram
-    participant Scheduler as 定时任务
-    participant S as 清结算系统
-    participant A as 账户系统
-    participant Fee as 计费中台
-    participant MQ as 消息队列
-
-    Scheduler->>S: 触发结算任务(settleDate=T-1)
-    S->>S: 1. 生成batch_no<br>2. 查询所有ACTIVE模式的有效商户配置
-    loop 每个商户
-        S->>S: 创建settlement_task (状态PENDING)
-        S->>A: 查询商户在“01待结算账户”T-1日的待结算明细
-        S->>Fee: 计算该批交易总手续费
-        S->>A: POST /accounts/transfer (从01待结算账户 -> 天财收款账户)
-        A-->>S: 返回转账结果及流水号
-        S->>S: 更新settlement_task状态为SUCCESS，记录流水号
-        S->>S: 生成settlement_detail记录
-    end
-    S->>MQ: 发布SettlementCompletedEvent
-```
-
-### 5.2 天财账户退货流程
-```mermaid
-sequenceDiagram
-    participant Gateway as 退货网关/业务核心
-    participant S as 清结算系统
-    participant A as 账户系统
-    participant MQ as 消息队列
-
-    Gateway->>S: POST /refund/process (ProcessRefundRequest)
-    S->>S: 1. 幂等校验<br>2. 业务校验(原订单、账户、余额)
-    S->>S: 创建refund_order (状态PROCESSING)
-    S->>A: POST /accounts/transfer (从天财收款账户 -> 04退货账户)
-    A-->>S: 返回扣款流水号
-    S->>A: POST /accounts/transfer (从04退货账户 -> 用户原支付账户)
-    A-->>S: 返回退款流水号
-    S->>S: 更新refund_order状态为SUCCESS，记录流水号
-    S->>MQ: 发布RefundProcessedEvent
-    S-->>Gateway: 返回处理成功
-```
-
-### 5.3 分账手续费计算流程
-```mermaid
-sequenceDiagram
-    participant W as 行业钱包系统
-    participant S as 清结算系统
-    participant Fee as 计费中台
-    participant A as 账户系统
-    participant MQ as 消息队列
-
-    W->>S: POST /fee/calculate (CalculateFeeRequest)
-    S->>S: 幂等校验，防止重复计费
-    S->>Fee: 查询费率并计算手续费金额
-    Fee-->>S: 返回feeAmount
-    S->>S: 创建fee_order (状态PENDING)
-    S->>A: POST /accounts/transfer (从天财收款账户 -> 内部手续费收入账户)
-    A-->>S: 返回扣款流水号
-    S->>S: 更新fee_order状态为SUCCESS
-    S->>MQ: 发布FeeCalculatedEvent
-    S-->>W: 返回计费成功
-```
-
-## 6. 错误处理
-
-### 6.1 预期错误及HTTP状态码
-- **400 Bad Request**：请求参数错误、格式无效。
-- **404 Not Found**：商户结算配置、原交易订单不存在。
-- **409 Conflict**：
-    - `DUPLICATE_REQUEST_ID`：重复请求。
-    - `SETTLEMENT_CONFIG_INVALID`：结算配置无效或已过期。
-- **422 Unprocessable Entity**：
-    - `INSUFFICIENT_BALANCE`：账户余额不足（退货或手续费扣划时）。
-    - `ACCOUNT_STATUS_INVALID`：账户状态异常（冻结、注销）。
-    - `ORIGINAL_ORDER_NOT_SETTLED`：原订单未结算，不能退货。
-- **502 Bad Gateway**：调用账户系统、计费中台超时或失败。
-- **500 Internal Server Error**：系统内部错误。
-
-### 6.2 处理策略
-- **结算任务失败**：单个商户结算任务失败（如账户异常），记录错误原因，任务状态置为`FAILED`，不影响批次内其他任务。触发告警，并生成差错处理工单。
-- **异步调用重试**：对于调用账户系统、计费中台等外部依赖，采用指数退避策略进行重试（如3次）。重试失败后，业务订单（结算、退货、计费）状态置为`FAILED`。
-- **数据一致性**：结算、退货涉及多账户划转，必须在一个本地事务中更新`refund_order`状态和记录流水号，但账户操作本身依赖外部系统。采用“本地事务+异步校对”机制，通过定时任务核对本地订单状态与账户流水状态，发现不一致时告警并支持人工干预。
-- **监控与告警**：对定时结算任务的执行时长、成功率、下游系统调用延迟及错误率进行监控。
-
-## 7. 依赖说明
-
-### 7.1 上游模块交互（调用方）
-1. **三代系统**：
-    - **调用关系**：**同步RPC调用**（配置接收）。
-    - **关键接口**：`PUT /internal/api/v1/settlement/config`。
-    - **交互要点**：接收商户的结算模式与账户配置，作为结算执行的唯一依据。需验证配置的合法性。
-
-2. **行业钱包系统**：
-    - **调用关系**：**同步RPC调用**（计费触发）。
-    - **关键接口**：`POST /internal/api/v1/fee/calculate`。
-    - **交互要点**：接收分账完成后的计费请求，需实现幂等处理，防止因网络重试导致重复扣费。
-
-3. **业务核心/退货网关**：
-    - **调用关系**：**同步RPC调用**（退货处理）。
-    - **关键接口**：`POST /internal/api/v1/refund/process`。
-    - **交互要点**：处理从天财收款账户发起的退货，需严格校验业务规则。
-
-### 7.2 下游模块交互（被调用/消费事件）
-1. **账户系统**：
-    - **调用关系**：**同步RPC调用**（资金操作）。
-    - **关键接口**：`POST /api/v1/accounts/transfer`。
-    - **交互要点**：所有资金划转（结算、退货、手续费扣划）的最终执行者。必须处理其返回的各类业务错误（如余额不足）和系统错误。
-
-2. **计费中台**：
-    - **调用关系**：**同步RPC调用**（费率计算）。
-    - **关键接口**：计费计算接口。
-    - **交互要点**：获取分账业务的费率并计算手续费。需处理服务降级，在计费中台不可用时，可采用默认费率或记录日志后人工处理。
-
-3. **业务核心**：
-    - **消费事件**：`TradeSettledEvent`。
-    - **交互要点**：监听交易清算完成事件，作为触发T+1日结算的源头之一（另一种是定时扫描）。
-
-### 7.3 内部依赖
-- **数据库**：MySQL集群，存储结算配置、任务、明细、退货及手续费订单，要求高可用。
-- **缓存**：Redis集群，用于缓存商户结算配置、热点查询、以及`requestId`幂等校验。
-- **消息中间件**：Kafka/RocketMQ，用于发布业务事件和消费上游事件。
-- **定时任务调度**：分布式调度框架（如XXL-Job），用于触发每日定时结算任务。
-
-**文档版本**：1.0  
-**最后更新**：2023-10-27  
-**设计者**：软件架构师
-
-## 3.8 计费中台
-
-
-
-# 计费中台模块设计文档
-
-## 1. 概述
-
-### 1.1 目的
-本模块是“天财商龙”分账业务的**独立计费服务核心**。它负责精确计算分账交易（归集、批量付款、会员结算）产生的手续费，并提供灵活的计费策略管理能力。计费中台与清结算系统紧密协作，接收费率配置，在分账指令执行时进行实时或异步计费，确保手续费计算的准确性、一致性和可追溯性。
-
-### 1.2 范围
-- **费率配置管理**：接收并存储从三代系统同步的商户/业务维度的分账手续费费率配置。
-- **实时计费计算**：在分账指令执行时，根据业务类型、参与方、金额等信息，实时计算应收手续费。
-- **计费指令生成与执行**：生成独立的计费指令，并调用清结算系统完成实际的手续费扣划（从指定账户扣款）。
-- **计费结果同步**：将计费结果（成功/失败）同步回业务发起方（三代系统/行业钱包系统），并更新分账指令的计费状态。
-- **计费对账与查询**：提供计费记录查询、对账文件生成能力，支持财务核对。
-- **计费规则引擎**：支持基于多层条件（商户、业务类型、金额区间、时间等）的复杂费率规则匹配。
-
-### 1.3 非范围
-- 商户费率的商业定价与配置（由三代系统负责）。
-- 底层账户的资金扣划操作（由清结算系统执行）。
-- 分账交易的核心资金流转（由行业钱包系统和账户系统处理）。
-- 面向商户的账单展示与发布（由对账单系统处理）。
-
-## 2. 接口设计
-
-### 2.1 REST API 端点
-
-#### 2.1.1 计费执行
-- **POST /api/v1/fee/calculate-and-charge**：计算并执行手续费扣划（主要入口）
-    - **请求体**：`FeeCalculateRequest`
-    - **响应**：`FeeCalculateResponse`（包含计费流水号，结果异步返回）
-- **GET /api/v1/fee/orders/{feeOrderNo}**：查询计费指令状态
-    - **响应**：`FeeOrderDetailResponse`
-- **POST /api/v1/fee/orders/{feeOrderNo}/retry**：重试失败的计费指令
-    - **响应**：`BaseResponse`
-
-#### 2.1.2 费率配置查询（供内部校验使用）
-- **GET /api/v1/fee/configs**：查询生效的费率配置
-    - **查询参数**：`merchantNo`, `bizType`, `effectiveDate`
-    - **响应**：`List<FeeConfigResponse>`
-
-#### 2.1.3 对账与查询
-- **GET /api/v1/fee/orders**：分页查询计费指令
-    - **查询参数**：`merchantNo`, `bizType`, `status`, `startTime`, `endTime`, `page`, `size`
-    - **响应**：`PageResponse<FeeOrderSimpleResponse>`
-- **GET /api/v1/fee/reconciliation/{date}**：生成指定日期的计费对账文件
-    - **响应**：`ReconciliationResponse`（包含文件下载链接）
-
-### 2.2 内部接口（供上下游系统调用/回调）
-
-- **POST /internal/api/v1/fee/callback/charge-result**：清结算系统回调手续费扣划结果
-    - **请求体**：`ChargeResultCallbackRequest`
-    - **响应**：`BaseResponse`
-- **POST /internal/api/v1/fee/sync/config**：接收从三代系统同步的费率配置（变更时触发）
-    - **请求体**：`FeeConfigSyncRequest`
-    - **响应**：`BaseResponse`
-
-### 2.3 数据结构
-
-```json
-// FeeCalculateRequest - 计费请求
-{
-  "requestId": "FEE_CALC_REQ_001",
-  "sourceSystem": "WALLET", // 请求来源系统: WALLET(行业钱包), CORE(三代核心)
-  "sourceOrderNo": "SPLIT20231027000001", // 来源业务订单号（分账指令号）
-  "bizType": "COLLECTION", // COLLECTION, BATCH_PAYMENT, MEMBER_SETTLE
-  "payerMerchantNo": "M100001",
-  "payerAccountNo": "ACC_STORE_001",
-  "receiverMerchantNo": "M100000",
-  "receiverAccountNo": "ACC_HQ_001",
-  "amount": "10000.00", // 分账金额
-  "currency": "CNY",
-  "chargeParty": "PAYER", // 手续费承担方: PAYER(付方), RECEIVER(收方), SHARED(双方分摊)
-  "sharedRatio": "0.5", // 当chargeParty=SHARED时，付方承担比例（0-1）
-  "extInfo": {
-    "originalTradeNo": "T202310270001", // 原始交易号（如有）
-    "storeRegion": "BEIJING" // 门店区域等扩展信息，用于规则匹配
-  }
-}
-
-// FeeCalculateResponse - 计费响应
-{
-  "success": true,
-  "code": "SUCCESS",
-  "message": "计费请求已受理",
-  "data": {
-    "feeOrderNo": "FEE20231027000001", // 计费指令号
-    "status": "PROCESSING", // 初始状态
-    "estimatedFee": "5.00", // 预估手续费（基于缓存费率）
-    "estimatedFeeCurrency": "CNY"
-  }
-}
-
-// FeeOrderDetailResponse - 计费指令详情
-{
-  "feeOrderNo": "FEE20231027000001",
-  "sourceOrderNo": "SPLIT20231027000001",
-  "bizType": "COLLECTION",
-  "payerMerchantNo": "M100001",
-  "receiverMerchantNo": "M100000",
-  "amount": "10000.00",
-  "currency": "CNY",
-  "calculatedFee": "5.00", // 实际计算的手续费
-  "feeCurrency": "CNY",
-  "chargeParty": "PAYER",
-  "sharedRatio": null,
-  "feeConfigId": "FC_001", // 匹配到的费率配置ID
-  "feeRate": "0.0005", // 实际应用的费率
-  "feeRateType": "RATIO", // RATIO(比例), FIXED(固定额), TIERED(阶梯)
-  "status": "SUCCESS", // PROCESSING, SUCCESS, FAILED, PARTIAL_FAIL
-  "chargeStatus": "CHARGED", // 扣费状态: PENDING, CHARGING, CHARGED, FAILED
-  "chargeOrderNo": "CHARGE202310270001", // 清结算扣费订单号
-  "failReason": null,
-  "calculateTime": "2023-10-27T14:30:00Z",
-  "chargeCompleteTime": "2023-10-27T14:30:05Z",
-  "createTime": "2023-10-27T14:30:00Z"
-}
-
-// FeeConfigSyncRequest - 费率配置同步
-{
-  "eventId": "FEE_CONFIG_SYNC_001",
-  "operation": "UPSERT", // UPSERT, DELETE
-  "feeConfig": {
-    "feeConfigId": "FC_001",
-    "merchantNo": "M100000", // 为空表示全局默认
-    "bizType": "COLLECTION",
-    "feeRateType": "RATIO",
-    "feeRate": "0.0005", // 比例费率
-    "fixedAmount": null, // 固定金额
-    "minFee": "0.01",
-    "maxFee": "100.00",
-    "chargeParty": "PAYER",
-    "sharedRatio": null,
-    "effectiveDate": "2023-11-01",
-    "expiryDate": "2024-10-31",
-    "priority": 10, // 优先级，数字越大优先级越高
-    "conditions": [ // 条件列表，全部满足时生效
+### 2.1 API端点 (RESTful)
+
+#### 2.1.1 账户与关系管理接口
+- **POST /api/v1/tiancai/accounts/{tiancai_account_id}/bindings**
+    - **描述**：发起账户关系绑定流程（如总部与门店的归集关系）。此接口将调用电子签约平台创建签约流程。
+    - **路径参数**：
+        - `tiancai_account_id`: 付方天财账户ID
+    - **请求体**：
+      ```json
       {
-        "field": "amount",
-        "operator": "GE",
-        "value": "1000.00"
-      },
+        "request_id": "bind_req_20231011001",
+        "biz_scene": "COLLECTION", // COLLECTION(归集)/BATCH_PAY(批量付款)/MEMBER_SETTLE(会员结算)
+        "to_account_id": "TCA_20231011002", // 收方天财账户ID（批量付款时为列表）
+        "to_account_ids": ["TCA_RECV_001", "TCA_RECV_002"], // 批量付款场景下收方账户ID列表
+        "contract_variables": { // 协议变量
+          "effective_date": "2023-11-01",
+          "expiry_date": "2024-10-31",
+          "daily_limit": "100000.00"
+        },
+        "operator": "admin_user", // 操作员
+        "callback_url": "https://g3.example.com/callback/binding" // 绑定结果回调地址（通知三代系统）
+      }
+      ```
+    - **响应体**：
+      ```json
       {
-        "field": "storeRegion",
-        "operator": "IN",
-        "value": "BEIJING,SHANGHAI"
+        "code": "SUCCESS",
+        "message": "关系绑定流程已发起",
+        "data": {
+          "binding_id": "BIND_202310110001", // 钱包系统生成的关系绑定流水号
+          "process_id": "proc_9k2jhs83la5", // 电子签约平台返回的流程ID
+          "status": "SIGNING", // 状态：SIGNING(签约中)/VERIFYING(认证中)/COMPLETED/FAILED
+          "sign_urls": [ // 签约链接（按参与方）
+            {
+              "party_role": "PAYER",
+              "party_name": "北京天财科技有限公司",
+              "sign_url": "https://h5.e-sign.com/contract?token=eyJhbGciOi..."
+            }
+          ]
+        }
       }
-    ],
-    "status": "ACTIVE" // ACTIVE, INACTIVE
-  }
-}
+      ```
 
-// ChargeResultCallbackRequest - 扣费结果回调
-{
-  "chargeOrderNo": "CHARGE202310270001",
-  "feeOrderNo": "FEE20231027000001",
-  "status": "SUCCESS", // SUCCESS, FAILED
-  "actualDeductAmount": "5.00", // 实际扣划金额
-  "actualDeductCurrency": "CNY",
-  "deductAccountNo": "ACC_STORE_001", // 实际扣款账户
-  "deductTime": "2023-10-27T14:30:05Z",
-  "failReason": "余额不足",
-  "callbackTime": "2023-10-27T14:30:06Z"
-}
-```
+- **POST /api/v1/tiancai/accounts/{tiancai_account_id}/open-payment**
+    - **描述**：为总部开通“付款”权限（用于批量付款和会员结算场景）。此流程仅涉及总部单方签署《代付授权协议》并进行对公认证。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "open_pay_req_001",
+        "operator": "admin_user",
+        "callback_url": "https://g3.example.com/callback/open-payment"
+      }
+      ```
+    - **响应体**：返回开通流程ID及状态。
 
-### 2.4 发布的事件
-计费中台作为事件生产者，发布以下领域事件：
+#### 2.1.2 分账指令处理接口（内部）
+- **POST /api/internal/tiancai/split-orders**
+    - **描述**：由三代系统调用，处理分账指令。此接口执行核心业务逻辑。
+    - **认证**：内部服务间认证（API Key + IP白名单）。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "g3_req_20231011001", // 三代请求ID
+        "split_order_id": "SO_202310110001", // 三代分账订单号
+        "biz_scene": "COLLECTION",
+        "payer": {
+          "tiancai_account_id": "TCA_20231011001",
+          "merchant_no": "M100001"
+        },
+        "payee_list": [
+          {
+            "tiancai_account_id": "TCA_20231011002",
+            "merchant_no": "M100002",
+            "amount": 10000,
+            "currency": "CNY",
+            "memo": "门店日结归集"
+          }
+        ],
+        "total_amount": 10000,
+        "biz_ref_no": "TC_ORDER_001", // 天财业务参考号
+        "ext_info": {}
+      }
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "message": "分账指令处理中",
+        "data": {
+          "wallet_order_id": "WO_202310110001", // 钱包系统分账订单号
+          "status": "PROCESSING",
+          "estimated_completion_time": 30 // 预计完成秒数
+        }
+      }
+      ```
 
-- **FeeCalculatedEvent**：手续费计算完成（扣费前）。
+#### 2.1.3 查询接口
+- **GET /api/v1/tiancai/split-orders/{wallet_order_id}**
+    - **描述**：查询分账订单详情及处理状态。
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "data": {
+          "wallet_order_id": "WO_202310110001",
+          "split_order_id": "SO_202310110001",
+          "biz_scene": "COLLECTION",
+          "status": "SUCCESS", // INIT, PROCESSING, SUCCESS, PARTIAL_SUCCESS, FAILED, REVERSED
+          "payer_account_id": "TCA_20231011001",
+          "total_amount": 10000,
+          "currency": "CNY",
+          "details": [
+            {
+              "payee_account_id": "TCA_20231011002",
+              "amount": 10000,
+              "status": "SUCCESS",
+              "ledger_entry_no": "LE_202310110001", // 账务流水号
+              "completed_at": "2023-10-11T10:05:00Z"
+            }
+          ],
+          "created_at": "2023-10-11T10:00:00Z",
+          "completed_at": "2023-10-11T10:05:00Z"
+        }
+      }
+      ```
+
+- **GET /api/v1/tiancai/accounts/{tiancai_account_id}/bindings**
+    - **描述**：查询账户的绑定关系列表。
+- **GET /api/v1/tiancai/bindings/{binding_id}**
+    - **描述**：查询特定关系绑定的详情及进度。
+
+#### 2.1.4 回调接口（供电子签约平台调用）
+- **POST /api/internal/callback/esign**
+    - **描述**：接收电子签约平台的签约结果回调。
+    - **请求体**：
+      ```json
+      {
+        "event_type": "CONTRACT_PROCESS_COMPLETED", // 或 FAILED
+        "process_id": "proc_9k2jhs83la5",
+        "biz_reference_no": "BIND_202310110001", // 即钱包系统的binding_id
+        "status": "COMPLETED",
+        "contract_document": {
+          "document_id": "doc_7s82kja93n2",
+          "hash": "a1b2c3d4e5f6..."
+        },
+        "completion_time": "2023-10-11T10:25:00Z",
+        "failure_reason": ""
+      }
+      ```
+    - **响应体**：返回成功接收确认。
+
+### 2.2 发布/消费的事件
+
+#### 2.2.1 消费的事件
+1. **TiancaiAccountCreatedEvent** (来自账户系统)
+    - **Topic**: `account.events.tiancai.created`
+    - **处理逻辑**：接收天财专用账户创建成功事件，在钱包系统创建对应的账户映射记录，初始化状态。
+2. **AccountBalanceChangedEvent** (来自账户系统)
+    - **Topic**: `account.events.balance.changed`
+    - **处理逻辑**：监听关键账户（如天财收款账户）的余额变动，用于监控和风控。
+3. **MerchantCreatedEvent** (来自三代系统，可选)
+    - **Topic**: `g3.events.merchant.created`
+    - **处理逻辑**：感知新商户创建，为后续可能的自动开通天财业务做准备。
+
+#### 2.2.2 发布的事件
+1. **AccountRelationVerifiedEvent** (账户关系已验证)
+    - **Topic**: `wallet.events.relation.verified`
+    - **触发时机**：关系绑定流程（签约+认证）全部完成，且钱包系统已将该关系同步至账户系统后。
+    - **Payload**:
     ```json
     {
-      "eventId": "EVT_FEE_CALC_001",
-      "eventType": "FEE_CALCULATED",
-      "timestamp": "2023-10-27T14:30:01Z",
+      "event_id": "evt_wallet_001",
+      "event_type": "ACCOUNT_RELATION_VERIFIED",
+      "timestamp": "2023-10-11T10:30:00Z",
       "data": {
-        "feeOrderNo": "FEE20231027000001",
-        "sourceOrderNo": "SPLIT20231027000001",
-        "bizType": "COLLECTION",
-        "payerMerchantNo": "M100001",
-        "receiverMerchantNo": "M100000",
-        "amount": "10000.00",
-        "calculatedFee": "5.00",
-        "chargeParty": "PAYER",
-        "feeConfigId": "FC_001"
+        "binding_id": "BIND_202310110001",
+        "relation_type": "COLLECTION",
+        "from_account_id": "TCA_20231011001",
+        "to_account_id": "TCA_20231011002",
+        "contract_id": "doc_7s82kja93n2",
+        "effective_time": "2023-11-01T00:00:00Z",
+        "expire_time": "2024-10-31T23:59:59Z"
       }
     }
     ```
-- **FeeChargedEvent**：手续费扣划完成（成功/失败）。
-- **FeeConfigUpdatedEvent**：费率配置变更（供其他系统感知）。
-
-### 2.5 消费的事件
-计费中台作为事件消费者，订阅以下事件以触发计费或更新状态：
-
-- **SplitOrderCompletedEvent** (来自三代系统)：分账指令执行完成时，触发计费计算。
-- **AccountStatusChangedEvent** (来自账户系统)：当手续费扣款账户状态异常时，更新计费指令状态。
+2. **SplitOrderCompletedEvent** (分账订单已完成)
+    - **Topic**: `wallet.events.split_order.completed`
+    - **触发时机**：分账订单（包括批量付款中的子订单）处理完成（成功或失败）。
+    - **Payload**:
+    ```json
+    {
+      "event_id": "evt_wallet_002",
+      "event_type": "SPLIT_ORDER_COMPLETED",
+      "timestamp": "2023-10-11T10:05:00Z",
+      "data": {
+        "wallet_order_id": "WO_202310110001",
+        "split_order_id": "SO_202310110001",
+        "biz_scene": "COLLECTION",
+        "status": "SUCCESS",
+        "total_amount": 10000,
+        "details": [...],
+        "completed_at": "2023-10-11T10:05:00Z"
+      }
+    }
+    ```
+3. **PaymentOpenedEvent** (付款权限已开通)
+    - **Topic**: `wallet.events.payment.opened`
+    - **触发时机**：总部成功开通付款权限（完成《代付授权协议》签署与认证）。
+    - **Payload**:
+    ```json
+    {
+      "event_id": "evt_wallet_003",
+      "event_type": "PAYMENT_OPENED",
+      "timestamp": "2023-10-11T09:30:00Z",
+      "data": {
+        "tiancai_account_id": "TCA_HQ_001",
+        "merchant_no": "M100001",
+        "contract_id": "doc_xxxx",
+        "opened_at": "2023-10-11T09:30:00Z"
+      }
+    }
+    ```
 
 ## 3. 数据模型
 
 ### 3.1 核心表设计
 
-#### 表：`fee_config` (费率配置表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| fee_config_id | varchar(32) | Y | 费率配置业务ID | UK |
-| merchant_no | varchar(32) | N | 适用商户号，为空表示全局默认 | IDX |
-| biz_type | varchar(32) | Y | 业务类型：COLLECTION, BATCH_PAYMENT, MEMBER_SETTLE | IDX |
-| fee_rate_type | varchar(16) | Y | 费率类型：RATIO, FIXED, TIERED | |
-| fee_rate | decimal(10,6) | N | 比例费率（如0.0005） | |
-| fixed_amount | decimal(15,2) | N | 固定金额 | |
-| min_fee | decimal(15,2) | Y | 最低手续费 | |
-| max_fee | decimal(15,2) | Y | 最高手续费 | |
-| charge_party | varchar(16) | Y | 承担方：PAYER, RECEIVER, SHARED | |
-| shared_ratio | decimal(5,4) | N | 分摊比例（0-1，付方承担比例） | |
-| effective_date | date | Y | 生效日期 | IDX |
-| expiry_date | date | Y | 失效日期 | IDX |
-| priority | int(11) | Y | 优先级 | |
-| conditions | json | N | 生效条件（JSON数组） | |
-| status | varchar(16) | Y | 状态：ACTIVE, INACTIVE | IDX |
-| version | int(11) | Y | 版本号（乐观锁） | |
-| create_time | datetime | Y | 创建时间 | |
-| update_time | datetime | Y | 更新时间 | |
-| operator | varchar(64) | Y | 最后操作人 | |
+#### 表：`tiancai_wallet_account` (钱包账户映射表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `tiancai_account_id` | varchar(32) | Y | | **天财账户ID**，关联账户系统，唯一索引 `uk_tc_account_id` |
+| `merchant_no` | varchar(32) | Y | | 收单商户号 |
+| `account_role` | varchar(20) | Y | | 角色：`HEADQUARTERS`/`STORE`/`RECEIVER` |
+| `account_type` | varchar(20) | Y | | 类型：`TIANCAI_RECEIVE`/`TIANCAI_RECEIVER` |
+| `wallet_status` | varchar(20) | Y | `ACTIVE` | 钱包层状态：`ACTIVE`/`FROZEN`/`CLOSED` |
+| `payment_capability` | varchar(20) | Y | `CLOSED` | 付款能力：`CLOSED`/`OPENED`，仅总部收款账户有效 |
+| `payment_open_contract_id` | varchar(64) | N | | 开通付款的协议ID |
+| `payment_opened_at` | datetime | N | | 开通付款时间 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | |
 
-#### 表：`fee_order` (计费指令表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| fee_order_no | varchar(32) | Y | 计费指令号 | UK |
-| request_id | varchar(64) | Y | 请求ID（幂等） | UK |
-| source_system | varchar(16) | Y | 来源系统：WALLET, CORE | IDX |
-| source_order_no | varchar(32) | Y | 来源业务订单号 | IDX |
-| biz_type | varchar(32) | Y | 业务类型 | IDX |
-| payer_merchant_no | varchar(32) | Y | 付方商户号 | IDX |
-| payer_account_no | varchar(32) | Y | 付方账户号 | |
-| receiver_merchant_no | varchar(32) | Y | 收方商户号 | IDX |
-| receiver_account_no | varchar(32) | Y | 收方账户号 | |
-| amount | decimal(15,2) | Y | 分账金额 | |
-| currency | char(3) | Y | 币种 | |
-| charge_party | varchar(16) | Y | 承担方 | |
-| shared_ratio | decimal(5,4) | N | 分摊比例 | |
-| calculated_fee | decimal(15,2) | N | 计算出的手续费 | |
-| fee_currency | char(3) | Y | 手续费币种 | |
-| fee_config_id | varchar(32) | N | 匹配的费率配置ID | IDX |
-| fee_rate | decimal(10,6) | N | 实际费率 | |
-| fee_rate_type | varchar(16) | N | 费率类型 | |
-| status | varchar(16) | Y | 状态：PROCESSING, SUCCESS, FAILED, PARTIAL_FAIL | IDX |
-| charge_status | varchar(16) | Y | 扣费状态：PENDING, CHARGING, CHARGED, FAILED | IDX |
-| charge_order_no | varchar(32) | N | 清结算扣费订单号 | IDX |
-| fail_reason | varchar(512) | N | 失败原因 | |
-| ext_info | json | N | 扩展信息（原始请求中的extInfo） | |
-| calculate_time | datetime | N | 计算时间 | |
-| charge_complete_time | datetime | N | 扣费完成时间 | |
-| retry_count | int(11) | Y | 重试次数 | |
-| next_retry_time | datetime | N | 下次重试时间 | |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
+#### 表：`account_binding` (账户关系绑定表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `binding_id` | varchar(32) | Y | | **绑定流水号**，唯一索引 `uk_binding_id` |
+| `relation_type` | varchar(30) | Y | | 关系类型：`COLLECTION`/`BATCH_PAY`/`MEMBER_SETTLE` |
+| `from_account_id` | varchar(32) | Y | | 付方天财账户ID，索引 `idx_from_account` |
+| `to_account_id` | varchar(32) | Y | | 收方天财账户ID（批量付款时存首个），索引 `idx_to_account` |
+| `to_account_ids_json` | json | N | | **批量付款场景**下所有收方账户ID列表 |
+| `contract_id` | varchar(64) | Y | | 电子签约协议ID |
+| `contract_document_url` | varchar(512) | N | | 协议文件下载地址 |
+| `auth_status` | varchar(20) | Y | `PENDING` | 认证状态：`PENDING`/`SIGNING`/`VERIFYING`/`VERIFIED`/`EXPIRED`/`FAILED` |
+| `effective_time` | datetime | Y | | 生效时间 |
+| `expire_time` | datetime | N | | 过期时间 |
+| `daily_limit` | decimal(15,2) | N | | 日限额 |
+| `single_limit` | decimal(15,2) | N | | 单笔限额 |
+| `process_id` | varchar(32) | N | | 电子签约流程ID |
+| `callback_url` | varchar(512) | Y | | 结果回调地址（通知三代） |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | |
 
-#### 表：`fee_charge_detail` (手续费扣费明细表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| fee_order_no | varchar(32) | Y | 计费指令号 | IDX |
-| charge_party | varchar(16) | Y | 承担方：PAYER, RECEIVER | IDX |
-| deduct_account_no | varchar(32) | Y | 扣款账户号 | IDX |
-| deduct_amount | decimal(15,2) | Y | 扣款金额 | |
-| deduct_currency | char(3) | Y | 扣款币种 | |
-| charge_order_no | varchar(32) | Y | 清结算扣费订单号 | UK |
-| charge_status | varchar(16) | Y | 扣费状态 | |
-| deduct_time | datetime | N | 扣款时间 | |
-| fail_reason | varchar(512) | N | 失败原因 | |
-| create_time | datetime | Y | 创建时间 | |
-| update_time | datetime | Y | 更新时间 | |
+#### 表：`tiancai_split_order` (钱包分账订单表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `wallet_order_id` | varchar(32) | Y | | **钱包订单号**，唯一索引 `uk_wallet_order_id` |
+| `split_order_id` | varchar(32) | Y | | 三代分账订单号，索引 `idx_split_order_id` |
+| `request_id` | varchar(64) | Y | | 三代请求ID，用于幂等 |
+| `biz_scene` | varchar(20) | Y | | 业务场景：`COLLECTION`/`BATCH_PAY`/`MEMBER_SETTLE` |
+| `payer_account_id` | varchar(32) | Y | | 付方天财账户ID |
+| `total_amount` | decimal(15,2) | Y | | 总分账金额 |
+| `currency` | varchar(3) | Y | `CNY` | 币种 |
+| `status` | varchar(20) | Y | `INIT` | 订单状态：`INIT`/`PROCESSING`/`SUCCESS`/`PARTIAL_SUCCESS`/`FAILED`/`REVERSED` |
+| `biz_ref_no` | varchar(64) | N | | 天财业务参考号 |
+| `relation_binding_id` | varchar(32) | N | | 关联的关系绑定ID（用于归集、会员结算） |
+| `batch_details_json` | json | N | | **批量付款场景**下存储付款明细（账户、金额、备注） |
+| `ledger_entries_json` | json | N | | 账务流水号列表（关联账户系统） |
+| `error_code` | varchar(50) | N | | 错误码 |
+| `error_message` | varchar(500) | N | | 错误信息 |
+| `completed_at` | datetime | N | | 完成时间 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | |
 
-#### 表：`fee_reconciliation` (计费对账表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| recon_date | date | Y | 对账日期 | UK |
-| total_count | int(11) | Y | 总笔数 | |
-| total_fee_amount | decimal(20,2) | Y | 总手续费金额 | |
-| success_count | int(11) | Y | 成功笔数 | |
-| failed_count | int(11) | Y | 失败笔数 | |
-| file_path | varchar(512) | N | 对账文件存储路径 | |
-| file_hash | varchar(128) | N | 文件哈希值 | |
-| status | varchar(16) | Y | 状态：GENERATING, COMPLETED, FAILED | |
-| complete_time | datetime | N | 完成时间 | |
-| create_time | datetime | Y | 创建时间 | |
-| update_time | datetime | Y | 更新时间 | |
+#### 表：`split_order_detail` (分账订单明细表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `wallet_order_id` | varchar(32) | Y | | 关联钱包订单号，索引 `idx_wallet_order_id` |
+| `payee_account_id` | varchar(32) | Y | | 收方天财账户ID |
+| `amount` | decimal(15,2) | Y | | 分账金额 |
+| `currency` | varchar(3) | Y | `CNY` | 币种 |
+| `status` | varchar(20) | Y | `INIT` | 状态：`INIT`/`SUCCESS`/`FAILED` |
+| `ledger_entry_no` | varchar(32) | N | | 账务流水号 |
+| `memo` | varchar(200) | N | | 备注 |
+| `error_code` | varchar(50) | N | | 错误码 |
+| `completed_at` | datetime | N | | 完成时间 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
 
 ### 3.2 与其他模块的关系
-- **三代系统**：**配置提供方与事件发布方**。接收三代系统同步的费率配置；消费其发布的`SplitOrderCompletedEvent`触发计费。
-- **行业钱包系统**：**直接调用方**。行业钱包在执行分账后，同步调用计费中台进行手续费计算。
-- **清结算系统**：**服务调用方与回调接收方**。调用清结算执行实际手续费扣划；接收其扣划结果回调。
-- **账户系统**：**事件消费者**。消费账户状态变更事件，用于判断扣款账户是否可用。
-- **对账单系统**：**数据提供方**。提供计费明细数据，用于生成财务对账单。
+- **账户系统**：
+  - 通过`tiancai_account_id`关联`tiancai_account`表。
+  - 关系绑定完成后，调用账户系统接口建立底层关系记录。
+  - 执行分账时，调用账户系统接口进行账务处理。
+- **三代系统**：
+  - 通过`split_order_id`关联`tiancai_split_order`表。
+  - 通过`callback_url`回调通知三代系统绑定或分账结果。
+- **电子签约平台**：
+  - 通过`process_id`关联`contract_process`表。
+  - 通过`contract_id`关联最终协议文件。
+- **对账单系统**：通过监听`SplitOrderCompletedEvent`和账户系统的`AccountBalanceChangedEvent`，生成业务对账单。
 
 ## 4. 业务逻辑
 
-### 4.1 核心算法
+### 4.1 核心算法与规则
 
-#### 4.1.1 费率匹配算法
-```java
-// 伪代码：为给定计费请求匹配最优费率配置
-function matchFeeConfig(request) {
-    configs = queryActiveConfigs(request.bizType, request.merchantNo, request.date);
+#### 4.1.1 关系绑定流程驱动算法
+```python
+def initiate_binding(from_account_id, to_account_id, biz_scene, contract_vars):
+    """
+    发起关系绑定流程
+    1. 校验双方账户存在、状态正常、角色符合场景
+    2. 检查是否已存在有效绑定（防重复）
+    3. 调用电子签约平台创建签约流程
+    4. 记录绑定流程状态，返回签约链接
+    """
+    # 1. 账户校验
+    payer_acc = get_wallet_account(from_account_id)
+    payee_acc = get_wallet_account(to_account_id)
     
-    // 按优先级降序排序
-    sortedConfigs = sortByPriorityDesc(configs);
+    validate_accounts_for_binding(payer_acc, payee_acc, biz_scene)
     
-    for config in sortedConfigs {
-        // 检查商户匹配
-        if (config.merchantNo != null && config.merchantNo != request.payerMerchantNo) {
-            continue;
-        }
-        
-        // 检查条件匹配
-        if (!matchConditions(config.conditions, request)) {
-            continue;
-        }
-        
-        // 检查有效期
-        if (request.date < config.effectiveDate || request.date > config.expiryDate) {
-            continue;
-        }
-        
-        return config; // 返回第一个完全匹配的配置
-    }
+    # 2. 重复绑定校验
+    existing = find_active_binding(from_account_id, to_account_id, biz_scene)
+    if existing:
+        return existing.binding_id, existing.sign_urls
     
-    return getDefaultConfig(request.bizType); // 返回全局默认配置
-}
+    # 3. 调用电子签约
+    esign_request = build_esign_request(payer_acc, payee_acc, biz_scene, contract_vars)
+    esign_response = call_esign_platform(esign_request)
+    
+    # 4. 创建绑定记录
+    binding = create_binding_record(
+        from_account_id, to_account_id, biz_scene,
+        esign_response.process_id, contract_vars
+    )
+    
+    return binding.binding_id, esign_response.sign_urls
 ```
 
-#### 4.1.2 手续费计算算法
-```java
-function calculateFee(amount, feeConfig) {
-    switch (feeConfig.feeRateType) {
-        case "RATIO":
-            fee = amount * feeConfig.feeRate;
-            break;
-        case "FIXED":
-            fee = feeConfig.fixedAmount;
-            break;
-        case "TIERED":
-            fee = calculateTieredFee(amount, feeConfig.tierRules);
-            break;
-        default:
-            throw new UnsupportedFeeRateType();
-    }
+#### 4.1.2 分账指令处理状态机
+```python
+class SplitOrderProcessor:
     
-    // 应用上下限
-    fee = max(fee, feeConfig.minFee);
-    fee = min(fee, feeConfig.maxFee);
-    
-    return round(fee, 2); // 四舍五入到分
-}
+    def process_order(self, wallet_order_id):
+        order = get_order(wallet_order_id)
+        
+        if order.status != 'INIT':
+            return  # 幂等处理
+        
+        order.update_status('PROCESSING')
+        
+        try:
+            # 1. 业务规则校验
+            self.validate_business_rules(order)
+            
+            # 2. 账户关系校验（归集/会员结算需检查绑定关系）
+            if order.biz_scene in ['COLLECTION', 'MEMBER_SETTLE']:
+                binding = validate_binding_exists(
+                    order.payer_account_id, 
+                    order.get_payee_account_id(),  # 首个收方
+                    order.biz_scene
+                )
+                order.relation_binding_id = binding.binding_id
+            
+            # 3. 付款权限校验（批量付款/会员结算需检查总部开通状态）
+            if order.biz_scene in ['BATCH_PAY', 'MEMBER_SETTLE']:
+                validate_payment_capability(order.payer_account_id)
+            
+            # 4. 限额校验
+            validate_limits(order.payer_account_id, order.total_amount, order.biz_scene)
+            
+            # 5. 调用账户系统执行账务
+            ledger_results = self.execute_ledger_entries(order)
+            
+            # 6. 更新订单状态
+            self.update_order_status(order, ledger_results)
+            
+            # 7. 发布完成事件
+            publish_split_order_completed_event(order)
+            
+        except BusinessException as e:
+            order.update_status('FAILED', e.code, e.message)
+            publish_split_order_completed_event(order)
+            raise
+        except Exception as e:
+            order.update_status('FAILED', 'SYSTEM_ERROR', str(e))
+            # 触发告警，需人工介入
+            raise
 ```
 
-#### 4.1.3 计费指令号生成
-- **计费指令号**：`FEE` + `年月日` + `6位序列号` (如 `FEE20231027000001`)。
-- **扣费订单号**：`CHARGE` + `年月日` + `6位序列号`。
+#### 4.1.3 批量付款拆分与执行算法
+```python
+def process_batch_payment(order):
+    """
+    处理批量付款场景
+    1. 拆分为多个子分账指令
+    2. 并行执行（控制并发）
+    3. 汇总结果，部分成功时支持冲正或人工处理
+    """
+    payee_list = order.batch_details_json  # 从JSON解析出收款方列表
+    
+    # 1. 创建子订单明细
+    details = create_order_details(order.wallet_order_id, payee_list)
+    
+    # 2. 并发执行（限制并发数，如10个）
+    semaphore = Semaphore(10)
+    results = []
+    
+    with ThreadPoolExecutor() as executor:
+        futures = []
+        for detail in details:
+            future = executor.submit(
+                process_single_payment,
+                order.payer_account_id,
+                detail,
+                semaphore
+            )
+            futures.append(future)
+        
+        for future in as_completed(futures):
+            results.append(future.result())
+    
+    # 3. 汇总结果
+    success_count = sum(1 for r in results if r['status'] == 'SUCCESS')
+    failed_count = len(results) - success_count
+    
+    if failed_count == 0:
+        order_status = 'SUCCESS'
+    elif success_count == 0:
+        order_status = 'FAILED'
+    else:
+        order_status = 'PARTIAL_SUCCESS'
+        # 记录失败明细，触发人工对账或自动冲正流程
+    
+    return order_status, results
+```
 
 ### 4.2 业务规则
 
-1. **计费触发规则**：
-    - 主要触发方式：行业钱包系统在分账执行成功后**同步调用**计费中台。
-    - 备用触发方式：消费`SplitOrderCompletedEvent`事件，进行异步计费（确保最终一致性）。
-    - 同一笔分账指令只应计费一次，通过`source_order_no` + `request_id`实现幂等。
+1. **场景与角色匹配规则**：
+   - **归集(COLLECTION)**：付方必须是`STORE`(门店)，收方必须是`HEADQUARTERS`(总部)。
+   - **批量付款(BATCH_PAY)**：付方必须是`HEADQUARTERS`(总部)且已开通付款权限，收方必须是`RECEIVER`(接收方)。
+   - **会员结算(MEMBER_SETTLE)**：付方必须是`HEADQUARTERS`(总部)且已开通付款权限，收方必须是`STORE`(门店)。
 
-2. **费率匹配规则**：
-    - 费率配置按`优先级`排序，优先级数字越大越优先。
-    - 匹配顺序：特定商户配置 > 全局默认配置。
-    - 所有`conditions`必须全部满足，配置才生效。
-    - 支持的条件运算符：`EQ`(等于), `NE`(不等于), `GT`(大于), `GE`(大于等于), `LT`(小于), `LE`(小于等于), `IN`(在集合中), `NOT_IN`(不在集合中)。
+2. **关系绑定前置要求**：
+   - 归集、会员结算场景：分账前必须完成对应账户间的绑定与认证。
+   - 批量付款场景：总部必须完成“开通付款”流程（签署《代付授权协议》+对公认证），但无需与每个接收方单独绑定。
 
-3. **手续费承担规则**：
-    - `PAYER`：手续费从付方账户扣除。
-    - `RECEIVER`：手续费从收方账户扣除。
-    - `SHARED`：手续费由双方分摊，按`sharedRatio`比例从付方扣除，剩余部分从收方扣除。
-    - 扣款账户必须为天财专用账户（收款账户或接收方账户）。
+3. **限额控制规则**：
+   - **单笔限额**：基于绑定关系中的`single_limit`字段控制。
+   - **日累计限额**：基于绑定关系中的`daily_limit`字段控制，按付方账户和关系类型维度统计。
+   - **系统级限额**：配置系统级默认限额，防止未设置限额时无限制转账。
 
-4. **重试与补偿规则**：
-    - 计费计算失败：立即返回失败，不重试（通常为配置错误）。
-    - 扣费调用失败：自动重试最多3次，每次间隔指数退避。
-    - 最终扣费失败：将计费指令标记为`FAILED`，并发布`FeeChargedEvent`供业务方感知。
+4. **幂等性规则**：
+   - 所有接口支持基于`request_id`的幂等。
+   - 分账指令基于`biz_ref_no`（天财侧）+ `payer_account_id` 保证业务幂等。
+
+5. **时效性规则**：
+   - 关系绑定签约链接有效期24小时。
+   - 分账指令处理超时时间30分钟，超时后标记为`PROCESSING_TIMEOUT`，触发人工核查。
 
 ### 4.3 验证逻辑
 
-1. **计费请求验证**：
-    - 校验`requestId`幂等性。
-    - 校验必填字段：`sourceOrderNo`, `bizType`, `payerMerchantNo`, `receiverMerchantNo`, `amount`。
-    - 校验金额大于0。
-    - 校验`chargeParty`和`sharedRatio`的合法性。
+#### 4.3.1 分账指令预处理校验
+```python
+def pre_validate_split_order(order_request):
+    """
+    分账指令预处理校验（在接收请求时执行）
+    """
+    errors = []
+    
+    # 1. 基础校验
+    if not order_request.payer or not order_request.payee_list:
+        errors.append("付方或收方列表不能为空")
+    
+    if order_request.total_amount <= 0:
+        errors.append("分账金额必须大于0")
+    
+    # 2. 金额一致性校验
+    detail_sum = sum(p['amount'] for p in order_request.payee_list)
+    if detail_sum != order_request.total_amount:
+        errors.append(f"明细金额之和{detail_sum}与总金额{order_request.total_amount}不符")
+    
+    # 3. 场景与账户角色校验
+    payer_acc = get_account(order_request.payer.tiancai_account_id)
+    
+    if order_request.biz_scene == 'COLLECTION':
+        if payer_acc.account_role != 'STORE':
+            errors.append("归集场景付方必须是门店")
+        for payee in order_request.payee_list:
+            payee_acc = get_account(payee.tiancai_account_id)
+            if payee_acc.account_role != 'HEADQUARTERS':
+                errors.append("归集场景收方必须是总部")
+    
+    # 4. 付款能力校验（批量付款/会员结算）
+    if order_request.biz_scene in ['BATCH_PAY', 'MEMBER_SETTLE']:
+        if payer_acc.payment_capability != 'OPENED':
+            errors.append("付方未开通付款权限")
+    
+    # 5. 幂等校验
+    existing = find_order_by_request_id(order_request.request_id)
+    if existing:
+        return existing  # 返回已存在的订单
+    
+    if errors:
+        raise ValidationError("; ".join(errors))
+    
+    return None
+```
 
-2. **费率配置验证**（同步时）：
-    - 校验费率配置ID唯一性。
-    - 校验费率类型与对应字段的匹配（如`RATIO`类型必须有`feeRate`）。
-    - 校验`effectiveDate` <= `expiryDate`。
-    - 校验`sharedRatio`在0-1之间（当`chargeParty=SHARED`时）。
-
-3. **扣费前验证**：
-    - 校验计费指令状态为`PROCESSING`。
-    - 校验扣款账户状态正常（通过缓存或事件感知）。
-    - 校验手续费金额大于0。
+#### 4.3.2 账户关系有效性校验
+```python
+def validate_binding_for_split(payer_id, payee_id, biz_scene, amount):
+    """
+    校验分账所需的账户关系是否有效
+    """
+    # 1. 查询有效绑定关系
+    binding = find_active_binding(payer_id, payee_id, biz_scene)
+    if not binding:
+        raise BusinessError("账户间未建立有效的分账授权关系")
+    
+    # 2. 检查绑定状态
+    if binding.auth_status != 'VERIFIED':
+        raise BusinessError(f"绑定关系状态异常: {binding.auth_status}")
+    
+    # 3. 检查有效期
+    now = datetime.now()
+    if binding.effective_time > now:
+        raise BusinessError("绑定关系尚未生效")
+    if binding.expire_time and binding.expire_time < now:
+        raise BusinessError("绑定关系已过期")
+    
+    # 4. 检查限额
+    if binding.single_limit and amount > binding.single_limit:
+        raise BusinessError(f"单笔金额{amount}超过限额{binding.single_limit}")
+    
+    # 检查日限额
+    daily_used = get_daily_used_amount(payer_id, payee_id, biz_scene)
+    if binding.daily_limit and (daily_used + amount) > binding.daily_limit:
+        raise BusinessError(f"日累计金额将超过限额{binding.daily_limit}")
+    
+    return binding
+```
 
 ## 5. 时序图
 
-### 5.1 分账后实时计费流程（主流程）
+### 5.1 归集场景完整流程（开户→绑定→分账）
 ```mermaid
 sequenceDiagram
-    participant W as 行业钱包系统
-    participant F as 计费中台
-    participant S as 清结算系统
-    participant A as 账户系统
-    participant MQ as 消息队列
-    participant C as 三代系统
+    participant 天财 as 天财系统
+    participant G3 as 三代系统
+    participant 钱包 as 行业钱包系统
+    participant 账户 as 账户系统
+    participant 签约 as 电子签约平台
+    participant 认证 as 认证系统
 
-    Note over W: 分账执行成功
-    W->>F: POST /fee/calculate-and-charge (FeeCalculateRequest)
-    F->>F: 1. 幂等校验(requestId)<br>2. 业务参数校验
-    F->>F: 匹配费率配置(feeConfig)
-    F->>F: 计算手续费金额
-    F->>F: 生成fee_order_no，状态PROCESSING
-    F->>MQ: 发布FeeCalculatedEvent
-    F->>S: 请求手续费扣划(chargeOrderNo,账户,金额)
-    S->>A: 执行账户扣款
-    A-->>S: 返回扣款结果
-    S-->>F: 回调 /callback/charge-result
-    F->>F: 更新fee_order状态为SUCCESS/FAILED
-    F->>MQ: 发布FeeChargedEvent
-    F-->>W: 返回feeOrderNo（异步结果需查询）
-    C->>MQ: 消费FeeChargedEvent，更新分账指令计费状态
+    Note over 天财,G3: 第一阶段：账户开通
+    天财->>G3: 1. 请求开通天财业务(商户M1,M2)
+    G3->>账户: 2. 创建总部账户(TCA_HQ)
+    G3->>账户: 3. 创建门店账户(TCA_STORE)
+    账户->>钱包: 4. 发布 TiancaiAccountCreatedEvent (TCA_HQ)
+    账户->>钱包: 5. 发布 TiancaiAccountCreatedEvent (TCA_STORE)
+    钱包->>钱包: 6. 创建钱包账户映射记录
+    G3-->>天财: 7. 返回开通成功
+
+    Note over 天财,G3: 第二阶段：关系绑定
+    天财->>G3: 8. 发起归集关系绑定(TCA_STORE -> TCA_HQ)
+    G3->>钱包: 9. POST /accounts/{id}/bindings
+    钱包->>钱包: 10. 校验账户，创建绑定记录(BIND_001)
+    钱包->>签约: 11. POST /contracts/processes (创建签约流程)
+    签约->>签约: 12. 生成签约链接
+    签约-->>钱包: 13. 返回process_id和签署链接
+    钱包-->>G3: 14. 返回绑定ID和签署链接
+    G3-->>天财: 15. 返回签署链接给门店和总部
+    
+    Note over 签约,认证: 门店和总部分别完成签署与认证（详见电子签约时序图）
+    签约->>钱包: 16. 回调通知签约完成
+    钱包->>账户: 17. POST /accounts/relationships (建立底层关系)
+    账户-->>钱包: 18. 返回关系建立成功
+    钱包->>钱包: 19. 更新绑定状态为VERIFIED
+    钱包->>账户: 20. 发布 AccountRelationVerifiedEvent
+    钱包->>G3: 21. 回调通知绑定成功
+    G3-->>天财: 22. 通知绑定完成
+
+    Note over 天财,G3: 第三阶段：执行分账（归集）
+    天财->>G3: 23. 发起归集分账指令
+    G3->>钱包: 24. POST /internal/split-orders
+    钱包->>钱包: 25. 校验业务规则、绑定关系、限额
+    钱包->>账户: 26. POST /ledger/entries (执行账务)
+    账户->>账户: 27. 扣减门店账户，增加总部账户
+    账户-->>钱包: 28. 返回账务处理成功
+    钱包->>钱包: 29. 更新订单状态为SUCCESS
+    钱包->>G3: 30. 发布 SplitOrderCompletedEvent
+    钱包->>G3: 31. 异步回调通知分账结果
+    G3-->>天财: 32. 回调通知分账成功
 ```
 
-### 5.2 费率配置同步流程
+### 5.2 批量付款场景分账流程
 ```mermaid
 sequenceDiagram
-    participant C as 三代系统
-    participant F as 计费中台
-    participant DB as 数据库
-    participant MQ as 消息队列
+    participant G3 as 三代系统
+    participant 钱包 as 行业钱包系统
+    participant 账户 as 账户系统
 
-    C->>F: POST /internal/fee/sync/config (FeeConfigSyncRequest)
-    F->>F: 校验配置合法性
-    alt operation=UPSERT
-        F->>DB: 插入或更新fee_config记录
-        F->>F: 刷新本地/缓存中的费率配置
-        F->>MQ: 发布FeeConfigUpdatedEvent
-    else operation=DELETE
-        F->>DB: 标记配置为INACTIVE（软删除）
-        F->>F: 清理相关缓存
-        F->>MQ: 发布FeeConfigUpdatedEvent
+    Note left of G3: 前置条件：总部已开通付款权限
+    G3->>钱包: 1. POST /internal/split-orders (BATCH_PAY)
+    钱包->>钱包: 2. 校验总部付款能力
+    钱包->>钱包: 3. 拆分为多个子付款指令
+    par 并行处理子付款
+        钱包->>账户: 4a. 校验接收方账户状态
+        钱包->>账户: 5a. POST /ledger/entries (付款1)
+        账户-->>钱包: 6a. 返回结果
+    and
+        钱包->>账户: 4b. 校验接收方账户状态
+        钱包->>账户: 5b. POST /ledger/entries (付款2)
+        账户-->>钱包: 6b. 返回结果
     end
-    F-->>C: 返回同步结果
-```
-
-### 5.3 计费指令重试流程（补偿机制）
-```mermaid
-sequenceDiagram
-    participant Job as 定时任务
-    participant F as 计费中台
-    participant S as 清结算系统
-    participant MQ as 消息队列
-
-    Job->>F: 扫描状态为PROCESSING且超过30秒未完成的fee_order
-    loop 每次重试
-        F->>F: 检查重试次数<3且next_retry_time<=当前时间
-        F->>S: 查询扣费订单状态(chargeOrderNo)
-        alt 扣费成功
-            S-->>F: 返回成功状态
-            F->>F: 更新fee_order为SUCCESS
-            F->>MQ: 发布FeeChargedEvent
-        else 扣费失败可重试
-            F->>F: 增加retry_count，计算next_retry_time
-            F->>S: 重新发起扣费请求
-        else 最终失败
-            F->>F: 更新fee_order为FAILED
-            F->>MQ: 发布FeeChargedEvent(失败)
-        end
+    钱包->>钱包: 7. 汇总处理结果
+    alt 全部成功
+        钱包->>钱包: 8. 更新订单状态为SUCCESS
+    else 部分成功
+        钱包->>钱包: 9. 更新订单状态为PARTIAL_SUCCESS
+        钱包->>钱包: 10. 记录失败明细，触发异常处理流程
     end
+    钱包->>G3: 11. 发布事件并回调通知结果
 ```
 
 ## 6. 错误处理
 
-### 6.1 预期错误及HTTP状态码
-
-- **400 Bad Request**：
-    - `INVALID_PARAMETER`：请求参数缺失或格式错误。
-    - `INVALID_FEE_CONFIG`：费率配置不合法。
-- **409 Conflict**：
-    - `DUPLICATE_REQUEST_ID`：重复的计费请求。
-- **422 Unprocessable Entity**：
-    - `NO_AVAILABLE_FEE_CONFIG`：找不到适用的费率配置。
-    - `INSUFFICIENT_BALANCE`：扣款账户余额不足（清结算返回）。
-    - `ACCOUNT_STATUS_INVALID`：扣款账户状态异常。
-- **424 Failed Dependency**：
-    - `CHARGE_SYSTEM_UNAVAILABLE`：清结算系统不可用。
-    - `CHARGE_REQUEST_FAILED`：扣费请求失败。
-- **500 Internal Server Error**：系统内部错误。
+### 6.1 预期错误码列表
+| 错误码 | HTTP状态码 | 描述 | 处理策略 |
+| :--- | :--- | :--- | :--- |
+| `WALLET_ACCOUNT_NOT_FOUND` | 404 | 天财账户在钱包系统中不存在 | 检查账户ID，或等待账户创建事件同步 |
+| `WALLET_ACCOUNT_INACTIVE` | 423 | 钱包账户状态非ACTIVE | 检查账户状态，需解冻或重新开通 |
+| `PAYMENT_CAPABILITY_CLOSED` | 403 | 付款权限未开通 | 引导完成开通付款流程 |
+| `BINDING_NOT_FOUND` | 404 | 绑定关系不存在 | 检查账户间是否已完成绑定 |
+| `BINDING_NOT_VERIFIED` | 403 | 绑定关系未完成认证 | 等待或重新发起绑定流程 |
+| `BINDING_EXPIRED` | 403 | 绑定关系已过期 | 重新发起绑定流程 |
+| `DAILY_LIMIT_EXCEEDED` | 429 | 超过日累计限额 | 提示限额，次日重试或调整限额 |
+| `SINGLE_LIMIT_EXCEEDED` | 400 | 超过单笔限额 | 拆分金额或调整限额 |
+| `INSUFFICIENT_BALANCE` | 422 | 付方账户余额不足 | 提示充值或减少金额 |
+| `BATCH_PARTIAL_FAILURE` | 207 | 批量付款部分失败 | 返回详细结果，失败项需人工处理 |
+| `DUPLICATE_REQUEST` | 409 | 重复请求 | 返回已受理的订单信息 |
+| `SCENE_ROLE_MISMATCH` | 400 | 业务场景与账户角色不匹配 | 检查场景配置和账户角色 |
+| `ESIGN_SERVICE_UNAVAILABLE` | 503 | 电子签约服务不可用 | 自动重试，超时后标记为失败 |
+| `ACCOUNT_SERVICE_UNAVAILABLE` | 503 | 账户服务不可用 | 自动重试，关键操作需保证最终一致性 |
 
 ### 6.2 处理策略
+1. **业务校验错误 (4xx)**：
+   - 立即返回错误，不进行重试。
+   - 提供清晰的错误信息，指导调用方修正。
+   - 记录错误日志用于业务分析。
 
-1. **同步调用错误处理**：
-    - 对清结算系统的扣费调用，采用指数退避重试（最多3次）。
-    - 重试失败后，将计费指令标记为`FAILED`，记录详细失败原因。
-    - 提供手动重试接口，支持运营介入。
+2. **依赖服务错误 (5xx)**：
+   - **电子签约平台失败**：关系绑定流程中，重试创建签约流程（最多3次），最终失败则标记绑定流程为失败。
+   - **账户系统失败**：
+     - 账务操作失败：基于`biz_trade_no`幂等重试（最多5次，指数退避）。
+     - 关键操作（如关系建立）失败：记录异常状态，触发人工干预流程。
+   - **三代系统回调失败**：异步重试队列（1, 5, 15, 30, 60分钟），最多5次，最终失败记录日志并告警。
 
-2. **异步一致性保障**：
-    - 消费`SplitOrderCompletedEvent`时，需处理重复消费（幂等）。
-    - 定期扫描`PROCESSING`状态超时的计费指令，触发主动查询或重试。
-    - 与清结算系统对账，发现状态不一致时告警并生成工单。
+3. **部分成功处理（批量付款）**：
+   - 记录每个子付款的详细结果。
+   - 整体订单状态标记为`PARTIAL_SUCCESS`。
+   - 提供查询接口获取失败明细。
+   - 触发异常处理工作流，支持人工冲正或重新发起失败项。
 
-3. **降级与熔断**：
-    - 当清结算系统不可用时，进入降级模式：记录计费指令但暂不扣费，标记为`PENDING`，待系统恢复后由定时任务处理。
-    - 配置熔断器，防止下游系统故障导致计费中台线程池耗尽。
+4. **超时与悬挂订单处理**：
+   - 定时任务扫描`PROCESSING`状态超时（>30分钟）的订单。
+   - 查询账户系统确认实际账务状态。
+   - 根据实际情况更新订单状态（成功/失败/悬挂需人工处理）。
+   - 发布相应事件通知相关系统。
 
-4. **监控与告警**：
-    - 监控关键指标：计费成功率、平均处理时长、费率缓存命中率、下游系统调用错误率。
-    - 设置告警：连续计费失败、大量指令积压、费率配置缺失。
+5. **监控与告警**：
+   - 关键指标监控：订单处理成功率、平均耗时、各场景交易量、失败率。
+   - 错误类型监控：针对高频错误进行优化。
+   - 依赖服务健康度监控：账户系统、电子签约平台可用性。
+   - 设置告警：失败率突增、处理延迟、悬挂订单累积。
 
 ## 7. 依赖说明
 
-### 7.1 上游模块交互（调用方）
+### 7.1 上游依赖（调用行业钱包系统）
 
-1. **行业钱包系统**：
-    - **调用关系**：**同步RPC调用**（主要入口）。
-    - **关键交互**：接收分账后的计费请求，实时返回受理结果。
-    - **交互要点**：
-        - 需保证接口高性能（平均RT<100ms）。
-        - 严格校验`requestId`实现幂等。
-        - 返回`feeOrderNo`供后续查询。
+| 依赖系统 | 交互场景 | 接口方式 | 关键要求与注意事项 |
+| :--- | :--- | :--- | :--- |
+| **三代系统** | 1. 发起关系绑定<br>2. 发起分账指令<br>3. 查询订单状态 | 同步REST API | 1. 需严格校验请求参数与业务规则<br>2. 分账指令处理异步化，需提供回调机制<br>3. 支持幂等，防止重复处理 |
+| **电子签约平台** | 1. 接收签约结果回调<br>2. 查询签约流程状态 | Webhook回调 + 同步查询API | 1. 验证回调签名，确保来源可信<br>2. 处理签约超时和失败场景<br>3. 签约成功后方可进行关系同步 |
+| **账户系统** | 1. 消费账户创建事件<br>2. 建立底层账户关系<br>3. 执行账务操作<br>4. 查询账户状态 | 异步事件 + 同步REST API | 1. 账务操作必须保证幂等和事务性<br>2. 关系建立是分账的前置条件<br>3. 余额查询用于风控和校验 |
 
-2. **三代系统**：
-    - **调用关系**：**同步RPC调用**（配置同步） + **异步消息消费**。
-    - **关键交互**：
-        - 接收费率配置的同步更新。
-        - 消费`SplitOrderCompletedEvent`作为备用计费触发路径。
-    - **交互要点**：
-        - 配置同步需保证最终一致性。
-        - 事件消费需处理重复和乱序。
+### 7.2 下游依赖（行业钱包系统调用）
 
-### 7.2 下游模块交互（被调用方/服务提供方）
+| 依赖系统 | 交互场景 | 接口方式 | 关键要求与注意事项 |
+| :--- | :--- | :--- | :--- |
+| **账户系统** | 1. 同步账户关系<br>2. 执行分账账务<br>3. 查询账户信息 | 同步REST API | 1. 关键操作需有重试和补偿机制<br>2. 关注响应时间，超时需有降级策略<br>3. 账务流水号需妥善记录，用于对账 |
+| **电子签约平台** | 1. 创建签约流程<br>2. 查询签约状态 | 同步REST API | 1. 签约流程变量需准确传递<br>2. 处理签约链接过期和用户取消场景<br>3. 签约结果需与本地绑定记录强一致 |
+| **消息队列 (Kafka)** | 发布领域事件 | 异步发布 | 1. 事件格式需保持版本兼容<br>2. 保证关键事件至少投递一次<br>3. 事件发布在本地事务完成后进行 |
 
-1. **清结算系统**：
-    - **调用关系**：**同步RPC调用** + **异步HTTP回调**。
-    - **关键接口**：手续费扣划请求、扣费状态查询。
-    - **交互要点**：
-        - 扣划请求需包含完整的账户、金额、业务标识。
-        - 处理回调时需校验签名，实现幂等。
-        - 需维护`chargeOrderNo`与`feeOrderNo`的映射关系。
+### 7.3 集成设计原则
+1. **异步解耦**：
+   - 与三代系统：分账指令处理异步化，通过回调通知结果。
+   - 与电子签约平台：签约流程异步执行，通过事件和回调驱动状态流转。
+   - 事件驱动：关键状态变更通过事件通知相关系统，降低直接耦合。
 
-2. **对账单系统**：
-    - **交互关系**：**数据提供方**（通过DB视图或数据同步）。
-    - **提供数据**：`fee_order`和`fee_charge_detail`的关联数据。
-    - **交互要点**：提供按日增量或全量的数据访问接口。
+2. **幂等与一致性**：
+   - 所有写操作（创建绑定、分账）必须支持幂等。
+   - 本地状态更新与外部调用在事务中完成，或通过补偿机制保证最终一致性。
+   - 分账指令的账务操作必须保证原子性。
 
-### 7.3 内部依赖
+3. **容错与降级**：
+   - 依赖服务不可用时，应有明确的降级策略（如返回“处理中”状态）。
+   - 实现熔断机制，防止级联故障。
+   - 关键路径有备用方案（如账户系统短暂不可用时，可基于本地缓存进行基础校验）。
 
-- **数据库**：MySQL集群，存储费率配置和计费记录，要求高可用。`fee_order`表需按`create_time`分库分表。
-- **缓存**：Redis集群，两级缓存：
-    - 本地缓存（Caffeine）：缓存热点费率配置，TTL=5分钟。
-    - 分布式缓存（Redis）：缓存全量有效费率配置，TTL=1小时。
-- **消息中间件**：Kafka，用于发布计费事件和消费业务事件。
-- **配置中心**：管理清结算系统地址、重试策略、熔断阈值等。
-- **定时任务框架**：用于重试、对账、数据清理等后台作业。
+4. **可观测性**：
+   - 全链路日志追踪，便于问题定位。
+   - 关键业务指标监控（成功率、耗时、限额使用率等）。
+   - 提供丰富的查询接口，支持运营和客服查询业务状态。
 
-**文档版本**：1.0  
-**最后更新**：2023-10-27  
-**设计者**：软件架构师
-
-## 3.9 钱包APP/商服平台
-
-
-
-# 钱包APP/商服平台模块设计文档
-
-## 1. 概述
-
-### 1.1 目的
-本模块是“天财商龙”分账业务的**钱包层业务处理与执行中心**。它作为三代系统与底层账户系统之间的核心桥梁，负责处理天财专用账户的开户流转、关系绑定校验、分账指令的执行与资金划转等核心钱包业务逻辑。本模块向上为三代系统提供标准化的钱包服务接口，向下调用账户系统执行实际的资金操作，并确保业务合规性与数据一致性。
-
-### 1.2 范围
-- **账户管理**：接收三代系统的开户请求，编排底层账户创建流程，生成钱包层账户标识，并维护钱包账户与底层账户的映射关系。
-- **关系绑定校验**：在分账执行前，对三代系统传入的绑定关系（`binding_id`）进行有效性校验，确保付方与收方已建立合规的授权关系。
-- **分账指令处理**：接收三代系统的分账请求，执行钱包层业务逻辑（如余额校验、风控检查），调用账户系统完成资金划转，并异步回调通知结果。
-- **数据同步**：将分账交易数据同步至业务核心，确保交易流水完整。
-- **状态管理**：维护钱包账户的业务状态，并与底层账户状态保持同步。
-- **查询服务**：为三代系统提供账户余额、交易状态等查询能力。
-
-### 1.3 非范围
-- 商户进件、业务配置与流程编排（由三代系统处理）。
-- 电子协议签署与身份认证（由电子签约平台处理）。
-- 底层账户的物理创建、记账与状态管理（由账户系统处理）。
-- 交易清算、结算与计费（由清结算系统、计费中台处理）。
-- 对账单的生成与提供（由对账单系统处理）。
-
-## 2. 接口设计
-
-### 2.1 REST API 端点（供三代系统调用）
-
-#### 2.1.1 账户管理
-- **POST /api/v1/wallet/accounts/create**：创建天财专用钱包账户
-    - **请求体**：`CreateWalletAccountRequest`
-    - **响应**：`CreateWalletAccountResponse`
-- **GET /api/v1/wallet/accounts/{walletAccountId}**：查询钱包账户详情
-    - **响应**：`WalletAccountDetailResponse`
-- **GET /api/v1/wallet/accounts/by-merchant/{merchantNo}**：查询商户下所有钱包账户
-    - **响应**：`List<WalletAccountSimpleResponse>`
-
-#### 2.1.2 分账业务执行
-- **POST /api/v1/wallet/transfers/execute**：执行分账（转账）
-    - **请求体**：`ExecuteTransferRequest`
-    - **响应**：`ExecuteTransferResponse` (包含异步任务ID)
-- **GET /api/v1/wallet/transfers/{requestId}**：查询分账执行状态
-    - **响应**：`TransferDetailResponse`
-- **POST /api/v1/wallet/transfers/batch-validate**：批量校验分账可行性（预检查）
-    - **请求体**：`BatchValidateRequest`
-    - **响应**：`BatchValidateResponse`
-
-#### 2.1.3 绑定关系校验
-- **POST /api/v1/wallet/bindings/validate**：校验绑定关系有效性
-    - **请求体**：`ValidateBindingRequest`
-    - **响应**：`ValidateBindingResponse`
-
-### 2.2 内部接口（供其他系统调用/回调）
-
-- **POST /internal/api/v1/wallet/callback/account-status**：账户系统回调账户状态变更
-    - **请求体**：`AccountStatusCallbackRequest`
-    - **响应**：`BaseResponse`
-- **POST /internal/api/v1/wallet/sync/split-record**：业务核心拉取分账交易数据（可选，或通过消息同步）
-    - **请求体**：`SyncSplitRecordRequest`
-    - **响应**：`SyncSplitRecordResponse`
-
-### 2.3 数据结构
-
-```json
-// CreateWalletAccountRequest
-{
-  "requestId": "WALLET_ACC_CREATE_001",
-  "merchantNo": "M100001",
-  "merchantName": "示例商户",
-  "accountType": "TIANCAI_COLLECT", // TIANCAI_COLLECT, TIANCAI_RECEIVE
-  "settlementMode": "ACTIVE",
-  "contactPhone": "13800138000",
-  "certInfo": {
-    "certType": "UNIFIED_SOCIAL_CREDIT_CODE",
-    "certNo": "91310101MA1FL2345X"
-  }
-}
-
-// ExecuteTransferRequest
-{
-  "requestId": "WALLET_TRANSFER_001",
-  "bizType": "COLLECTION",
-  "payerWalletAccountId": "WALLET_ACC_STORE_001",
-  "receiverWalletAccountId": "WALLET_ACC_HQ_001",
-  "amount": "10000.00",
-  "currency": "CNY",
-  "bindingId": "BIND_001",
-  "bindingBizType": "COLLECTION",
-  "merchantInfo": {
-    "payerMerchantNo": "M100001",
-    "receiverMerchantNo": "M100000"
-  },
-  "memo": "营业款归集",
-  "callbackUrl": "https://third-gen.example.com/callback/split-result"
-}
-
-// ExecuteTransferResponse
-{
-  "code": "SUCCESS",
-  "message": "请求已接收",
-  "data": {
-    "walletRequestId": "WALLET_REQ_20231027001",
-    "status": "PROCESSING",
-    "estimatedFinishTime": "2023-10-27T15:00:00Z"
-  }
-}
-
-// ValidateBindingRequest
-{
-  "bindingId": "BIND_001",
-  "bizType": "COLLECTION",
-  "payerWalletAccountId": "WALLET_ACC_STORE_001",
-  "receiverWalletAccountId": "WALLET_ACC_HQ_001",
-  "validateDate": "2023-10-27" // 校验生效日期，默认当天
-}
-
-// AccountStatusCallbackRequest
-{
-  "eventId": "ACC_EVT_001",
-  "accountNo": "ACC202310270001",
-  "walletAccountId": "WALLET_ACC_001",
-  "oldStatus": "ACTIVE",
-  "newStatus": "FROZEN",
-  "changeReason": "风险控制",
-  "changeTime": "2023-10-27T14:30:00Z"
-}
-```
-
-### 2.4 发布的事件
-钱包系统作为事件生产者，发布以下事件：
-
-- **WalletAccountCreatedEvent**：钱包账户创建成功。
-    ```json
-    {
-      "eventId": "EVT_WALLET_ACC_CREATED_001",
-      "eventType": "WALLET_ACCOUNT_CREATED",
-      "timestamp": "2023-10-27T10:10:00Z",
-      "data": {
-        "walletAccountId": "WALLET_ACC_001",
-        "accountNo": "ACC202310270001",
-        "merchantNo": "M100001",
-        "accountType": "TIANCAI_COLLECT",
-        "status": "ACTIVE"
-      }
-    }
-    ```
-- **WalletTransferExecutedEvent**：分账执行完成（成功/失败）。
-- **BindingValidationFailedEvent**：绑定关系校验失败（用于监控与告警）。
-
-### 2.5 消费的事件
-钱包系统作为事件消费者，订阅以下事件：
-
-- **TiancaiAccountConfiguredEvent** (来自三代系统)：触发钱包账户创建流程。
-- **BindingRelationshipEstablishedEvent** (来自三代系统)：缓存生效的绑定关系，加速校验。
-- **AccountStatusChangedEvent** (来自账户系统)：同步底层账户状态至钱包账户。
-
-## 3. 数据模型
-
-### 3.1 核心表设计
-
-#### 表：`wallet_account` (钱包账户表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| wallet_account_id | varchar(64) | Y | 钱包账户唯一标识 | UK |
-| merchant_no | varchar(32) | Y | 所属商户号 | IDX |
-| account_no | varchar(32) | Y | 底层账户号（账户系统） | UK |
-| account_type | varchar(32) | Y | 账户类型：TIANCAI_COLLECT, TIANCAI_RECEIVE | IDX |
-| account_name | varchar(128) | Y | 账户名称 | |
-| status | varchar(16) | Y | 状态：CREATING, ACTIVE, FROZEN, CLOSED | IDX |
-| balance | decimal(15,2) | Y | 账户余额（缓存，最终以账户系统为准） | |
-| freeze_amount | decimal(15,2) | Y | 冻结金额 | |
-| settlement_mode | varchar(16) | N | 结算模式（仅COLLECT账户有） | |
-| cert_info | json | Y | 认证信息（证件类型、号码） | |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
-
-#### 表：`wallet_transfer_order` (钱包分账指令表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| wallet_request_id | varchar(64) | Y | 钱包系统请求ID | UK |
-| third_request_id | varchar(64) | Y | 三代系统请求ID | IDX |
-| biz_type | varchar(32) | Y | 业务类型：COLLECTION, BATCH_PAYMENT, MEMBER_SETTLE | IDX |
-| payer_wallet_account_id | varchar(64) | Y | 付方钱包账户ID | IDX |
-| receiver_wallet_account_id | varchar(64) | Y | 收方钱包账户ID | IDX |
-| amount | decimal(15,2) | Y | 分账金额 | |
-| currency | char(3) | Y | 币种 | |
-| binding_id | varchar(32) | Y | 绑定关系ID | IDX |
-| status | varchar(16) | Y | 状态：RECEIVED, VALIDATING, PROCESSING, SUCCESS, FAILED | IDX |
-| account_system_trace_no | varchar(64) | N | 账户系统流水号 | |
-| fail_reason | varchar(256) | N | 失败原因 | |
-| memo | varchar(256) | N | 备注 | |
-| callback_url | varchar(512) | Y | 三代系统回调地址 | |
-| callback_status | varchar(16) | Y | 回调状态：PENDING, SUCCESS, FAILED | IDX |
-| callback_retry_count | int(3) | Y | 回调重试次数 | |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
-
-#### 表：`binding_validation_cache` (绑定关系校验缓存表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| binding_id | varchar(32) | Y | 绑定关系ID | UK |
-| biz_type | varchar(32) | Y | 业务类型 | IDX |
-| payer_wallet_account_id | varchar(64) | Y | 付方钱包账户ID | IDX |
-| receiver_wallet_account_id | varchar(64) | Y | 收方钱包账户ID | IDX |
-| validation_result | varchar(16) | Y | 校验结果：VALID, INVALID | |
-| invalid_reason | varchar(128) | N | 无效原因 | |
-| effective_date | date | Y | 生效日期 | |
-| expiry_date | date | Y | 失效日期 | |
-| last_validated_time | datetime | Y | 最后校验时间 | |
-| create_time | datetime | Y | 创建时间 | IDX |
-
-#### 表：`wallet_account_balance_log` (钱包账户余额变更日志表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| wallet_account_id | varchar(64) | Y | 钱包账户ID | IDX |
-| change_type | varchar(32) | Y | 变更类型：TRANSFER_OUT, TRANSFER_IN, ADJUST, SYNC | |
-| related_request_id | varchar(64) | N | 关联请求ID | IDX |
-| before_balance | decimal(15,2) | Y | 变更前余额 | |
-| change_amount | decimal(15,2) | Y | 变更金额（正负） | |
-| after_balance | decimal(15,2) | Y | 变更后余额 | |
-| remark | varchar(256) | N | 备注 | |
-| create_time | datetime | Y | 创建时间 | IDX |
-
-### 3.2 与其他模块的关系
-- **三代系统**：**主要服务调用方**。接收其开户、分账、校验等请求，并异步回调结果。是本模块业务数据的主要来源。
-- **账户系统**：**核心下游依赖**。通过同步RPC调用，执行实际的账户创建、状态变更、资金划转等底层操作。是本模块指令的最终执行者。
-- **业务核心**：**数据同步下游**。将成功的分账交易数据同步至业务核心，确保交易流水完整。
-- **清结算系统**：**配置信息同步来源**。接收清结算同步的费率等信息，用于风控或校验（如手续费预估）。
-- **对账单系统**：**无直接交互**。分账数据通过业务核心间接提供。
-- **电子签约平台**：**无直接交互**。绑定关系信息通过三代系统传递。
-
-## 4. 业务逻辑
-
-### 4.1 核心算法
-- **钱包账户ID生成**：`WALLET_ACC` + `商户号后6位` + `账户类型简写` + `6位随机数` (如 `WALLET_ACC_0001TC_AB12CD`)。
-- **钱包请求ID生成**：`WALLET_REQ` + `年月日` + `8位序列号`。
-- **余额缓存更新**：
-    - 分账成功时，本地更新付方和收方的`balance`字段（`balance = balance ± amount`）。
-    - 定时任务定期与账户系统核对余额，修正差异。
-- **绑定关系缓存刷新策略**：
-    - 收到`BindingRelationshipEstablishedEvent`时，新增或更新缓存。
-    - 校验时，若缓存不存在或已过期，则向三代系统发起查询（或访问其提供的只读接口）获取最新绑定关系并更新缓存。
-    - 每日凌晨清理过期缓存。
-
-### 4.2 业务规则
-1. **账户开立规则**：
-    - 根据`accountType`，调用账户系统开立对应的“行业钱包（非小微钱包）”账户。
-    - 必须记录账户系统返回的`accountNo`，建立`wallet_account_id`与`accountNo`的映射。
-    - 开立成功后，发布`WalletAccountCreatedEvent`。
-
-2. **分账执行规则**：
-    - **前置校验**（同步进行）：
-        a. 校验付方、收方钱包账户状态均为`ACTIVE`。
-        b. 调用`绑定关系校验`流程，确保`binding_id`有效。
-        c. （可选）风控检查：单笔/日累计限额、交易频次等。
-    - **余额检查**：调用账户系统接口查询付方账户可用余额，确保大于等于分账金额。
-    - **执行转账**：调用账户系统内部转账接口，指定付方`accountNo`、收方`accountNo`、金额。
-    - **结果处理**：根据账户系统返回结果，更新订单状态，并异步回调三代系统。
-
-3. **绑定关系校验规则**：
-    - 校验绑定关系是否存在于缓存且状态为`VALID`。
-    - 校验当前日期是否在绑定关系的`effective_date`与`expiry_date`之间。
-    - 校验绑定的付方、收方钱包账户ID与请求中的是否一致。
-    - 校验绑定的`bizType`与当前分账业务类型是否匹配。
-
-### 4.3 验证逻辑
-- **开户请求验证**：校验商户号、账户类型合法性，防止重复开户（通过`requestId`和`merchantNo`+`accountType`唯一性判断）。
-- **分账请求验证**：
-    - 金额必须大于0且符合金额精度要求。
-    - 付方与收方账户不能相同。
-    - `callbackUrl`格式校验。
-- **回调请求验证**：
-    - 验证签名，确保回调来源可信（账户系统、三代系统回调需配置白名单或签名密钥）。
-    - 实现回调幂等，防止重复处理。
-
-## 5. 时序图
-
-### 5.1 创建天财专用钱包账户
-```mermaid
-sequenceDiagram
-    participant G as 三代系统
-    participant W as 钱包APP/商服平台
-    participant A as 账户系统
-    participant MQ as 消息队列
-
-    G->>W: POST /accounts/create (CreateWalletAccountRequest)
-    W->>W: 1. 幂等校验<br>2. 参数校验
-    W->>W: 生成wallet_account_id，状态CREATING
-    W->>A: POST /accounts (创建行业钱包账户)
-    A-->>W: 返回accountNo及初始状态
-    W->>W: 持久化wallet_account记录，状态更新为ACTIVE
-    W->>MQ: 发布WalletAccountCreatedEvent
-    W-->>G: 返回开户成功(含wallet_account_id)
-```
-
-### 5.2 执行分账（转账）流程
-```mermaid
-sequenceDiagram
-    participant G as 三代系统
-    participant W as 钱包APP/商服平台
-    participant A as 账户系统
-    participant BC as 绑定关系缓存/校验服务
-    participant MQ as 消息队列
-    participant Core as 业务核心
-
-    G->>W: POST /transfers/execute (ExecuteTransferRequest)
-    W->>W: 1. 幂等校验<br>2. 基础参数校验
-    W->>W: 生成wallet_request_id，状态RECEIVED
-    par 并行校验
-        W->>BC: 校验绑定关系有效性
-        BC-->>W: 返回VALID/INVALID
-        W->>A: 查询付方账户可用余额
-        A-->>W: 返回余额信息
-    end
-    W->>W: 综合校验结果，若失败则更新状态为FAILED并回调
-    W->>W: 状态更新为PROCESSING
-    W->>A: POST /accounts/transfer (内部转账)
-    A-->>W: 返回转账结果(含trace_no)
-    alt 转账成功
-        W->>W: 更新订单状态为SUCCESS，更新本地余额缓存
-        W->>Core: 同步分账交易数据
-        W->>MQ: 发布WalletTransferExecutedEvent(SUCCESS)
-    else 转账失败
-        W->>W: 更新订单状态为FAILED，记录原因
-        W->>MQ: 发布WalletTransferExecutedEvent(FAILED)
-    end
-    W->>G: 异步回调callbackUrl (重试机制保障)
-```
-
-### 5.3 绑定关系校验流程
-```mermaid
-sequenceDiagram
-    participant W as 钱包APP/商服平台(校验服务)
-    participant Cache as 本地缓存
-    participant G as 三代系统(可选查询)
-
-    W->>Cache: 查询binding_id对应的缓存记录
-    alt 缓存命中且有效
-        Cache-->>W: 返回VALID及详细信息
-    else 缓存不存在或已过期
-        W->>G: 查询绑定关系详情 (GET /bindings/{bindingId})
-        G-->>W: 返回绑定关系状态、有效期、账户信息
-        W->>W: 校验返回的数据：状态是否为SUCCESS，日期是否有效
-        W->>Cache: 更新或新增缓存记录
-        W->>W: 返回校验结果
-    end
-```
-
-## 6. 错误处理
-
-### 6.1 预期错误及HTTP状态码
-- **400 Bad Request**：请求参数错误、格式非法。
-- **403 Forbidden**：签名验证失败、IP不在白名单。
-- **404 Not Found**：钱包账户不存在。
-- **409 Conflict**：
-    - `DUPLICATE_REQUEST_ID`：重复请求。
-    - `DUPLICATE_ACCOUNT`：重复开户。
-- **422 Unprocessable Entity**：
-    - `BINDING_INVALID`：绑定关系无效或过期。
-    - `INSUFFICIENT_BALANCE`：付方余额不足。
-    - `ACCOUNT_STATUS_INVALID`：账户非ACTIVE状态。
-    - `TRANSFER_LIMIT_EXCEEDED`：超过单笔或日累计限额。
-- **502 Bad Gateway**：调用账户系统失败。
-- **504 Gateway Timeout**：调用下游系统超时。
-- **500 Internal Server Error**：系统内部错误。
-
-### 6.2 处理策略
-- **同步调用重试**：对账户系统的调用（查询余额、转账）配置可重试异常（如网络超时），最多重试3次。若重试后仍失败，则将分账订单置为`FAILED`。
-- **异步回调重试**：对三代系统的回调，若失败（非2xx响应），进入重试队列。采用指数退避策略重试，最多重试5次，超过后标记为`FAILED`并发出告警，需人工介入。
-- **状态一致性保障**：
-    - 通过消费`AccountStatusChangedEvent`，及时更新本地钱包账户状态。
-    - 定时任务扫描长时间处于`PROCESSING`状态的分账订单，主动查询账户系统交易结果进行冲正或状态同步。
-    - 每日对账：将本地`wallet_account`的余额与账户系统进行核对，记录差异并告警。
-- **熔断与降级**：对账户系统、三代系统查询接口配置熔断器，防止下游故障导致系统雪崩。降级策略：如绑定关系校验降级为只校验缓存，缓存不存在则返回“需人工确认”。
-- **监控与告警**：监控关键接口成功率、下游调用延迟、订单积压数、余额差异率等指标。
-
-## 7. 依赖说明
-
-### 7.1 上游模块交互（调用方）
-1. **三代系统**：
-    - **调用关系**：**同步RPC调用（主） + 异步HTTP回调**。
-    - **关键交互**：接收开户、分账、校验请求；回调分账结果。
-    - **交互要点**：
-        - 接口需高性能、高可用，支持高并发分账请求。
-        - 严格校验请求的合法性，防止非法调用。
-        - 回调机制需可靠，确保三代系统能最终感知分账结果。
-
-### 7.2 下游模块交互（被调用/消费事件）
-1. **账户系统**：
-    - **调用关系**：**同步RPC调用（核心依赖）**。
-    - **关键接口**：创建账户、查询账户详情/余额、内部转账、查询交易结果。
-    - **交互要点**：
-        - 这是资金操作的核心通道，必须保证接口的幂等性和事务性。
-        - 需处理所有可能的业务错误码（如余额不足、账户冻结），并转化为业务语义错误返回给上游。
-        - 网络超时和系统异常需有明确的处理与补偿机制。
-
-2. **业务核心**：
-    - **交互关系**：**同步RPC调用或异步消息**。
-    - **关键接口**：同步分账交易记录。
-    - **交互要点**：确保每笔成功分账都有对应的交易流水同步，数据格式需符合业务核心要求。
-
-3. **清结算系统**：
-    - **交互关系**：**配置同步（消息或接口）**。
-    - **关键交互**：获取商户/产品的费率、限额配置。
-    - **交互要点**：用于分账前的风控检查，需确保配置信息的及时性。
-
-### 7.3 内部依赖
-- **数据库**：MySQL集群，存储业务状态数据，要求强一致性。
-- **缓存**：Redis集群，用于存储绑定关系缓存、账户余额快照、请求幂等键，要求高并发低延迟。
-- **消息中间件**：Kafka/RocketMQ，用于事件发布与订阅，实现系统解耦。
-- **配置中心**：管理下游系统地址、超时时间、重试策略、风控规则等。
-
-**文档版本**：1.0  
-**最后更新**：2023-10-27  
-**设计者**：软件架构师
+5. **扩展性**：
+   - 支持水平扩展，应对交易高峰。
+   - 业务规则可配置化，便于支持新的分账场景。
+   - 账户关系模型设计灵活，支持未来可能的多对多关系。
 
 ## 3.10 业务核心
 
@@ -4090,343 +4536,795 @@ sequenceDiagram
 
 
 
+# 业务核心模块设计文档
+
 ## 1. 概述
 
 ### 1.1 目的
-本模块是支付系统的**核心交易流水记录与对账数据源**。在“天财商龙”分账业务中，它作为交易数据的汇聚点，负责接收并持久化来自行业钱包系统的分账交易数据，为下游对账单系统提供完整、准确的“天财分账”指令账单及机构层级的动账明细。其核心价值在于构建统一、标准化的交易流水视图，确保资金流转在交易层面可追溯、可对账。
+**业务核心模块**是“天财分账业务”的**业务编排与流程驱动引擎**。它位于行业钱包系统与上游三代系统之间，作为业务需求的统一入口和流程编排中心，负责接收、解析、路由来自天财（通过三代系统）的业务请求，并驱动行业钱包系统执行具体的账户管理、关系绑定和分账操作。本模块旨在为天财提供一个稳定、高效、可扩展的业务接入层，屏蔽底层系统的复杂性，确保业务流程的完整性和数据一致性。
 
 ### 1.2 范围
-- **分账交易数据接收与存储**：提供标准接口，接收行业钱包系统同步的“天财分账”交易数据，并将其转化为本模块内部的标准化交易流水记录。
-- **交易流水标准化**：将不同业务类型（归集、批量付款、会员结算）的分账指令，映射为统一的交易模型，包含完整的交易双方、金额、状态、关联业务单号等信息。
-- **对账单数据供给**：作为对账单系统的上游数据源，提供基于“天财分账”指令维度的交易流水查询与导出能力，支持生成机构层级的动账明细。
-- **交易流水查询**：为内部运营、风控或问题排查提供交易流水查询接口。
-
-### 1.3 非范围
-- 钱包账户管理、关系绑定校验、分账指令执行（由行业钱包系统处理）。
-- 底层账户的资金记账与余额管理（由账户系统处理）。
-- 交易资金的清算、结算与计费（由清结算系统、计费中台处理）。
-- 对账单的最终生成、格式化和对外提供（由对账单系统处理）。
-- 商户进件、协议签署等业务流程（由三代系统处理）。
+- **业务请求接入与路由**：接收三代系统转发的天财业务请求（如开通、绑定、分账），进行初步校验和路由分发。
+- **业务流程编排**：协调行业钱包系统、账户系统、电子签约平台等多个下游服务，驱动完整的业务生命周期（如开户->绑定->分账）。
+- **业务数据聚合与转换**：将天财的业务语言（如商户号、门店ID）转换为系统内部标识（如天财账户ID），并聚合多个下游系统的数据，形成统一的业务视图。
+- **业务状态机管理**：维护业务层面（如一个“归集关系建立”任务）的状态流转，提供全局的业务进度查询。
+- **业务异常处理与补偿**：捕获业务流程中的异常，根据业务规则决定重试、回滚或转人工处理，保障业务最终一致性。
+- **业务对账与报表**：为天财提供业务层面的对账数据，汇总分账、提款、收单等业务活动。
 
 ## 2. 接口设计
 
-### 2.1 REST API 端点
+### 2.1 API端点 (RESTful)
 
-#### 2.1.1 交易数据同步接口（供行业钱包系统调用）
-- **POST /api/v1/biz-core/trades/sync-split**：同步分账交易数据
-    - **描述**：行业钱包系统在分账指令成功后，调用此接口同步交易核心数据。本接口需保证幂等性。
-    - **请求体**：`SyncSplitTradeRequest`
-    - **响应**：`SyncTradeResponse`
+#### 2.1.1 业务开通接口
+- **POST /api/v1/tiancai/business/open**
+    - **描述**：为指定商户开通天财分账业务。此接口将触发创建天财专用账户（总部或门店）的完整流程。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "biz_open_req_20231011001",
+        "merchant_no": "M100001",
+        "institution_code": "TC001", // 天财机构编码
+        "account_role": "HEADQUARTERS", // HEADQUARTERS/STORE
+        "account_info": {
+          "account_name": "北京天财科技有限公司",
+          "cert_type": "UNIFIED_SOCIAL_CREDIT_CODE", // 证件类型
+          "cert_no": "91110108MA01XXXXXX",
+          "legal_person_name": "张三",
+          "contact_phone": "13800138000",
+          "settlement_bank_card": { // 结算银行卡信息（用于提现）
+            "bank_code": "ICBC",
+            "bank_account_no": "6222021234567890123",
+            "bank_account_name": "北京天财科技有限公司"
+          }
+        },
+        "operator": "admin_user",
+        "callback_url": "https://g3.example.com/callback/biz-open"
+      }
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "message": "天财业务开通流程已受理",
+        "data": {
+          "business_id": "BIZ_OPEN_202310110001", // 业务核心生成的业务流水号
+          "status": "PROCESSING", // PROCESSING/SUCCESS/FAILED
+          "tiancai_account_id": "TCA_20231011001", // 预生成的账户ID（最终以完成回调为准）
+          "estimated_completion_time": 60 // 预计完成秒数
+        }
+      }
+      ```
 
-#### 2.1.2 交易流水查询接口（内部/运营使用）
-- **GET /api/v1/biz-core/trades**：查询分账交易流水
-    - **查询参数**:
-        - `bizOrderNo`: 三代系统业务订单号
-        - `walletOrderNo`: 钱包侧分账指令号
-        - `underlyingTransactionNo`: 底层流水号
-        - `payerMerchantNo`: 付方商户号
-        - `receiverMerchantNo`: 收方商户号
-        - `bizType`: 业务类型
-        - `tradeDateStart`/`tradeDateEnd`: 交易日期范围
-        - `status`: 交易状态
-    - **响应**：`PageResponse<SplitTradeDetailResponse>`
+#### 2.1.2 关系绑定业务接口
+- **POST /api/v1/tiancai/business/bindings**
+    - **描述**：发起一个完整的账户关系绑定业务请求（如归集关系）。此接口将驱动行业钱包系统完成签约与认证流程。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "biz_bind_req_20231011001",
+        "biz_scene": "COLLECTION",
+        "payer_merchant_no": "M100002", // 付方商户号（门店）
+        "payee_merchant_no": "M100001", // 收方商户号（总部）
+        "contract_variables": {
+          "effective_date": "2023-11-01",
+          "expiry_date": "2024-10-31",
+          "daily_limit": "100000.00",
+          "single_limit": "50000.00"
+        },
+        "operator": "admin_user",
+        "callback_url": "https://g3.example.com/callback/biz-binding"
+      }
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "message": "关系绑定业务已受理",
+        "data": {
+          "business_id": "BIZ_BIND_202310110001",
+          "status": "PROCESSING",
+          "sign_urls": [ // 透传行业钱包返回的签约链接
+            {
+              "party_role": "PAYER",
+              "party_name": "天财朝阳门店",
+              "sign_url": "https://h5.e-sign.com/contract?token=eyJhbGciOi..."
+            },
+            {
+              "party_role": "PAYEE", 
+              "party_name": "北京天财科技有限公司",
+              "sign_url": "https://h5.e-sign.com/contract?token=eyJhbGciOi..."
+            }
+          ]
+        }
+      }
+      ```
 
-- **GET /api/v1/biz-core/trades/{tradeNo}**：根据交易流水号查询详情
-    - **响应**：`SplitTradeDetailResponse`
+#### 2.1.3 分账业务接口
+- **POST /api/v1/tiancai/business/split-orders**
+    - **描述**：发起一个分账业务请求（归集、批量付款、会员结算）。此接口将进行业务层面的校验，并调用行业钱包系统执行分账。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "biz_split_req_20231011001",
+        "split_order_id": "SO_202310110001", // 三代分账订单号
+        "biz_scene": "COLLECTION",
+        "payer_merchant_no": "M100002",
+        "payee_list": [
+          {
+            "merchant_no": "M100001",
+            "amount": 10000,
+            "currency": "CNY",
+            "memo": "门店日结归集"
+          }
+        ],
+        "total_amount": 10000,
+        "biz_ref_no": "TC_ORDER_001", // 天财业务参考号
+        "operator": "system_auto",
+        "callback_url": "https://g3.example.com/callback/biz-split"
+      }
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "message": "分账业务已受理",
+        "data": {
+          "business_id": "BIZ_SPLIT_202310110001",
+          "status": "PROCESSING",
+          "wallet_order_id": "WO_202310110001" // 行业钱包订单号
+        }
+      }
+      ```
 
-### 2.2 数据结构
+#### 2.1.4 业务状态查询接口
+- **GET /api/v1/tiancai/business/{business_id}**
+    - **描述**：查询一个具体业务请求的详细状态和结果。
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "data": {
+          "business_id": "BIZ_BIND_202310110001",
+          "business_type": "ACCOUNT_BINDING",
+          "request_id": "biz_bind_req_20231011001",
+          "status": "SUCCESS",
+          "request_params": {...},
+          "phase_details": [
+            {
+              "phase": "ACCOUNT_MAPPING",
+              "status": "SUCCESS",
+              "result": {
+                "payer_account_id": "TCA_20231011002",
+                "payee_account_id": "TCA_20231011001"
+              },
+              "completed_at": "2023-10-11T10:00:30Z"
+            },
+            {
+              "phase": "WALLET_BINDING",
+              "status": "SUCCESS",
+              "result": {
+                "binding_id": "BIND_202310110001",
+                "contract_id": "doc_7s82kja93n2"
+              },
+              "completed_at": "2023-10-11T10:30:00Z"
+            }
+          ],
+          "final_result": {
+            "binding_id": "BIND_202310110001",
+            "auth_status": "VERIFIED",
+            "effective_time": "2023-11-01T00:00:00Z"
+          },
+          "created_at": "2023-10-11T10:00:00Z",
+          "completed_at": "2023-10-11T10:30:00Z"
+        }
+      }
+      ```
 
-```json
-// SyncSplitTradeRequest (来自行业钱包系统)
-{
-  "requestId": "SYNC_SPLIT_REQ_001", // 同步请求唯一ID，用于幂等
-  "syncTimestamp": "2023-10-27T14:40:00Z",
-  "tradeData": {
-    "tradeNo": "TC202310270001", // 业务核心生成的交易流水号（可为空，由本模块生成）
-    "bizOrderNo": "SPLIT202310270001", // 三代系统业务订单号
-    "walletOrderNo": "WTO202310270001", // 钱包侧分账指令号
-    "underlyingTransactionNo": "TX202310270001", // 底层账户系统流水号
-    "bizType": "COLLECTION", // 业务类型: COLLECTION, BATCH_PAY, MEMBER_SETTLEMENT
-    "payerInfo": {
-      "merchantNo": "M100001",
-      "merchantName": "北京朝阳门店",
-      "walletAccountId": "WACC_STORE_001",
-      "accountNo": "ACC202310270001" // 底层账户号
-    },
-    "receiverInfo": {
-      "merchantNo": "M100000",
-      "merchantName": "北京总部",
-      "walletAccountId": "WACC_HQ_001",
-      "accountNo": "ACC202310270000"
-    },
-    "amount": "10000.00",
-    "currency": "CNY",
-    "tradeStatus": "SUCCESS", // 交易最终状态: SUCCESS, FAILED
-    "tradeTime": "2023-10-27T14:35:00Z", // 交易完成时间
-    "memo": "2023年10月营业款归集",
-    "feeInfo": { // 手续费信息（如有）
-      "feeAmount": "5.00",
-      "feeType": "SPLIT_FEE"
-    },
-    "extInfo": { // 扩展信息
-      "bindingId": "BIND_001",
-      "settlementDate": "2023-10-28" // 预期结算日期
-    }
-  }
-}
+#### 2.1.5 业务对账文件生成接口
+- **POST /api/v1/tiancai/business/reconciliations**
+    - **描述**：按机构、日期、业务类型生成对账文件。
+    - **请求体**：
+      ```json
+      {
+        "institution_code": "TC001",
+        "date": "2023-10-11",
+        "biz_type": "SPLIT_ORDER", // SPLIT_ORDER/WITHDRAWAL/ACQUIRING
+        "file_format": "CSV" // CSV/EXCEL
+      }
+      ```
+    - **响应体**：返回文件下载链接或异步生成任务ID。
 
-// SyncTradeResponse
-{
-  "code": "SUCCESS",
-  "message": "同步成功",
-  "data": {
-    "tradeNo": "TC202310270001", // 业务核心生成的交易流水号
-    "syncStatus": "SUCCESS"
-  }
-}
+### 2.2 发布/消费的事件
 
-// SplitTradeDetailResponse
-{
-  "tradeNo": "TC202310270001",
-  "bizOrderNo": "SPLIT202310270001",
-  "walletOrderNo": "WTO202310270001",
-  "underlyingTransactionNo": "TX202310270001",
-  "bizType": "COLLECTION",
-  "bizTypeDesc": "资金归集",
-  "payerMerchantNo": "M100001",
-  "payerMerchantName": "北京朝阳门店",
-  "payerWalletAccountId": "WACC_STORE_001",
-  "payerAccountNo": "ACC202310270001",
-  "receiverMerchantNo": "M100000",
-  "receiverMerchantName": "北京总部",
-  "receiverWalletAccountId": "WACC_HQ_001",
-  "receiverAccountNo": "ACC202310270000",
-  "amount": "10000.00",
-  "currency": "CNY",
-  "tradeStatus": "SUCCESS",
-  "tradeStatusDesc": "成功",
-  "tradeTime": "2023-10-27T14:35:00Z",
-  "memo": "2023年10月营业款归集",
-  "feeAmount": "5.00",
-  "settlementDate": "2023-10-28",
-  "createTime": "2023-10-27T14:40:05Z",
-  "updateTime": "2023-10-27T14:40:05Z"
-}
-```
+#### 2.2.1 消费的事件
+1. **TiancaiAccountCreatedEvent** (来自账户系统，通过行业钱包转发或直接消费)
+    - **Topic**: `account.events.tiancai.created`
+    - **处理逻辑**：更新本地商户-账户映射关系，并更新对应的业务开通任务状态。
+2. **AccountRelationVerifiedEvent** (来自行业钱包系统)
+    - **Topic**: `wallet.events.relation.verified`
+    - **处理逻辑**：更新对应的关系绑定业务状态为成功，并回调通知三代系统。
+3. **SplitOrderCompletedEvent** (来自行业钱包系统)
+    - **Topic**: `wallet.events.split_order.completed`
+    - **处理逻辑**：更新对应的分账业务状态，记录分账结果，并回调通知三代系统。
+4. **PaymentOpenedEvent** (来自行业钱包系统)
+    - **Topic**: `wallet.events.payment.opened`
+    - **处理逻辑**：更新总部账户的付款能力状态，并更新对应的开通付款业务状态。
 
-### 2.3 发布的事件
-业务核心作为事件生产者，发布以下领域事件：
-
-- **SplitTradeRecordedEvent**：分账交易流水已记录。
+#### 2.2.2 发布的事件
+1. **BusinessProcessCompletedEvent** (业务流程完成)
+    - **Topic**: `business.events.process.completed`
+    - **触发时机**：任何一个由业务核心驱动的多阶段业务流程（如开通、绑定）最终完成（成功或失败）。
+    - **Payload**:
     ```json
     {
-      "eventId": "EVT_SPLIT_TRADE_RECORDED_001",
-      "eventType": "SPLIT_TRADE_RECORDED",
-      "timestamp": "2023-10-27T14:40:05Z",
+      "event_id": "evt_biz_001",
+      "event_type": "BUSINESS_PROCESS_COMPLETED",
+      "timestamp": "2023-10-11T10:30:00Z",
       "data": {
-        "tradeNo": "TC202310270001",
-        "bizOrderNo": "SPLIT202310270001",
-        "bizType": "COLLECTION",
-        "payerMerchantNo": "M100001",
-        "receiverMerchantNo": "M100000",
-        "amount": "10000.00",
-        "tradeStatus": "SUCCESS",
-        "tradeTime": "2023-10-27T14:35:00Z",
-        "settlementDate": "2023-10-28"
+        "business_id": "BIZ_BIND_202310110001",
+        "business_type": "ACCOUNT_BINDING",
+        "status": "SUCCESS",
+        "request_id": "biz_bind_req_20231011001",
+        "institution_code": "TC001",
+        "result_summary": {
+          "binding_id": "BIND_202310110001",
+          "payer_account_id": "TCA_20231011002",
+          "payee_account_id": "TCA_20231011001"
+        },
+        "completed_at": "2023-10-11T10:30:00Z"
       }
     }
     ```
-
-### 2.4 消费的事件
-业务核心作为事件消费者，可订阅以下事件以丰富交易数据或触发后续流程（非必需，根据架构设计可选）：
-
-- **FeeCalculatedEvent** (来自计费中台)：更新交易流水中的手续费信息。
-- **SettlementCompletedEvent** (来自清结算系统)：更新交易流水的结算状态和实际结算日期。
+2. **DailyReconciliationReadyEvent** (日终对账文件就绪)
+    - **Topic**: `business.events.reconciliation.ready`
+    - **触发时机**：日终对账文件生成完成。
+    - **Payload**: 包含文件存储路径、记录数、校验和等信息。
 
 ## 3. 数据模型
 
 ### 3.1 核心表设计
 
-#### 表：`split_trade` (分账交易流水表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| trade_no | varchar(32) | Y | 业务核心交易流水号，全局唯一 | UK |
-| biz_order_no | varchar(32) | Y | 三代系统业务订单号 | UK |
-| wallet_order_no | varchar(32) | Y | 钱包侧分账指令号 | UK |
-| underlying_transaction_no | varchar(32) | Y | 底层账户系统流水号 | UK |
-| biz_type | varchar(32) | Y | 业务类型: COLLECTION, BATCH_PAY, MEMBER_SETTLEMENT | IDX |
-| payer_merchant_no | varchar(32) | Y | 付方商户号 | IDX |
-| payer_merchant_name | varchar(128) | Y | 付方商户名称 | |
-| payer_wallet_account_id | varchar(32) | Y | 付方钱包账户ID | IDX |
-| payer_account_no | varchar(32) | Y | 付方底层账户号 | IDX |
-| receiver_merchant_no | varchar(32) | Y | 收方商户号 | IDX |
-| receiver_merchant_name | varchar(128) | Y | 收方商户名称 | |
-| receiver_wallet_account_id | varchar(32) | Y | 收方钱包账户ID | IDX |
-| receiver_account_no | varchar(32) | Y | 收方底层账户号 | IDX |
-| amount | decimal(15,2) | Y | 分账金额 | |
-| currency | char(3) | Y | 币种，默认CNY | |
-| trade_status | varchar(16) | Y | 交易状态: SUCCESS, FAILED | IDX |
-| trade_time | datetime | Y | 交易完成时间（底层） | IDX |
-| memo | varchar(256) | N | 备注 | |
-| fee_amount | decimal(15,2) | N | 手续费金额 | |
-| fee_type | varchar(32) | N | 手续费类型 | |
-| settlement_date | date | N | 预期/实际结算日期 | IDX |
-| ext_info | json | N | 扩展信息（存储binding_id等） | |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
+#### 表：`business_process` (业务流程主表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `business_id` | varchar(32) | Y | | **业务流水号**，唯一索引 `uk_business_id` |
+| `business_type` | varchar(30) | Y | | 业务类型：`ACCOUNT_OPEN`/`ACCOUNT_BINDING`/`SPLIT_ORDER`/`OPEN_PAYMENT` |
+| `request_id` | varchar(64) | Y | | 上游请求ID，用于幂等，索引 `idx_request_id` |
+| `institution_code` | varchar(32) | Y | | 天财机构编码，索引 `idx_institution` |
+| `status` | varchar(20) | Y | `PROCESSING` | 业务状态：`PROCESSING`/`SUCCESS`/`PARTIAL_SUCCESS`/`FAILED`/`MANUAL_REVIEW` |
+| `request_params_json` | json | Y | | 原始请求参数 |
+| `phase_config_json` | json | Y | | 业务流程阶段配置（定义有哪些阶段） |
+| `current_phase` | varchar(30) | N | | 当前处理阶段 |
+| `callback_url` | varchar(512) | Y | | 结果回调地址 |
+| `operator` | varchar(64) | Y | | 操作员 |
+| `error_code` | varchar(50) | N | | 错误码 |
+| `error_message` | varchar(500) | N | | 错误信息 |
+| `completed_at` | datetime | N | | 完成时间 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | |
 
-#### 表：`sync_request_log` (同步请求日志表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| request_id | varchar(64) | Y | 同步请求唯一ID（来自行业钱包） | UK |
-| source_system | varchar(32) | Y | 来源系统: WALLET_SYSTEM | IDX |
-| biz_order_no | varchar(32) | Y | 关联的业务订单号 | IDX |
-| trade_no | varchar(32) | N | 生成的交易流水号 | IDX |
-| sync_status | varchar(16) | Y | 同步状态: SUCCESS, FAILED | IDX |
-| request_body | json | Y | 原始请求体 | |
-| response_body | json | N | 响应体 | |
-| fail_reason | varchar(512) | N | 失败原因 | |
-| create_time | datetime | Y | 创建时间 | IDX |
+#### 表：`business_phase` (业务流程阶段表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `business_id` | varchar(32) | Y | | 关联业务流水号，索引 `idx_business_id` |
+| `phase` | varchar(30) | Y | | 阶段代码，如 `ACCOUNT_MAPPING`, `WALLET_BINDING` |
+| `phase_seq` | int | Y | | 阶段顺序 |
+| `status` | varchar(20) | Y | `PENDING` | 阶段状态：`PENDING`/`PROCESSING`/`SUCCESS`/`FAILED`/`SKIPPED` |
+| `dependency_phases_json` | json | N | | 依赖的前置阶段列表 |
+| `executor_type` | varchar(20) | Y | | 执行器类型：`INTERNAL_SERVICE`/`EXTERNAL_SYNC`/`EVENT_WAIT` |
+| `executor_config_json` | json | Y | | 执行器配置（服务名、方法、参数映射等） |
+| `retry_count` | int | Y | 0 | 重试次数 |
+| `max_retries` | int | Y | 3 | 最大重试次数 |
+| `result_json` | json | N | | 阶段执行结果 |
+| `error_code` | varchar(50) | N | | 错误码 |
+| `error_message` | varchar(500) | N | | 错误信息 |
+| `started_at` | datetime | N | | 开始时间 |
+| `completed_at` | datetime | N | | 完成时间 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+
+#### 表：`merchant_account_mapping` (商户-账户映射表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `merchant_no` | varchar(32) | Y | | **收单商户号**，唯一索引 `uk_merchant_no` |
+| `institution_code` | varchar(32) | Y | | 天财机构编码，索引 `idx_institution` |
+| `tiancai_account_id` | varchar(32) | Y | | **天财账户ID**，唯一索引 `uk_tiancai_account_id` |
+| `account_role` | varchar(20) | Y | | 角色：`HEADQUARTERS`/`STORE`/`RECEIVER` |
+| `account_status` | varchar(20) | Y | `ACTIVE` | 账户状态：`ACTIVE`/`FROZEN`/`CLOSED` |
+| `payment_capability` | varchar(20) | Y | `CLOSED` | 付款能力：`CLOSED`/`OPENED` |
+| `merchant_info_json` | json | N | | 商户基本信息快照 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | |
+
+#### 表：`business_reconciliation` (业务对账表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `reconciliation_id` | varchar(32) | Y | | 对账批次号 |
+| `institution_code` | varchar(32) | Y | | 天财机构编码 |
+| `reconciliation_date` | date | Y | | 对账日期 |
+| `biz_type` | varchar(30) | Y | | 业务类型：`SPLIT_ORDER`/`WITHDRAWAL`/`ACQUIRING` |
+| `status` | varchar(20) | Y | `GENERATING` | 状态：`GENERATING`/`COMPLETED`/`FAILED` |
+| `file_format` | varchar(10) | Y | `CSV` | 文件格式 |
+| `file_path` | varchar(512) | N | | 文件存储路径 |
+| `record_count` | int | N | | 记录数 |
+| `total_amount` | decimal(15,2) | N | | 总金额 |
+| `checksum` | varchar(64) | N | | 文件校验和 |
+| `generated_at` | datetime | N | | 生成时间 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
 
 ### 3.2 与其他模块的关系
-- **行业钱包系统**：**主要数据上游**。通过同步接口接收分账交易数据。两者通过 `biz_order_no` 和 `wallet_order_no` 强关联。本模块是行业钱包系统 `SplitTradeDataPreparedEvent` 事件的消费者（通过接口调用形式）。
-- **对账单系统**：**主要数据下游**。对账单系统将定期或实时从本表 (`split_trade`) 拉取或接收事件 (`SplitTradeRecordedEvent`)，以生成“天财分账”指令账单和机构动账明细。
-- **账户系统**：**间接关联**。通过 `underlying_transaction_no` 关联底层资金流水，用于对账和问题追溯。
-- **三代系统**：**间接关联**。通过 `biz_order_no` 关联业务源头。
-- **计费中台/清结算系统**：**可选数据丰富源**。通过订阅其事件，可以完善交易流水的手续费和结算信息。
+- **三代系统**：
+  - 通过`request_id`关联上游请求。
+  - 通过`callback_url`回调通知业务结果。
+- **行业钱包系统**：
+  - 通过`business_phase.executor_config`配置调用钱包的API。
+  - 消费钱包发布的事件来驱动阶段流转。
+- **账户系统**：
+  - 通过`tiancai_account_id`关联账户。
+  - 监听账户创建事件来更新`merchant_account_mapping`。
+- **对账单系统**：
+  - `business_reconciliation`表为对账单系统提供业务数据源。
+  - 发布对账文件就绪事件供对账单系统消费。
 
 ## 4. 业务逻辑
 
-### 4.1 核心算法
-- **交易流水号生成**：`TC` + `年月日` + `6位序列号` (如 `TC20231027000001`)。
-- **幂等性校验**：基于 `sync_request_log.request_id` 实现接口级幂等。对于同一 `request_id` 的请求，直接返回已记录的结果。
-- **数据标准化映射**：将行业钱包同步的 `SyncSplitTradeRequest.tradeData` 映射为 `split_trade` 表的标准字段，确保数据结构统一。
-- **批量查询优化**：对账单系统可能进行大批量数据拉取，需基于 `trade_time` 和 `settlement_date` 设计高效的分页查询。
+### 4.1 核心算法与规则
+
+#### 4.1.1 业务流程编排引擎
+```python
+class BusinessProcessOrchestrator:
+    
+    def execute_process(self, business_id):
+        """
+        执行业务流程
+        1. 加载业务流程定义和当前状态
+        2. 确定下一个可执行的阶段
+        3. 调用对应的阶段执行器
+        4. 更新阶段状态，驱动流程流转
+        5. 处理完成或失败
+        """
+        process = get_business_process(business_id)
+        
+        while True:
+            # 1. 获取下一个待执行阶段
+            next_phase = self.get_next_executable_phase(process)
+            if not next_phase:
+                # 所有阶段完成
+                self.finalize_process(process)
+                break
+                
+            # 2. 执行阶段
+            phase_result = self.execute_phase(next_phase)
+            
+            # 3. 更新阶段状态
+            if phase_result.success:
+                next_phase.update_status('SUCCESS', phase_result.data)
+                # 检查是否有后续阶段被解锁
+                self.unlock_dependent_phases(process, next_phase.phase)
+            else:
+                if next_phase.retry_count < next_phase.max_retries:
+                    # 重试
+                    next_phase.retry_count += 1
+                    next_phase.update_status('PENDING')
+                    # 可以加入延迟重试队列
+                    schedule_retry(next_phase)
+                else:
+                    # 重试耗尽，标记阶段失败
+                    next_phase.update_status('FAILED', phase_result.error)
+                    # 根据业务规则决定是否继续或终止整个流程
+                    if self.should_abort_process(process, next_phase):
+                        process.update_status('FAILED')
+                        break
+                    # 否则继续尝试其他不依赖此阶段的路径
+                    
+            # 4. 更新业务流程当前阶段
+            process.current_phase = self.get_current_phase_display(process)
+            process.save()
+```
+
+#### 4.1.2 商户-账户映射解析器
+```python
+class MerchantAccountResolver:
+    
+    def resolve_account_id(self, merchant_no, institution_code, account_role=None):
+        """
+        根据商户号和机构编码解析出对应的天财账户ID
+        1. 查询本地映射表
+        2. 如果不存在，可能触发异步开户流程
+        3. 返回账户ID，或抛出特定异常
+        """
+        # 1. 查询本地缓存/数据库
+        mapping = self.get_mapping(merchant_no, institution_code)
+        
+        if mapping:
+            # 检查账户状态
+            if mapping.account_status != 'ACTIVE':
+                raise BusinessError(f"账户状态异常: {mapping.account_status}")
+            # 检查角色匹配（如果指定了角色）
+            if account_role and mapping.account_role != account_role:
+                raise BusinessError(f"商户角色不匹配: 期望{account_role}, 实际{mapping.account_role}")
+            return mapping.tiancai_account_id
+        
+        # 2. 映射不存在，触发异步开户
+        # 这里需要根据业务规则决定：是立即失败，还是触发开户流程
+        if self.auto_open_account_enabled():
+            # 创建开户业务流程
+            business_id = self.create_account_open_process(
+                merchant_no, institution_code, account_role
+            )
+            # 抛出特定异常，让调用方知道需要等待
+            raise AccountNotExistsError(
+                f"账户不存在，已触发开户流程: {business_id}",
+                business_id=business_id
+            )
+        else:
+            raise AccountNotExistsError(f"商户{merchant_no}未开通天财账户")
+    
+    def on_account_created_event(self, event):
+        """
+        处理账户创建事件，更新映射表
+        """
+        # 从事件中提取商户信息（需要事件中包含merchant_no）
+        # 或者通过查询账户系统获取关联的商户号
+        merchant_no = self.extract_merchant_no_from_event(event)
+        
+        if merchant_no:
+            mapping = MerchantAccountMapping(
+                merchant_no=merchant_no,
+                institution_code=event.institution_code,
+                tiancai_account_id=event.account_id,
+                account_role=event.account_role,
+                account_status='ACTIVE'
+            )
+            mapping.save()
+            
+            # 查找是否有等待此账户的业务流程，并更新其状态
+            self.notify_waiting_processes(merchant_no, event.account_id)
+```
+
+#### 4.1.3 分账业务预处理与路由
+```python
+def preprocess_split_order(request):
+    """
+    分账业务请求预处理
+    1. 参数校验与标准化
+    2. 商户号到账户ID的转换
+    3. 业务规则预校验
+    4. 路由到正确的处理流程
+    """
+    # 1. 基础校验
+    validate_request_structure(request)
+    
+    # 2. 解析付方账户ID
+    payer_account_id = account_resolver.resolve_account_id(
+        request.payer_merchant_no,
+        request.institution_code,
+        get_expected_role_for_scene(request.biz_scene, 'PAYER')
+    )
+    
+    # 3. 解析收方账户ID列表
+    payee_account_list = []
+    for payee in request.payee_list:
+        payee_account_id = account_resolver.resolve_account_id(
+            payee.merchant_no,
+            request.institution_code,
+            get_expected_role_for_scene(request.biz_scene, 'PAYEE')
+        )
+        payee_account_list.append({
+            'tiancai_account_id': payee_account_id,
+            'amount': payee.amount,
+            'currency': payee.currency,
+            'memo': payee.memo
+        })
+    
+    # 4. 构建行业钱包系统请求
+    wallet_request = {
+        'request_id': request.request_id,
+        'split_order_id': request.split_order_id,
+        'biz_scene': request.biz_scene,
+        'payer': {
+            'tiancai_account_id': payer_account_id,
+            'merchant_no': request.payer_merchant_no
+        },
+        'payee_list': payee_account_list,
+        'total_amount': request.total_amount,
+        'biz_ref_no': request.biz_ref_no
+    }
+    
+    # 5. 根据场景决定处理方式
+    if request.biz_scene == 'BATCH_PAY' and len(payee_account_list) > 10:
+        # 大批量付款，拆分为多个子流程
+        return create_batch_split_subprocesses(request, wallet_request)
+    else:
+        # 直接调用行业钱包
+        return create_single_split_process(request, wallet_request)
+```
 
 ### 4.2 业务规则
-1. **数据同步规则**：
-    - 只接收状态为 `SUCCESS` 或 `FAILED` 的最终态分账交易数据。`PROCESSING` 等中间状态数据不应同步。
-    - 必须校验关键字段非空：`bizOrderNo`, `walletOrderNo`, `underlyingTransactionNo`, `payerInfo`, `receiverInfo`, `amount`, `tradeStatus`, `tradeTime`。
-    - 交易流水号 (`tradeNo`) 优先使用请求中携带的（如果行业钱包预生成），否则由本模块按规则生成。
 
-2. **数据一致性规则**：
-    - 对于同一笔分账业务（相同的 `bizOrderNo`），应只存在一条成功的交易流水记录。
-    - 通过 `sync_request_log` 的幂等控制，防止重复同步导致数据重复。
-    - 若收到同一 `bizOrderNo` 但交易状态更新的数据（如从 FAILED 变更为 SUCCESS 的重试成功），应更新原记录并记录日志。
+1. **业务类型与阶段映射规则**：
+   - `ACCOUNT_OPEN`：阶段 = [`VALIDATE`, `CREATE_ACCOUNT`, `SYNC_WALLET`, `NOTIFY`]
+   - `ACCOUNT_BINDING`：阶段 = [`ACCOUNT_MAPPING`, `VALIDATE_RELATION`, `INITIATE_BINDING`, `WAIT_ESIGN`, `SYNC_RELATION`, `NOTIFY`]
+   - `SPLIT_ORDER`：阶段 = [`ACCOUNT_MAPPING`, `PRE_VALIDATE`, `CALL_WALLET`, `WAIT_RESULT`, `NOTIFY`]
+   - `OPEN_PAYMENT`：阶段 = [`ACCOUNT_MAPPING`, `VALIDATE_HQ`, `INITIATE_OPEN_PAY`, `WAIT_ESIGN`, `SYNC_CAPABILITY`, `NOTIFY`]
 
-3. **对账数据准备规则**：
-    - `settlement_date` 字段至关重要，是对账单系统按日汇总的关键维度。需确保其准确性，优先使用同步数据中的 `settlementDate`，若无则根据 `tradeTime` 和业务规则推导。
-    - 交易金额 (`amount`) 为实际划转的资金额，不包含手续费。手续费单独记录在 `fee_amount` 中。
+2. **商户账户映射规则**：
+   - 一个商户号在同一机构下只能映射到一个天财账户ID。
+   - 账户角色一旦确定，不可更改（如门店不能变更为总部）。
+   - 映射关系建立后，业务核心应缓存此关系，减少对下游系统的查询。
+
+3. **业务流程状态流转规则**：
+   - 只有所有前置阶段都成功，后续阶段才能开始。
+   - 任一阶段失败，根据`phase.failure_strategy`决定流程走向（继续、终止、转人工）。
+   - 支持人工干预，可以手动重试某个失败阶段或跳过。
+
+4. **业务幂等规则**：
+   - 基于`request_id`实现业务层幂等，避免重复创建业务流程。
+   - 业务流程内部阶段执行也需支持幂等，基于`business_id`+`phase`。
+
+5. **超时与悬挂处理规则**：
+   - 每个阶段设置执行超时时间（如5分钟）。
+   - 定时任务扫描超时阶段，根据配置进行重试或标记为失败。
+   - 整个业务流程设置总超时时间（如30分钟），超时转人工处理。
 
 ### 4.3 验证逻辑
-- **接口请求验证**：
-    - 验证 `requestId` 和 `tradeData` 必填。
-    - 验证 `tradeData` 中金额为正数，币种为支持的类型。
-    - 验证 `tradeStatus` 为枚举允许的值。
-    - 验证 `tradeTime` 不为未来时间。
-- **业务逻辑验证**：
-    - 校验 `bizOrderNo`、`walletOrderNo`、`underlyingTransactionNo` 三者组合在系统中是否已存在，避免产生冲突记录。
-    - 校验付方和收方商户号是否存在于内部商户库（可缓存或异步校验，不影响主流程）。
+
+#### 4.3.1 业务请求准入校验
+```python
+def validate_business_request(request, business_type):
+    """
+    业务请求准入校验
+    """
+    errors = []
+    
+    # 1. 必填字段校验
+    required_fields = get_required_fields(business_type)
+    for field in required_fields:
+        if not getattr(request, field, None):
+            errors.append(f"字段{field}不能为空")
+    
+    # 2. 格式校验
+    if hasattr(request, 'merchant_no'):
+        if not re.match(r'^M\d{6,}$', request.merchant_no):
+            errors.append("商户号格式错误")
+    
+    if hasattr(request, 'total_amount'):
+        if request.total_amount <= 0:
+            errors.append("金额必须大于0")
+    
+    # 3. 业务逻辑校验
+    if business_type == 'ACCOUNT_BINDING':
+        if request.payer_merchant_no == request.payee_merchant_no:
+            errors.append("付方和收方不能是同一商户")
+    
+    if business_type == 'SPLIT_ORDER':
+        if request.biz_scene not in ['COLLECTION', 'BATCH_PAY', 'MEMBER_SETTLE']:
+            errors.append(f"不支持的业务场景: {request.biz_scene}")
+    
+    # 4. 机构权限校验
+    if not institution_service.has_permission(request.institution_code, business_type):
+        errors.append(f"机构{request.institution_code}无权限执行{business_type}")
+    
+    if errors:
+        raise ValidationError("; ".join(errors))
+```
+
+#### 4.3.2 业务流程依赖校验
+```python
+def check_prerequisites(business_type, request_params):
+    """
+    检查执行业务流程的前置条件
+    """
+    if business_type == 'SPLIT_ORDER':
+        # 分账业务前置检查
+        payer_account_id = account_resolver.resolve_account_id(
+            request_params.payer_merchant_no,
+            request_params.institution_code
+        )
+        
+        # 检查账户状态
+        account_status = account_service.get_status(payer_account_id)
+        if account_status != 'ACTIVE':
+            raise BusinessError(f"付方账户状态异常: {account_status}")
+        
+        # 检查余额（对于实时分账）
+        if request_params.biz_scene in ['COLLECTION', 'BATCH_PAY']:
+            balance = account_service.get_balance(payer_account_id)
+            if balance < request_params.total_amount:
+                raise BusinessError(f"付方账户余额不足: {balance}")
+    
+    elif business_type == 'ACCOUNT_BINDING':
+        # 绑定业务前置检查
+        # 检查双方账户是否存在且状态正常
+        payer_account_id = account_resolver.resolve_account_id(
+            request_params.payer_merchant_no,
+            request_params.institution_code
+        )
+        payee_account_id = account_resolver.resolve_account_id(
+            request_params.payee_merchant_no, 
+            request_params.institution_code
+        )
+        
+        # 检查是否已存在有效绑定（防重复）
+        existing = binding_service.find_active_binding(
+            payer_account_id, payee_account_id, request_params.biz_scene
+        )
+        if existing:
+            raise BusinessError("已存在有效的绑定关系")
+```
 
 ## 5. 时序图
 
-### 5.1 分账交易数据同步流程
+### 5.1 归集关系绑定完整业务流程
 ```mermaid
 sequenceDiagram
-    participant W as 行业钱包系统
-    participant BC as 业务核心
-    participant DB as 数据库
-    participant MQ as 消息队列
+    participant 天财 as 天财系统
+    participant G3 as 三代系统
+    participant 业务核心 as 业务核心
+    participant 钱包 as 行业钱包系统
+    participant 账户 as 账户系统
+    participant 签约 as 电子签约平台
 
-    Note over W: 分账指令执行成功
-    W->>BC: POST /trades/sync-split (SyncSplitTradeRequest)
-    BC->>BC: 1. 解析并验证请求
-    BC->>DB: 查询sync_request_log by request_id (幂等校验)
-    alt 请求已处理过 (幂等)
-        BC->>DB: 获取已生成的trade_no
-        BC-->>W: 返回成功(含已有trade_no)
-    else 新请求
-        BC->>BC: 2. 生成trade_no (若请求中未提供)
-        BC->>DB: 3. 插入split_trade记录 (事务)
-        BC->>DB: 4. 插入sync_request_log记录 (事务)
-        BC->>MQ: 发布SplitTradeRecordedEvent
-        BC-->>W: 返回成功(含生成的trade_no)
-    end
-    Note over MQ: 对账单系统消费事件，触发对账单生成
+    Note over 天财,G3: 第一阶段：接收并预处理请求
+    天财->>G3: 1. 发起归集关系绑定请求(门店M2->总部M1)
+    G3->>业务核心: 2. POST /business/bindings
+    业务核心->>业务核心: 3. 参数校验、幂等检查
+    业务核心->>业务核心: 4. 创建业务流程记录(BIZ_BIND_001)
+    业务核心->>业务核心: 5. 解析商户号->账户ID
+    业务核心->>账户: 6. 查询账户状态(TCA_STORE, TCA_HQ)
+    账户-->>业务核心: 7. 返回账户状态正常
+    业务核心-->>G3: 8. 返回受理成功(business_id, sign_urls)
+    G3-->>天财: 9. 返回签约链接给门店和总部
+
+    Note over 业务核心,钱包: 第二阶段：驱动钱包执行绑定
+    业务核心->>业务核心: 10. 更新阶段状态(ACCOUNT_MAPPING→SUCCESS)
+    业务核心->>业务核心: 11. 开始下一阶段(WALLET_BINDING)
+    业务核心->>钱包: 12. POST /accounts/{id}/bindings
+    钱包->>钱包: 13. 创建绑定记录，调用电子签约
+    钱包-->>业务核心: 14. 返回绑定ID(BIND_001)
+    业务核心->>业务核心: 15. 更新阶段状态(WALLET_BINDING→SUCCESS)
+    业务核心->>业务核心: 16. 开始下一阶段(WAIT_ESIGN)
+
+    Note over 签约,业务核心: 第三阶段：等待签约完成
+    签约->>天财门店: 17. H5页面签署协议
+    天财门店->>签约: 18. 完成签署
+    签约->>天财总部: 19. H5页面签署协议
+    天财总部->>签约: 20. 完成签署
+    签约->>钱包: 21. 回调通知签约完成
+    钱包->>账户: 22. 同步账户关系
+    钱包->>业务核心: 23. 发布AccountRelationVerifiedEvent
+    业务核心->>业务核心: 24. 更新阶段状态(WAIT_ESIGN→SUCCESS)
+
+    Note over 业务核心,G3: 第四阶段：完成与通知
+    业务核心->>业务核心: 25. 开始下一阶段(NOTIFY)
+    业务核心->>G3: 26. 回调通知绑定成功
+    业务核心->>业务核心: 27. 更新业务流程状态(SUCCESS)
+    业务核心->>业务核心: 28. 发布BusinessProcessCompletedEvent
+    G3-->>天财: 29. 转发回调通知
 ```
 
-### 5.2 对账单系统拉取数据流程
+### 5.2 分账业务处理流程（以归集为例）
 ```mermaid
 sequenceDiagram
-    participant BS as 对账单系统
-    participant BC as 业务核心
-    participant DB as 数据库
+    participant G3 as 三代系统
+    participant 业务核心 as 业务核心
+    participant 钱包 as 行业钱包系统
+    participant 账户 as 账户系统
 
-    Note over BS: 定时任务或手动触发
-    BS->>BC: GET /trades?settlementDate=2023-10-28&bizType=COLLECTION...
-    BC->>DB: 执行分页查询split_trade表
-    DB-->>BC: 返回分账交易流水列表
-    BC-->>BS: 返回PageResponse<SplitTradeDetailResponse>
-    Note over BS: 基于流水数据生成“天财分账”指令账单
+    G3->>业务核心: 1. POST /business/split-orders (归集)
+    业务核心->>业务核心: 2. 创建业务流程(BIZ_SPLIT_001)
+    业务核心->>业务核心: 3. 解析商户号->账户ID
+    业务核心->>业务核心: 4. 业务规则预校验
+    业务核心->>业务核心: 5. 更新阶段(ACCOUNT_MAPPING→SUCCESS)
+    
+    alt 需要检查绑定关系
+        业务核心->>钱包: 6. 查询绑定关系状态
+        钱包-->>业务核心: 7. 返回绑定有效
+        业务核心->>业务核心: 8. 更新阶段(RELATION_CHECK→SUCCESS)
+    end
+    
+    业务核心->>钱包: 9. POST /internal/split-orders
+    业务核心->>业务核心: 10. 更新阶段(CALL_WALLET→SUCCESS)
+    业务核心->>业务核心: 11. 开始等待阶段(WAIT_RESULT)
+    
+    钱包->>钱包: 12. 执行分账逻辑
+    钱包->>账户: 13. 调用账务接口
+    账户-->>钱包: 14. 返回账务成功
+    钱包->>业务核心: 15. 发布SplitOrderCompletedEvent
+    
+    业务核心->>业务核心: 16. 更新阶段(WAIT_RESULT→SUCCESS)
+    业务核心->>G3: 17. 回调通知分账结果
+    业务核心->>业务核心: 18. 更新业务流程状态(SUCCESS)
 ```
 
 ## 6. 错误处理
 
-### 6.1 预期错误及HTTP状态码
-- **400 Bad Request**：
-    - `INVALID_REQUEST_BODY`：请求体JSON解析失败或格式错误。
-    - `MISSING_REQUIRED_FIELD`：缺少必填字段。
-    - `INVALID_PARAMETER`：参数值无效（如金额非正、状态非法、时间为未来）。
-- **409 Conflict**：
-    - `DUPLICATE_REQUEST`：`requestId` 重复（幂等返回，实际为成功语义，但用409标识冲突）。
-    - `TRADE_CONFLICT`：`bizOrderNo`等业务标识与现有记录冲突且状态不一致。
-- **500 Internal Server Error**：数据库操作失败、系统内部异常。
+### 6.1 预期错误码列表
+| 错误码 | HTTP状态码 | 描述 | 处理策略 |
+| :--- | :--- | :--- | :--- |
+| `BIZ_VALIDATION_FAILED` | 400 | 业务参数校验失败 | 返回详细错误信息，不创建业务流程 |
+| `MERCHANT_NOT_FOUND` | 404 | 商户不存在或未开通天财业务 | 引导先开通天财业务 |
+| `ACCOUNT_NOT_EXISTS` | 404 | 天财账户不存在 | 可能触发自动开户流程，或返回错误 |
+| `ACCOUNT_STATUS_ABNORMAL` | 423 | 账户状态异常（冻结、关闭） | 提示联系客服解冻账户 |
+| `BUSINESS_PROCESS_DUPLICATE` | 409 | 重复的业务请求 | 返回已存在的业务流程信息 |
+| `INSTITUTION_PERMISSION_DENIED` | 403 | 机构无权限执行此操作 | 检查机构配置和合约 |
+| `PREREQUISITE_NOT_MET` | 412 | 前置条件不满足 | 如分账前未完成绑定，返回具体缺失条件 |
+| `PHASE_EXECUTION_TIMEOUT` | 504 | 阶段执行超时 | 自动重试，超阈值后转人工 |
+| `DEPENDENCY_SERVICE_UNAVAILABLE` | 503 | 依赖服务不可用 | 根据服务重要性决定重试或失败 |
+| `BUSINESS_PROCESS_ABORTED` | 500 | 业务流程异常终止 | 记录详细日志，触发告警，需人工介入 |
 
 ### 6.2 处理策略
-- **同步接口错误**：
-    - 对于参数校验错误，立即返回 `400` 并描述具体错误字段，方便调用方排查。
-    - 对于数据库唯一键冲突（如 `trade_no` 重复，极小概率），记录告警日志，尝试生成新的流水号重试插入。
-    - 对于数据库连接超时等临时错误，可进行短暂重试（如2次），重试失败后返回 `500`，依赖行业钱包系统的同步重试机制。
-- **数据不一致处理**：
-    - 监控 `split_trade` 表与 `sync_request_log` 表的一致性，定期运行核对脚本。
-    - 如果发现同一 `bizOrderNo` 存在多条 `SUCCESS` 记录（异常情况），发出严重告警，需人工介入核查并修复数据。
-- **下游依赖**：
-    - 事件发布 (`SplitTradeRecordedEvent`) 采用异步且尽力而为的模式。如果消息队列暂时不可用，记录本地日志并告警，由后续补偿任务重新发布。不影响主同步流程的响应。
+1. **输入校验错误 (4xx)**：
+   - 在API层立即返回，不创建业务流程记录。
+   - 提供清晰的错误提示，指导调用方修正。
+   - 记录错误日志用于业务分析。
+
+2. **业务流程执行错误**：
+   - **阶段执行失败**：根据阶段配置的重试策略进行重试（次数、间隔）。
+   - **依赖服务异常**：对关键服务（账户、钱包）实现熔断机制，避免雪崩。
+   - **超时处理**：设置阶段和流程级超时，超时后标记为`MANUAL_REVIEW`状态，触发人工干预。
+
+3. **部分成功处理**：
+   - 对于批量操作（如批量付款），记录每个子项的结果。
+   - 整体业务流程状态标记为`PARTIAL_SUCCESS`。
+   - 提供查询接口获取详细结果，支持对失败项单独重试。
+
+4. **补偿与冲正**：
+   - 对于已部分执行成功的业务流程，如果后续阶段失败，根据业务规则决定是否冲正。
+   - 实现冲正接口，支持人工触发对已成功操作的逆向处理。
+   - 关键资金操作必须有冲正能力，保证最终一致性。
+
+5. **监控与告警**：
+   - 业务流程成功率、平均耗时、各阶段失败率监控。
+   - 依赖服务健康度监控与告警。
+   - 悬挂流程（长时间处于PROCESSING）监控与告警。
+   - 业务量异常波动告警。
 
 ## 7. 依赖说明
 
-### 7.1 上游模块交互（数据提供方）
-1. **行业钱包系统**：
-    - **调用关系**：**同步RPC调用（HTTP REST）**。行业钱包系统作为调用方。
-    - **关键接口**：`POST /api/v1/biz-core/trades/sync-split`
-    - **交互要点**：
-        - 本模块需提供高可用、高性能的同步接口，确保行业钱包系统能及时送达数据。
-        - 接口设计必须幂等，以应对行业钱包系统可能因网络超时等原因发起的重试。
-        - 响应应明确，成功则返回 `trade_no`，失败则给出具体错误码和原因。
-        - 本模块是行业钱包系统数据流的终点之一，负责交易数据的最终落地。
+### 7.1 上游依赖（调用业务核心）
 
-### 7.2 下游模块交互（数据消费方）
-1. **对账单系统**：
-    - **调用关系**：**同步RPC调用（HTTP REST） + 异步消息驱动**。
-    - **数据提供方式**：
-        - **主动拉取**：对账单系统通过查询接口 (`GET /trades`) 主动拉取指定日期、类型的交易流水。
-        - **事件驱动**：对账单系统消费 `SplitTradeRecordedEvent` 事件，实现近实时对账单更新。
-    - **交互要点**：
-        - 查询接口需支持灵活的组合条件筛选和高效的分页，以应对大数据量导出场景。
-        - 事件数据应包含对账单生成所需的核心字段，如 `tradeNo`, `settlementDate`, `amount` 等。
-        - 双方需约定数据字段的含义和格式，确保对账单的准确性。
+| 依赖系统 | 交互场景 | 接口方式 | 关键要求与注意事项 |
+| :--- | :--- | :--- | :--- |
+| **三代系统** | 1. 提交各类业务请求<br>2. 查询业务状态<br>3. 接收业务结果回调 | 同步REST API + 异步回调 | 1. 请求需包含幂等ID(request_id)<br>2. 业务处理异步化，需提供回调机制<br>3. 支持业务状态实时查询 |
+| **天财系统** | 通过三代系统间接交互 | 间接 | 1. 业务核心需理解天财的业务语言和流程<br>2. 提供符合天财需求的对账和报表 |
 
-### 7.3 内部依赖
-- **数据库**：MySQL集群，存储所有交易流水和同步日志。`split_trade` 表可能增长迅速，需考虑按 `settlement_date` 或 `trade_time` 进行分表或归档策略。
-- **缓存**：Redis集群，可选用于缓存热点商户信息、或作为查询结果的临时缓存，提升查询性能。
-- **消息队列**：用于发布 `SplitTradeRecordedEvent` 事件，需保证至少成功投递一次。
-- **配置中心**：管理接口限流、开关、序列号生成器等配置。
+### 7.2 下游依赖（业务核心调用）
 
-**文档版本**：1.0  
-**最后更新**：2023-10-27  
-**设计者**：软件架构师
+| 依赖系统 | 交互场景 | 接口方式 | 关键要求与注意事项 |
+| :--- | :--- | :--- | :--- |
+| **行业钱包系统** | 1. 执行账户绑定<br>2. 执行分账指令<br>3. 开通付款权限<br>4. 查询账户关系 | 同步REST API + 事件消费 | 1. 作为核心业务逻辑执行器<br>2. 需处理钱包系统的异步响应和事件<br>3. 实现重试和降级策略 |
+| **账户系统** | 1. 查询账户状态和余额<br>2. 监听账户创建事件<br>3. 执行冲正操作 | 同步REST API + 事件消费 | 1. 关键校验依赖账户状态<br>2. 账户创建事件是映射关系建立的关键<br>3. 冲正操作需保证幂等 |
+| **电子签约平台** | 通过行业钱包间接交互 | 间接 | 1. 了解签约流程和状态流转<br>2. 处理签约超时和失败场景 |
+
+### 7.3 集成设计原则
+1. **异步编排与状态管理**：
+   - 业务流程异步执行，通过状态机管理进度。
+   - 提供实时状态查询，让调用方了解处理进度。
+   - 关键状态变更通过事件通知相关系统。
+
+2. **幂等与一致性**：
+   - 所有业务请求基于`request_id`实现幂等。
+   - 业务流程内部阶段执行也需幂等。
+   - 通过本地事务+事件+补偿机制保证最终一致性。
+
+3. **容错与降级**：
+   - 对非关键依赖实现降级（如查询类操作使用缓存）。
+   - 业务流程支持暂停、继续、跳过等人工干预能力。
+   - 实现熔断机制，防止依赖服务故障扩散。
+
+4. **可观测性**：
+   - 全业务流程链路追踪，便于问题定位。
+   - 丰富的业务指标监控（各业务类型量、成功率、耗时等）。
+   - 详细的业务操作日志，支持审计和排查。
+
+5. **扩展性**：
+   - 业务流程阶段可配置，支持新增业务类型。
+   - 支持水平扩展，应对业务量增长。
+   - 业务规则可配置化，便于调整。
 
 ## 3.11 对账单系统
 
@@ -4435,429 +5333,920 @@ sequenceDiagram
 
 
 
+# 对账单系统模块设计文档
+
 ## 1. 概述
 
 ### 1.1 目的
-本模块是“天财商龙”分账业务的**统一对账数据聚合与账单生成中心**。它负责从各相关业务系统（业务核心、账户系统、清结算系统）汇聚交易、资金、结算、手续费等动账明细数据，按照商户（机构）维度进行清洗、关联、汇总，生成并提供标准化的“天财分账”指令账单及机构层级的动账明细。其核心价值在于为商户（总部/门店）和内部运营提供清晰、准确、可追溯的资金流转视图，是业务对账、资金核对和财务审计的关键支撑。
+对账单系统是“天财分账业务”的**统一账务数据聚合与呈现平台**。它负责从账户系统、清结算系统、行业钱包系统等多个上游模块采集资金变动、交易结算、分账指令等原始数据，经过清洗、关联、汇总后，为天财机构提供机构层面、账户层面、业务场景层面的各类对账单（如分账对账单、提款对账单、收单对账单）。本模块旨在为天财提供准确、及时、可追溯的资金流转视图，满足其对账、审计、财务核算和业务分析的核心需求。
 
 ### 1.2 范围
-- **多源数据汇聚**：通过接口拉取或事件订阅，从业务核心、账户系统、清结算系统获取分账交易流水、账户动账流水、结算明细、退货记录、手续费记录等原始数据。
-- **数据关联与清洗**：基于业务订单号、账户流水号等关键字段，将来自不同系统的异构数据关联整合，形成完整的“一笔业务，全链路视图”，并清洗异常或重复数据。
-- **账单生成**：
-    - **天财分账指令账单**：以三代系统的分账指令 (`split_order`) 为核心，关联其对应的资金流水、手续费、结算状态，生成面向商户的业务对账单。
-    - **机构动账明细**：以账户系统的动账流水 (`account_transaction`) 为基础，按机构（商户）维度，整合所有资金流入流出明细（含分账、结算、退货、手续费等），生成资金流水账。
-- **账单查询与导出**：为商户（通过三代系统）和内部运营提供多维度（时间、商户、业务类型）的账单查询、明细查看及文件导出（CSV/Excel）功能。
-- **对账文件生成**：按约定格式和周期（如T+1日）生成供商户下载或推送的对账文件。
-
-### 1.3 非范围
-- 原始交易的处理与记录（由业务核心、账户系统、清结算系统负责）。
-- 商户进件、关系绑定、分账指令发起等业务流程（由三代系统负责）。
-- 钱包层业务逻辑与分账执行（由行业钱包系统负责）。
-- 底层账户的记账操作（由账户系统负责）。
-- 费率的计算（由计费中台负责）。
+- **多源数据采集**：通过消费事件和主动查询，从账户系统、清结算系统、行业钱包系统等获取原始动账、结算、分账数据。
+- **数据关联与聚合**：基于业务实体（如天财账户ID、商户号、交易流水号）将来自不同系统的异构数据进行关联，形成完整的业务链条视图。
+- **对账单生成与提供**：
+  - **分账对账单**：记录天财账户间的分账、归集、批量付款、会员结算等资金划转明细。
+  - **提款对账单**：记录从天财接收方账户提现至银行卡的资金流出明细。
+  - **收单对账单**：记录收单交易资金从待结算账户结算至天财收款账户的明细。
+  - **账户动账明细**：提供单个天财账户的所有资金变动流水。
+- **对账文件生成与分发**：按机构、日期、业务类型生成标准格式（CSV/Excel）的对账文件，支持下载或推送。
+- **查询与报表服务**：为运营后台、天财机构提供多维度的账务查询和统计报表API。
+- **数据一致性保障**：建立对账机制，核对上下游系统数据，及时发现并预警差异。
 
 ## 2. 接口设计
 
-### 2.1 REST API 端点
+### 2.1 API端点 (RESTful)
 
-#### 2.1.1 账单查询接口（供三代系统/内部运营调用）
-- **GET /api/v1/statement/split-orders**：查询“天财分账”指令账单
-    - **查询参数**:
-        - `merchantNo`: 商户号（付方或收方）
-        - `bizOrderNo`: 三代系统分账指令号
-        - `bizType`: 业务类型 (COLLECTION, BATCH_PAYMENT, MEMBER_SETTLE)
-        - `tradeDateStart`/`tradeDateEnd`: 交易日期范围（指分账执行日期）
-        - `settlementDate`: 结算日期
-        - `status`: 指令状态 (SUCCESS, FAILED)
-        - `page`, `size`: 分页参数
-    - **响应**: `PageResponse<SplitOrderStatementResponse>`
+#### 2.1.1 对账单查询与下载接口
+- **GET /api/v1/tiancai/reconciliations**
+    - **描述**：查询对账单列表，支持按机构、日期、业务类型、账户等多维度筛选。
+    - **查询参数**：
+      ```
+      institution_code=TC001
+      reconciliation_date=2025-01-19
+      biz_type=SPLIT_ORDER  // SPLIT_ORDER(分账)/WITHDRAWAL(提款)/ACQUIRING(收单)/ALL
+      tiancai_account_id=TCA_20231011001
+      file_status=GENERATED  // GENERATED/AVAILABLE/EXPIRED
+      page=1
+      page_size=50
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "data": {
+          "total": 5,
+          "items": [
+            {
+              "reconciliation_id": "REC_TC001_20250119_SPLIT",
+              "institution_code": "TC001",
+              "reconciliation_date": "2025-01-19",
+              "biz_type": "SPLIT_ORDER",
+              "file_name": "TC001_分账对账_20250119.csv",
+              "file_format": "CSV",
+              "file_size": 102400,
+              "download_url": "https://recon.example.com/download/REC_TC001_20250119_SPLIT",
+              "record_count": 1500,
+              "total_amount": 1500000.00,
+              "status": "AVAILABLE",
+              "generated_at": "2025-01-20T02:30:00Z",
+              "expire_at": "2025-02-19T23:59:59Z"
+            }
+          ]
+        }
+      }
+      ```
 
-- **GET /api/v1/statement/account-transactions**：查询机构动账明细
-    - **查询参数**:
-        - `merchantNo`: 商户号
-        - `accountNo`: 账户号（可选，不填则查询该商户所有账户）
-        - `bizType`: 业务类型 (TIANCAI_SPLIT, SETTLEMENT, REFUND, FEE)
-        - `transactionDateStart`/`transactionDateEnd`: 交易发生日期范围
-        - `page`, `size`: 分页参数
-    - **响应**: `PageResponse<AccountTransactionDetailResponse>`
+- **POST /api/v1/tiancai/reconciliations/generate**
+    - **描述**：触发对账文件的即时生成（通常用于补单或测试）。
+    - **请求体**：
+      ```json
+      {
+        "institution_code": "TC001",
+        "reconciliation_date": "2025-01-19",
+        "biz_type": "SPLIT_ORDER",
+        "file_format": "CSV"
+      }
+      ```
+    - **响应体**：返回生成任务ID或直接返回文件信息。
 
-- **GET /api/v1/statement/split-orders/{bizOrderNo}/detail**：查询指定分账指令的完整明细
-    - **响应**: `SplitOrderFullDetailResponse`
+#### 2.1.2 账户动账明细查询接口
+- **GET /api/v1/tiancai/accounts/{tiancai_account_id}/ledger**
+    - **描述**：查询指定天财账户在特定时间范围内的所有资金变动明细。
+    - **查询参数**：
+      ```
+      start_time=2025-01-19T00:00:00Z
+      end_time=2025-01-19T23:59:59Z
+      biz_type=TIANCAI_SPLIT,SETTLEMENT,WITHDRAWAL  // 可选，过滤业务类型
+      min_amount=0.01
+      max_amount=100000.00
+      page=1
+      page_size=100
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "data": {
+          "account_id": "TCA_20231011001",
+          "account_role": "HEADQUARTERS",
+          "currency": "CNY",
+          "start_balance": 50000.00, // 期初余额
+          "end_balance": 165000.00,  // 期末余额
+          "total_credit": 120000.00, // 期间总入账
+          "total_debit": 5000.00,    // 期间总出账
+          "items": [
+            {
+              "sequence_no": "202501190001",
+              "occurred_at": "2025-01-19T10:05:00Z",
+              "biz_trade_no": "TC_TRANS_001",
+              "biz_type": "TIANCAI_SPLIT",
+              "biz_scene": "COLLECTION",
+              "counterparty_account_id": "TCA_20231011002",
+              "counterparty_name": "天财朝阳门店",
+              "direction": "CREDIT", // CREDIT(入账)/DEBIT(出账)
+              "amount": 10000.00,
+              "balance_after": 60000.00,
+              "remark": "门店日结归集",
+              "ext_info": {
+                "split_order_id": "SO_202501190001",
+                "wallet_order_id": "WO_202501190001"
+              }
+            },
+            {
+              "sequence_no": "202501190002",
+              "occurred_at": "2025-01-20T02:00:00Z",
+              "biz_trade_no": "STL_M100001_20250119",
+              "biz_type": "SETTLEMENT",
+              "counterparty_account_id": "SYSTEM",
+              "counterparty_name": "清结算系统",
+              "direction": "CREDIT",
+              "amount": 110000.00,
+              "balance_after": 170000.00,
+              "remark": "T+1日收单结算",
+              "ext_info": {
+                "settle_date": "2025-01-19",
+                "trade_count": 100
+              }
+            }
+          ]
+        }
+      }
+      ```
 
-#### 2.1.2 对账文件生成与下载接口
-- **POST /api/v1/statement/files/generate**：触发生成指定日期的对账文件
-    - **请求体**: `GenerateStatementFileRequest`
-    - **响应**: `GenerateStatementFileResponse`
-- **GET /api/v1/statement/files**：查询已生成的对账文件列表
-    - **查询参数**: `merchantNo`, `fileDate`, `fileType`
-    - **响应**: `PageResponse<StatementFileInfoResponse>`
-- **GET /api/v1/statement/files/{fileId}/download**：下载对账文件
-    - **响应**: 文件流
+#### 2.1.3 业务对账汇总接口
+- **GET /api/v1/tiancai/institutions/{institution_code}/summary**
+    - **描述**：查询天财机构在指定日期的各类业务汇总数据，用于仪表盘或快速对账。
+    - **查询参数**：
+      ```
+      summary_date=2025-01-19
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "data": {
+          "institution_code": "TC001",
+          "summary_date": "2025-01-19",
+          "accounts_summary": {
+            "total_count": 50,
+            "active_count": 48,
+            "total_balance": 3500000.00
+          },
+          "settlement_summary": {
+            "total_amount": 1500000.00,
+            "total_fee": 3000.00,
+            "net_amount": 1497000.00,
+            "merchant_count": 20
+          },
+          "split_summary": {
+            "total_count": 120,
+            "total_amount": 800000.00,
+            "by_scene": {
+              "COLLECTION": {"count": 100, "amount": 500000.00},
+              "BATCH_PAY": {"count": 15, "amount": 250000.00},
+              "MEMBER_SETTLE": {"count": 5, "amount": 50000.00}
+            }
+          },
+          "withdrawal_summary": {
+            "total_count": 30,
+            "total_amount": 200000.00,
+            "success_count": 28,
+            "processing_count": 2
+          }
+        }
+      }
+      ```
 
-#### 2.1.3 数据同步接口（内部，可选）
-- **POST /internal/api/v1/statement/sync/trigger**：手动触发数据同步任务（用于补数据或测试）
-    - **请求体**: `TriggerSyncRequest`
-    - **响应**: `BaseResponse`
+#### 2.1.4 数据一致性校验接口（内部/管理用）
+- **POST /api/internal/tiancai/reconciliations/verify**
+    - **描述**：触发指定日期和业务类型的数据一致性校验，比对上下游系统数据。
+    - **请求体**：
+      ```json
+      {
+        "institution_code": "TC001",
+        "verify_date": "2025-01-19",
+        "biz_type": "SPLIT_ORDER",
+        "force_regenerate": false
+      }
+      ```
+    - **响应体**：返回校验结果，包括差异明细。
 
-### 2.2 数据结构
+### 2.2 发布/消费的事件
 
-```json
-// SplitOrderStatementResponse (分账指令账单条目)
-{
-  "bizOrderNo": "SPLIT202310270001",
-  "bizType": "COLLECTION",
-  "bizTypeDesc": "资金归集",
-  "payerMerchantNo": "M100001",
-  "payerMerchantName": "北京朝阳门店",
-  "payerAccountNo": "ACC202310270001",
-  "receiverMerchantNo": "M100000",
-  "receiverMerchantName": "北京总部",
-  "receiverAccountNo": "ACC202310270000",
-  "splitAmount": "10000.00",
-  "currency": "CNY",
-  "tradeStatus": "SUCCESS",
-  "tradeTime": "2023-10-27T14:35:00Z",
-  "settlementDate": "2023-10-28",
-  "feeAmount": "5.00",
-  "feeType": "SPLIT_FEE",
-  "underlyingTransactionNo": "TX202310270001", // 资金流水号
-  "walletOrderNo": "WTO202310270001",
-  "createTime": "2023-10-27T14:30:00Z" // 指令创建时间
-}
+#### 2.2.1 消费的事件
+1. **AccountBalanceChangedEvent** (来自账户系统)
+    - **Topic**: `account.events.balance.changed`
+    - **处理逻辑**：核心数据源。消费账户余额变动事件，解析业务类型，记录到`account_ledger`表，并更新相关聚合数据。
+2. **SettlementCompletedEvent** (来自清结算系统)
+    - **Topic**: `settlement.events.completed`
+    - **处理逻辑**：消费结算完成事件，记录收单结算明细，关联到对应的天财收款账户。
+3. **SplitOrderCompletedEvent** (来自行业钱包系统)
+    - **Topic**: `wallet.events.split_order.completed`
+    - **处理逻辑**：消费分账订单完成事件，记录分账业务明细，关联付方和收方账户。
+4. **WithdrawalOrderCompletedEvent** (来自提现系统，假设存在)
+    - **Topic**: `withdrawal.events.order.completed`
+    - **处理逻辑**：消费提现订单完成事件，记录从天财接收方账户提现至银行卡的明细。
+5. **TiancaiAccountCreatedEvent** (来自账户系统)
+    - **Topic**: `account.events.tiancai.created`
+    - **处理逻辑**：消费天财账户创建事件，在对账单系统创建账户基本信息记录，用于关联查询。
 
-// AccountTransactionDetailResponse (机构动账明细条目)
-{
-  "transactionNo": "TX202310270001",
-  "accountNo": "ACC202310270001",
-  "merchantNo": "M100001",
-  "merchantName": "北京朝阳门店",
-  "oppositeAccountNo": "ACC202310270000",
-  "oppositeMerchantNo": "M100000",
-  "oppositeMerchantName": "北京总部",
-  "amount": "-10000.00", // 正为入账，负为出账
-  "balanceBefore": "50000.00",
-  "balanceAfter": "40000.00",
-  "currency": "CNY",
-  "bizType": "TIANCAI_SPLIT",
-  "bizTypeDesc": "天财分账-归集",
-  "bizOrderNo": "SPLIT202310270001",
-  "memo": "2023年10月营业款归集",
-  "transactionTime": "2023-10-27T14:35:00Z",
-  "createTime": "2023-10-27T14:35:01Z"
-}
-
-// SplitOrderFullDetailResponse
-{
-  "orderInfo": { ... }, // 同 SplitOrderStatementResponse
-  "accountTransactions": [ // 关联的所有账户流水
-    {
-      "transactionNo": "TX202310270001",
-      "accountNo": "ACC202310270001",
-      "amount": "-10000.00",
-      "bizType": "TIANCAI_SPLIT",
-      "transactionTime": "2023-10-27T14:35:00Z"
-    },
-    {
-      "transactionNo": "TX202310270002",
-      "accountNo": "ACC202310270000",
-      "amount": "10000.00",
-      "bizType": "TIANCAI_SPLIT",
-      "transactionTime": "2023-10-27T14:35:00Z"
-    }
-  ],
-  "feeDetail": { // 手续费明细
-    "feeOrderNo": "FEE202310270001",
-    "feeAmount": "5.00",
-    "deductAccountNo": "ACC202310270001",
-    "deductTransactionNo": "TX202310270003",
-    "calculateTime": "2023-10-27T14:36:00Z"
-  },
-  "settlementDetail": { // 结算明细（如果该笔资金后来被结算）
-    "settlementTaskNo": "ST202310280001",
-    "settledAmount": "9995.00", // 分账金额 - 手续费
-    "settlementTime": "2023-10-28T02:05:00Z"
-  }
-}
-
-// GenerateStatementFileRequest
-{
-  "fileDate": "2023-10-27", // 账单日期
-  "fileType": "SPLIT_ORDER_STATEMENT", // SPLIT_ORDER_STATEMENT, ACCOUNT_TRANSACTION_DETAIL
-  "merchantNoList": ["M100000", "M100001"] // 为空则生成所有商户
-}
-```
-
-### 2.3 发布的事件
-对账单系统作为事件生产者，可发布以下事件（主要用于内部监控或触发下游流程）：
-
-- **StatementFileGeneratedEvent**：对账文件生成完成。
+#### 2.2.2 发布的事件
+1. **ReconciliationFileGeneratedEvent** (对账文件已生成)
+    - **Topic**: `reconciliation.events.file.generated`
+    - **触发时机**：日终对账文件生成并存储完成。
+    - **Payload**:
     ```json
     {
-      "eventId": "EVT_STMT_FILE_GEN_001",
-      "eventType": "STATEMENT_FILE_GENERATED",
-      "timestamp": "2023-10-28T03:00:00Z",
+      "event_id": "evt_recon_001",
+      "event_type": "RECONCILIATION_FILE_GENERATED",
+      "timestamp": "2025-01-20T02:30:00Z",
       "data": {
-        "fileId": "FILE20231028001",
-        "fileType": "SPLIT_ORDER_STATEMENT",
-        "fileDate": "2023-10-27",
-        "merchantNo": "M100000",
-        "fileUrl": "https://bucket.example.com/statements/20231027/M100000_split.csv",
-        "generateStatus": "SUCCESS"
+        "reconciliation_id": "REC_TC001_20250119_SPLIT",
+        "institution_code": "TC001",
+        "reconciliation_date": "2025-01-19",
+        "biz_type": "SPLIT_ORDER",
+        "file_name": "TC001_分账对账_20250119.csv",
+        "file_path": "/reconciliations/2025/01/19/TC001_SPLIT.csv",
+        "file_format": "CSV",
+        "record_count": 1500,
+        "total_amount": 1500000.00,
+        "download_url": "https://recon.example.com/download/REC_TC001_20250119_SPLIT",
+        "generated_at": "2025-01-20T02:30:00Z"
       }
     }
     ```
-
-### 2.4 消费的事件
-对账单系统作为事件消费者，订阅以下事件以实时或准实时地更新对账数据：
-
-- **SplitTradeRecordedEvent** (来自业务核心)：**核心数据源**。消费此事件，获取分账交易流水，用于生成“天财分账指令账单”。
-- **AccountBalanceChangedEvent** (来自账户系统)：**核心数据源**。消费此事件，获取所有天财专用账户的资金动账流水，用于生成“机构动账明细”。
-- **InternalTransferCompletedEvent** (来自账户系统)：**补充数据源**。可作为`AccountBalanceChangedEvent`的补充或替代，明确转账业务上下文。
-- **SettlementCompletedEvent** (来自清结算系统)：**关联数据源**。获取结算任务完成信息，用于关联和丰富分账指令的结算状态。
-- **FeeCalculatedEvent** (来自清结算系统)：**关联数据源**。获取手续费扣款信息，用于关联到分账指令。
-- **RefundProcessedEvent** (来自清结算系统)：**补充数据源**。获取退货动账信息，纳入机构动账明细。
+2. **DataInconsistencyDetectedEvent** (数据不一致告警)
+    - **Topic**: `reconciliation.events.inconsistency.detected`
+    - **触发时机**：在对账校验过程中发现上下游系统数据存在不可自动修复的差异。
+    - **Payload**: 包含差异类型、涉及账户、日期、金额差异等详细信息。
 
 ## 3. 数据模型
 
 ### 3.1 核心表设计
 
-#### 表：`split_order_statement` (分账指令账单表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| biz_order_no | varchar(32) | Y | 三代系统分账指令号 | UK |
-| wallet_order_no | varchar(32) | Y | 钱包侧分账指令号 | IDX |
-| biz_type | varchar(32) | Y | 业务类型 | IDX |
-| payer_merchant_no | varchar(32) | Y | 付方商户号 | IDX |
-| payer_merchant_name | varchar(128) | Y | 付方商户名称 | |
-| payer_account_no | varchar(32) | Y | 付方账户号 | IDX |
-| receiver_merchant_no | varchar(32) | Y | 收方商户号 | IDX |
-| receiver_merchant_name | varchar(128) | Y | 收方商户名称 | |
-| receiver_account_no | varchar(32) | Y | 收方账户号 | IDX |
-| split_amount | decimal(15,2) | Y | 分账金额 | |
-| currency | char(3) | Y | 币种 | |
-| trade_status | varchar(16) | Y | 交易状态 | IDX |
-| trade_time | datetime | Y | 交易完成时间 | IDX |
-| settlement_date | date | Y | 结算日期（关键对账维度） | IDX |
-| fee_amount | decimal(15,2) | N | 手续费金额 | |
-| fee_type | varchar(32) | N | 手续费类型 | |
-| underlying_transaction_no | varchar(32) | Y | 核心资金流水号（付方或收方） | UK |
-| memo | varchar(256) | N | 备注 | |
-| data_source | varchar(32) | Y | 数据来源: BIZ_CORE | |
-| version | int(11) | Y | 版本号，用于乐观锁及数据更新 | |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
+#### 表：`account_ledger` (账户流水明细表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `sequence_no` | varchar(32) | Y | | **流水序号**，按账户+时间生成，唯一索引 `uk_sequence_no` |
+| `tiancai_account_id` | varchar(32) | Y | | **天财账户ID**，索引 `idx_account_id` |
+| `account_role` | varchar(20) | Y | | 账户角色：`HEADQUARTERS`/`STORE`/`RECEIVER` |
+| `occurred_at` | datetime(6) | Y | | **业务发生时间**（精确到毫秒），索引 `idx_occurred_at` |
+| `recorded_at` | datetime | Y | CURRENT_TIMESTAMP | 系统记录时间 |
+| `biz_date` | date | Y | | **业务日期**（用于按日分区和查询），索引 `idx_biz_date` |
+| `biz_trade_no` | varchar(64) | Y | | **业务交易流水号**（来自上游系统），索引 `idx_biz_trade_no` |
+| `biz_type` | varchar(30) | Y | | **业务类型**：`TIANCAI_SPLIT`/`SETTLEMENT`/`WITHDRAWAL`/`REFUND`/`FEE`/`ADJUSTMENT` |
+| `biz_scene` | varchar(30) | N | | **业务场景**：`COLLECTION`/`BATCH_PAY`/`MEMBER_SETTLE`（仅TIANCAI_SPLIT有效） |
+| `direction` | varchar(10) | Y | | **资金方向**：`CREDIT`(入账)/`DEBIT`(出账) |
+| `amount` | decimal(15,2) | Y | | **变动金额**（元） |
+| `balance_before` | decimal(15,2) | N | | 变动前余额（冗余，便于核对） |
+| `balance_after` | decimal(15,2) | Y | | **变动后余额** |
+| `currency` | varchar(3) | Y | `CNY` | 币种 |
+| `counterparty_account_id` | varchar(32) | N | | **对手方天财账户ID**（如分账的另一方） |
+| `counterparty_name` | varchar(100) | N | | 对手方名称（冗余，便于展示） |
+| `remark` | varchar(500) | N | | 备注/摘要 |
+| `ext_info_json` | json | N | | **扩展信息**（存储上游事件中的原始数据或关联ID） |
+| `institution_code` | varchar(32) | Y | | **天财机构编码**，索引 `idx_institution` |
+| `data_source` | varchar(20) | Y | | **数据来源**：`ACCOUNT_EVENT`/`SETTLEMENT_EVENT`/`WALLET_EVENT` |
+| `recon_status` | varchar(20) | Y | `PENDING` | **对账状态**：`PENDING`/`RECONCILED`/`INCONSISTENT` |
 
-#### 表：`account_transaction_statement` (机构动账明细表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| transaction_no | varchar(32) | Y | 账户系统流水号 | UK |
-| account_no | varchar(32) | Y | 账户号 | IDX |
-| merchant_no | varchar(32) | Y | 所属商户号 | IDX |
-| merchant_name | varchar(128) | Y | 商户名称 | |
-| opposite_account_no | varchar(32) | N | 对手方账户号 | IDX |
-| opposite_merchant_no | varchar(32) | N | 对手方商户号 | IDX |
-| opposite_merchant_name | varchar(128) | N | 对手方商户名称 | |
-| amount | decimal(15,2) | Y | 变动金额（正入负出） | |
-| balance_before | decimal(15,2) | Y | 变动前余额 | |
-| balance_after | decimal(15,2) | Y | 变动后余额 | |
-| currency | char(3) | Y | 币种 | |
-| biz_type | varchar(32) | Y | 业务类型 | IDX |
-| biz_type_desc | varchar(64) | Y | 业务类型描述 | |
-| biz_order_no | varchar(32) | N | 关联业务订单号 | IDX |
-| memo | varchar(256) | N | 备注 | |
-| transaction_time | datetime | Y | 交易时间（账户系统） | IDX |
-| settlement_date | date | N | 结算日期（从关联业务推导） | IDX |
-| data_source | varchar(32) | Y | 数据来源: ACCOUNT_SYS, SETTLEMENT_SYS | |
-| create_time | datetime | Y | 创建时间 | IDX |
-| update_time | datetime | Y | 更新时间 | |
+#### 表：`reconciliation_file` (对账文件表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `reconciliation_id` | varchar(32) | Y | | **对账文件ID**，唯一索引 `uk_reconciliation_id` |
+| `institution_code` | varchar(32) | Y | | 天财机构编码，索引 `idx_institution` |
+| `reconciliation_date` | date | Y | | **对账日期**，索引 `idx_reconciliation_date` |
+| `biz_type` | varchar(30) | Y | | **业务类型**：`SPLIT_ORDER`/`WITHDRAWAL`/`ACQUIRING`/`ALL` |
+| `file_name` | varchar(255) | Y | | 文件名 |
+| `file_format` | varchar(10) | Y | `CSV` | 文件格式：`CSV`/`EXCEL` |
+| `file_path` | varchar(512) | Y | | 文件存储路径（对象存储或本地） |
+| `file_size` | bigint | N | | 文件大小（字节） |
+| `download_url` | varchar(512) | N | | 下载链接（可能有时效性） |
+| `record_count` | int | Y | 0 | 记录条数 |
+| `total_amount` | decimal(15,2) | N | | 总金额（根据业务类型） |
+| `checksum` | varchar(64) | N | | 文件校验和（MD5/SHA256） |
+| `status` | varchar(20) | Y | `GENERATING` | 状态：`GENERATING`/`AVAILABLE`/`EXPIRED`/`DELETED` |
+| `generated_at` | datetime | N | | 生成时间 |
+| `expire_at` | datetime | N | | 链接过期时间 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | |
 
-#### 表：`statement_file` (对账文件表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| file_id | varchar(32) | Y | 文件唯一ID | UK |
-| file_type | varchar(32) | Y | 文件类型 | IDX |
-| file_date | date | Y | 文件对应账单日期 | IDX |
-| merchant_no | varchar(32) | Y | 商户号 | IDX |
-| file_name | varchar(256) | Y | 文件名 | |
-| file_url | varchar(512) | Y | 文件存储地址 | |
-| file_size | bigint(20) | Y | 文件大小(字节) | |
-| row_count | int(11) | Y | 文件行数（数据条数） | |
-| generate_status | varchar(16) | Y | 生成状态 | IDX |
-| generate_time | datetime | Y | 生成时间 | IDX |
-| create_time | datetime | Y | 创建时间 | |
+#### 表：`tiancai_account_info` (天财账户信息表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `tiancai_account_id` | varchar(32) | Y | | **天财账户ID**，唯一索引 `uk_tiancai_account_id` |
+| `merchant_no` | varchar(32) | Y | | 收单商户号，索引 `idx_merchant_no` |
+| `account_role` | varchar(20) | Y | | 角色：`HEADQUARTERS`/`STORE`/`RECEIVER` |
+| `account_type` | varchar(20) | Y | | 类型：`TIANCAI_RECEIVE`/`TIANCAI_RECEIVER` |
+| `account_status` | varchar(20) | Y | `ACTIVE` | 账户状态 |
+| `institution_code` | varchar(32) | Y | | 天财机构编码，索引 `idx_institution` |
+| `account_name` | varchar(100) | N | | 账户名称（企业/门店名称） |
+| `legal_person` | varchar(50) | N | | 法人/负责人 |
+| `contact_phone` | varchar(20) | N | | 联系电话 |
+| `created_at` | datetime | Y | | 账户创建时间 |
+| `synced_at` | datetime | Y | CURRENT_TIMESTAMP | 信息同步时间 |
 
-#### 表：`data_sync_log` (数据同步日志表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | bigint(20) | Y | 自增主键 | PK |
-| sync_batch_no | varchar(32) | Y | 同步批次号 | IDX |
-| data_source | varchar(32) | Y | 数据源系统 | IDX |
-| sync_type | varchar(32) | Y | 同步类型: EVENT, SCHEDULED | |
-| sync_date | date | Y | 同步数据日期 | IDX |
-| sync_status | varchar(16) | Y | 状态 | IDX |
-| start_time | datetime | Y | 开始时间 | |
-| end_time | datetime | N | 结束时间 | |
-| success_count | int(11) | N | 成功条数 | |
-| fail_count | int(11) | N | 失败条数 | |
-| error_message | text | N | 错误信息 | |
-| create_time | datetime | Y | 创建时间 | |
+#### 表：`daily_summary` (日终汇总表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `summary_date` | date | Y | | **汇总日期**，唯一键 `uk_date_institution_type` |
+| `institution_code` | varchar(32) | Y | | **天财机构编码**，唯一键 `uk_date_institution_type` |
+| `summary_type` | varchar(30) | Y | | **汇总类型**：`ACCOUNT`/`SETTLEMENT`/`SPLIT`/`WITHDRAWAL`，唯一键 `uk_date_institution_type` |
+| `metric_key` | varchar(50) | Y | | **指标键**，如 `total_balance`, `split_count`, `settle_amount` |
+| `metric_value` | decimal(20,2) | Y | | **指标值** |
+| `dimension_json` | json | N | | **维度信息**（如按场景、按账户角色等分组） |
+| `calculated_at` | datetime | Y | CURRENT_TIMESTAMP | 计算时间 |
 
 ### 3.2 与其他模块的关系
-- **业务核心**：**核心数据上游**。`split_order_statement` 表的主要数据来源于业务核心的 `split_trade` 表（通过事件或接口）。两者通过 `biz_order_no` 和 `underlying_transaction_no` 强关联。
-- **账户系统**：**核心数据上游**。`account_transaction_statement` 表的主要数据来源于账户系统的 `account_transaction` 表（通过事件）。两者通过 `transaction_no` 强关联。
-- **清结算系统**：**重要关联数据上游**。`settlement_detail`, `fee_order`, `refund_order` 表的数据用于丰富和关联 `split_order_statement` 和 `account_transaction_statement` 的记录（如关联手续费、结算批次）。
-- **三代系统**：**数据消费者与服务对象**。三代系统调用本模块的查询接口，为商户呈现账单；同时，三代系统的 `split_order` 表是业务源头，但其最终交易数据已由业务核心同步。
-- **行业钱包系统**：**间接关联**。通过 `wallet_order_no` 关联，但数据已通过业务核心同步，无直接交互。
+- **账户系统**：
+  - 消费`AccountBalanceChangedEvent`作为核心流水数据源。
+  - 通过`tiancai_account_id`关联，可能需要调用查询接口补全账户信息。
+- **清结算系统**：
+  - 消费`SettlementCompletedEvent`获取收单结算明细。
+  - 可能需要调用查询接口获取结算汇总数据。
+- **行业钱包系统**：
+  - 消费`SplitOrderCompletedEvent`获取分账业务明细。
+  - 可能需要调用查询接口获取分账订单详情。
+- **三代系统/业务核心**：
+  - 通过`institution_code`和`merchant_no`关联机构与商户信息。
+  - 为三代系统的运营后台提供对账数据查询服务。
+- **文件存储服务**：存储生成的对账文件，提供下载链接。
 
 ## 4. 业务逻辑
 
-### 4.1 核心算法
-- **数据关联算法**：
-    - **分账指令关联资金流水**：通过 `underlying_transaction_no` (业务核心提供) 关联到账户系统的 `transaction_no`，找到付方和收方的两条流水记录。
-    - **资金流水关联业务**：通过 `biz_order_no` (账户流水携带) 关联回分账指令，补充业务语义。
-    - **关联手续费与结算**：通过 `biz_order_no` 查询清结算系统的 `fee_order` 和 `settlement_detail` 表（或消费对应事件），将信息挂载到分账指令账单下。
-- **数据去重与合并**：基于 `transaction_no` 和 `biz_order_no` 等唯一键，对来自事件的数据进行幂等处理，防止重复记录。
-- **批量文件生成**：采用“分页查询 -> 内存组装 -> 流式写入文件”的方式生成大型对账文件，避免内存溢出。
+### 4.1 核心算法与规则
+
+#### 4.1.1 事件处理与流水记录算法
+```python
+class AccountLedgerProcessor:
+    
+    def process_balance_changed_event(self, event: AccountBalanceChangedEvent):
+        """
+        处理账户余额变动事件，记录流水
+        1. 解析事件，映射业务类型和场景
+        2. 关联天财账户信息
+        3. 计算变动前后余额（可能需要查询当前余额）
+        4. 记录流水，标记对账状态
+        """
+        # 1. 解析事件
+        account_id = event.data['account_no']  # 需要映射为tiancai_account_id
+        biz_trade_no = event.data['biz_trade_no']
+        biz_type = self.map_biz_type(event.data['biz_type'])
+        
+        # 2. 获取账户信息（缓存或查询）
+        account_info = self.get_account_info(account_id)
+        if not account_info:
+            logger.warning(f"账户信息不存在: {account_id}, 事件丢弃")
+            return
+        
+        # 3. 计算余额（对于首次记录，可能需要查询期初余额）
+        # 假设事件中已包含变动金额和方向，我们需要计算变动后余额
+        # 实际可能需要查询账户系统或基于上一条流水计算
+        balance_before, balance_after = self.calculate_balances(
+            account_id, event.data['direction'], event.data['amount'], biz_trade_no
+        )
+        
+        # 4. 构建流水记录
+        ledger_entry = AccountLedger(
+            sequence_no=self.generate_sequence_no(account_id),
+            tiancai_account_id=account_info.tiancai_account_id,
+            account_role=account_info.account_role,
+            occurred_at=event.timestamp,
+            biz_date=event.timestamp.date(),
+            biz_trade_no=biz_trade_no,
+            biz_type=biz_type,
+            biz_scene=self.extract_biz_scene(event.data),
+            direction=event.data['direction'],
+            amount=event.data['amount'],
+            balance_before=balance_before,
+            balance_after=balance_after,
+            currency=event.data.get('currency', 'CNY'),
+            counterparty_account_id=self.extract_counterparty(event.data),
+            counterparty_name=self.get_counterparty_name(event.data),
+            remark=self.generate_remark(event.data),
+            ext_info_json=event.data.get('ext_info', {}),
+            institution_code=account_info.institution_code,
+            data_source='ACCOUNT_EVENT',
+            recon_status='PENDING'
+        )
+        
+        # 5. 保存流水（事务内）
+        with transaction.atomic():
+            ledger_entry.save()
+            # 更新日终汇总数据（增量更新）
+            self.update_daily_summary(ledger_entry)
+    
+    def map_biz_type(self, original_biz_type):
+        """
+        将上游系统的业务类型映射为对账单系统的标准业务类型
+        """
+        mapping = {
+            'TIANCAI_SPLIT': 'TIANCAI_SPLIT',
+            'SETTLEMENT': 'SETTLEMENT',
+            'REFUND': 'REFUND',
+            'FEE_DEDUCTION': 'FEE',
+            'ADJUSTMENT': 'ADJUSTMENT',
+            'WITHDRAWAL': 'WITHDRAWAL'
+        }
+        return mapping.get(original_biz_type, 'OTHER')
+```
+
+#### 4.1.2 对账文件生成算法
+```python
+class ReconciliationFileGenerator:
+    
+    def generate_daily_reconciliation(self, institution_code, recon_date, biz_type):
+        """
+        生成日终对账文件
+        1. 查询指定日期和业务类型的流水数据
+        2. 按业务类型进行数据转换和格式化
+        3. 生成文件并上传到存储服务
+        4. 记录文件元数据，发布生成事件
+        """
+        # 1. 查询流水数据
+        query_filters = {
+            'institution_code': institution_code,
+            'biz_date': recon_date,
+            'recon_status': 'RECONCILED'  # 只使用已对账的数据
+        }
+        
+        if biz_type != 'ALL':
+            query_filters['biz_type'] = self.map_to_ledger_biz_type(biz_type)
+        
+        ledger_entries = AccountLedger.objects.filter(**query_filters).order_by('occurred_at')
+        
+        if not ledger_entries:
+            logger.info(f"无流水数据，跳过生成: {institution_code}, {recon_date}, {biz_type}")
+            return None
+        
+        # 2. 按业务类型进行数据转换
+        records = []
+        total_amount = 0
+        
+        for entry in ledger_entries:
+            record = self.transform_ledger_to_recon_record(entry, biz_type)
+            records.append(record)
+            if entry.direction == 'CREDIT':
+                total_amount += entry.amount
+            else:
+                total_amount -= entry.amount
+        
+        # 3. 生成文件
+        file_content = self.format_to_csv(records) if file_format == 'CSV' else self.format_to_excel(records)
+        
+        # 上传到对象存储
+        file_name = f"{institution_code}_{self.get_biz_type_name(biz_type)}_{recon_date}.{file_format.lower()}"
+        file_path = f"reconciliations/{recon_date.year}/{recon_date.month:02d}/{recon_date.day:02d}/{file_name}"
+        
+        download_url = storage_service.upload(file_path, file_content, file_format)
+        
+        # 4. 保存文件记录
+        recon_file = ReconciliationFile(
+            reconciliation_id=f"REC_{institution_code}_{recon_date}_{biz_type}",
+            institution_code=institution_code,
+            reconciliation_date=recon_date,
+            biz_type=biz_type,
+            file_name=file_name,
+            file_format=file_format,
+            file_path=file_path,
+            file_size=len(file_content),
+            download_url=download_url,
+            record_count=len(records),
+            total_amount=total_amount,
+            status='AVAILABLE',
+            generated_at=datetime.now(),
+            expire_at=datetime.now() + timedelta(days=30)  # 30天有效期
+        )
+        recon_file.save()
+        
+        # 5. 发布事件
+        event_publisher.publish(ReconciliationFileGeneratedEvent(
+            reconciliation_id=recon_file.reconciliation_id,
+            institution_code=institution_code,
+            reconciliation_date=recon_date,
+            biz_type=biz_type,
+            file_name=file_name,
+            file_path=file_path,
+            file_format=file_format,
+            record_count=len(records),
+            total_amount=total_amount,
+            download_url=download_url,
+            generated_at=recon_file.generated_at
+        ))
+        
+        return recon_file
+    
+    def transform_ledger_to_recon_record(self, ledger_entry, target_biz_type):
+        """
+        将流水记录转换为对账文件中的一行记录
+        根据目标业务类型决定包含哪些字段
+        """
+        if target_biz_type == 'SPLIT_ORDER':
+            return {
+                '流水号': ledger_entry.sequence_no,
+                '交易时间': ledger_entry.occurred_at.strftime('%Y-%m-%d %H:%M:%S'),
+                '付方账户ID': ledger_entry.counterparty_account_id if ledger_entry.direction == 'CREDIT' else ledger_entry.tiancai_account_id,
+                '收方账户ID': ledger_entry.tiancai_account_id if ledger_entry.direction == 'CREDIT' else ledger_entry.counterparty_account_id,
+                '业务场景': ledger_entry.biz_scene,
+                '金额(元)': f"{ledger_entry.amount:.2f}",
+                '方向': '收入' if ledger_entry.direction == 'CREDIT' else '支出',
+                '余额(元)': f"{ledger_entry.balance_after:.2f}",
+                '备注': ledger_entry.remark,
+                '关联订单号': ledger_entry.ext_info_json.get('split_order_id', '')
+            }
+        elif target_biz_type == 'ACQUIRING':
+            # 收单结算对账格式
+            pass
+        # ... 其他业务类型
+```
+
+#### 4.1.3 数据一致性校验算法
+```python
+class DataConsistencyChecker:
+    
+    def verify_settlement_data(self, institution_code, verify_date):
+        """
+        校验清结算数据一致性
+        1. 从对账单系统查询当日所有SETTLEMENT类型的流水
+        2. 从清结算系统查询当日所有结算记录（通过API）
+        3. 按商户/账户进行比对
+        4. 记录差异并告警
+        """
+        # 1. 查询本地流水
+        local_settlements = AccountLedger.objects.filter(
+            institution_code=institution_code,
+            biz_date=verify_date,
+            biz_type='SETTLEMENT'
+        ).values('biz_trade_no', 'tiancai_account_id', 'amount', 'direction')
+        
+        # 2. 查询清结算系统记录
+        settlement_records = settlement_service.query_settlement_records(
+            institution_code, verify_date
+        )
+        
+        # 3. 构建比对映射
+        local_map = {(item['biz_trade_no'], item['tiancai_account_id']): item for item in local_settlements}
+        remote_map = {(item['biz_settle_no'], item['target_tiancai_account_id']): item for item in settlement_records}
+        
+        # 4. 比对
+        discrepancies = []
+        
+        # 检查清结算系统有但对账单系统没有的记录
+        for key, remote_item in remote_map.items():
+            if key not in local_map:
+                discrepancies.append({
+                    'type': 'MISSING_LOCAL',
+                    'biz_trade_no': remote_item['biz_settle_no'],
+                    'account_id': remote_item['target_tiancai_account_id'],
+                    'remote_amount': remote_item['net_amount'],
+                    'local_amount': None
+                })
+        
+        # 检查对账单系统有但清结算系统没有的记录
+        for key, local_item in local_map.items():
+            if key not in remote_map:
+                discrepancies.append({
+                    'type': 'MISSING_REMOTE',
+                    'biz_trade_no': local_item['biz_trade_no'],
+                    'account_id': local_item['tiancai_account_id'],
+                    'remote_amount': None,
+                    'local_amount': local_item['amount']
+                })
+        
+        # 检查金额不一致的记录
+        common_keys = set(local_map.keys()) & set(remote_map.keys())
+        for key in common_keys:
+            local_item = local_map[key]
+            remote_item = remote_map[key]
+            if abs(local_item['amount'] - remote_item['net_amount']) > 0.01:  # 允许1分误差
+                discrepancies.append({
+                    'type': 'AMOUNT_MISMATCH',
+                    'biz_trade_no': key[0],
+                    'account_id': key[1],
+                    'remote_amount': remote_item['net_amount'],
+                    'local_amount': local_item['amount'],
+                    'difference': local_item['amount'] - remote_item['net_amount']
+                })
+        
+        # 5. 处理差异
+        if discrepancies:
+            logger.error(f"发现数据不一致: {len(discrepancies)}条差异")
+            # 发布告警事件
+            event_publisher.publish(DataInconsistencyDetectedEvent(
+                institution_code=institution_code,
+                verify_date=verify_date,
+                biz_type='SETTLEMENT',
+                discrepancy_count=len(discrepancies),
+                discrepancies=discrepancies[:10]  # 只取前10条详情
+            ))
+            
+            # 标记不一致的流水记录
+            for disc in discrepancies:
+                if disc['type'] != 'MISSING_REMOTE':
+                    AccountLedger.objects.filter(
+                        biz_trade_no=disc['biz_trade_no'],
+                        tiancai_account_id=disc['account_id']
+                    ).update(recon_status='INCONSISTENT')
+        
+        return len(discrepancies) == 0, discrepancies
+```
 
 ### 4.2 业务规则
-1. **数据同步规则**：
-    - **事件驱动为主，定时补漏为辅**：优先通过消费领域事件获取实时数据。同时，设立定时任务（如每日凌晨）扫描上游系统，补全可能因事件丢失而缺失的数据。
-    - **数据最终一致性**：允许数据在T+1日内达到最终一致。T+1日生成的对账文件应包含T日所有最终状态的交易。
-    - **状态同步**：当消费到业务核心的 `SplitTradeRecordedEvent` 时，若该 `biz_order_no` 已存在，且事件中的状态更新（如从FAILED变为SUCCESS），应更新本地账单记录。
 
-2. **账单生成规则**：
-    - **分账指令账单**：以“交易完成时间 (`trade_time`)”所在自然日作为“交易日期”，以“结算日期 (`settlement_date`)”作为“结算批次”维度。一笔分账指令对应一条账单记录。
-    - **机构动账明细**：以“交易时间 (`transaction_time`)”所在自然日作为“交易日期”。一笔账户流水对应一条明细记录。需根据 `amount` 正负和 `biz_type` 生成易于理解的“收支类型”描述。
-    - **文件生成**：按“商户+账单日期+文件类型”生成唯一文件。文件内容应包含表头，格式为CSV（默认）或Excel。
+1. **流水记录规则**：
+   - 每条流水必须有唯一的`sequence_no`，格式：`YYYYMMDD` + `账户序列` + `6位自增`。
+   - 流水按`occurred_at`（业务发生时间）排序，而非系统记录时间。
+   - 对于分账交易，需同时记录付方和收方的流水，且金额相等、方向相反。
+   - 余额计算：`balance_after = balance_before + (CREDIT金额) - (DEBIT金额)`。
 
-3. **数据展示规则**：
-    - 对商户查询时，默认只展示该商户作为付方或收方的记录。
-    - 动账明细的“对方商户/账户”信息应尽可能填充，对于系统内部账户（如01、04账户）可显示为固定名称。
+2. **对账文件生成规则**：
+   - 日终对账文件在T+1日凌晨2点定时生成。
+   - 只包含状态为`RECONCILED`（已对账）的流水记录。
+   - 文件生成后有效期为30天，过期后链接失效（文件可归档）。
+   - 支持按机构、业务类型（分账、提款、收单）生成独立文件。
+
+3. **数据一致性规则**：
+   - 每日凌晨3点执行数据一致性校验（在生成对账文件之后）。
+   - 允许的金额误差为±0.01元（处理浮点数精度问题）。
+   - 发现不一致时，标记相关流水为`INCONSISTENT`，并发布告警事件。
+   - 支持手动触发重新对账和修复。
+
+4. **账户信息同步规则**：
+   - 消费`TiancaiAccountCreatedEvent`时创建或更新账户信息。
+   - 每日同步一次账户状态信息（从账户系统或行业钱包系统）。
+   - 账户关闭或冻结时，仍保留历史流水记录，但标记账户状态。
+
+5. **查询性能优化规则**：
+   - `account_ledger`表按`biz_date`进行分区（按日或按月）。
+   - 高频查询字段建立复合索引（如`(tiancai_account_id, occurred_at)`）。
+   - 日终汇总数据预计算，避免实时聚合大表。
 
 ### 4.3 验证逻辑
-- **事件数据验证**：消费事件时，校验必要字段（如ID、金额、时间）是否存在且有效。无效事件记录日志并告警，但不应阻塞正常流程。
-- **数据一致性校验**：定时运行校验任务，比对本模块 `split_order_statement` 与业务核心 `split_trade` 表在关键日期范围内的数据量、金额总和，发现差异时告警。
-- **文件生成验证**：文件生成后，校验文件行数与数据库查询结果是否一致，文件大小是否正常，并可进行抽样数据对比。
+
+#### 4.3.1 事件数据验证
+```python
+def validate_event_data(event_data, expected_schema):
+    """
+    验证上游事件数据的完整性和有效性
+    """
+    errors = []
+    
+    # 1. 必填字段检查
+    required_fields = ['account_no', 'biz_trade_no', 'biz_type', 'direction', 'amount']
+    for field in required_fields:
+        if field not in event_data:
+            errors.append(f"缺少必填字段: {field}")
+    
+    # 2. 金额有效性
+    if 'amount' in event_data:
+        try:
+            amount = float(event_data['amount'])
+            if amount <= 0:
+                errors.append("金额必须大于0")
+            if amount > 100000000:  # 1亿元上限
+                errors.append("金额超过系统上限")
+        except (ValueError, TypeError):
+            errors.append("金额格式错误")
+    
+    # 3. 方向有效性
+    if 'direction' in event_data and event_data['direction'] not in ['CREDIT', 'DEBIT']:
+        errors.append("方向必须为CREDIT或DEBIT")
+    
+    # 4. 业务类型有效性
+    valid_biz_types = ['TIANCAI_SPLIT', 'SETTLEMENT', 'REFUND', 'FEE', 'ADJUSTMENT', 'WITHDRAWAL']
+    if 'biz_type' in event_data and event_data['biz_type'] not in valid_biz_types:
+        errors.append(f"无效的业务类型: {event_data['biz_type']}")
+    
+    if errors:
+        raise ValidationError("; ".join(errors))
+    
+    return True
+```
+
+#### 4.3.2 对账文件生成前置校验
+```python
+def precheck_reconciliation_generation(institution_code, recon_date, biz_type):
+    """
+    对账文件生成前置检查
+    """
+    # 1. 检查日期有效性
+    if recon_date > date.today():
+        raise BusinessError("对账日期不能晚于今天")
+    
+    # 2. 检查是否已生成过
+    existing = ReconciliationFile.objects.filter(
+        institution_code=institution_code,
+        reconciliation_date=recon_date,
+        biz_type=biz_type,
+        status='AVAILABLE'
+    ).first()
+    
+    if existing:
+        raise BusinessError(f"对账文件已存在: {existing.reconciliation_id}")
+    
+    # 3. 检查是否有待对账的数据
+    pending_count = AccountLedger.objects.filter(
+        institution_code=institution_code,
+        biz_date=recon_date,
+        recon_status='PENDING'
+    ).count()
+    
+    if pending_count > 0:
+        raise BusinessError(f"仍有{pending_count}条流水待对账，请先完成对账")
+    
+    # 4. 检查机构有效性
+    if not institution_service.is_valid(institution_code):
+        raise BusinessError(f"无效的机构编码: {institution_code}")
+    
+    return True
+```
 
 ## 5. 时序图
 
-### 5.1 事件驱动数据同步流程
+### 5.1 账户动账流水记录流程（事件驱动）
 ```mermaid
 sequenceDiagram
+    participant 账户系统 as 账户系统
     participant MQ as 消息队列
-    participant BS as 对账单系统
-    participant DB as 数据库
+    participant 处理器 as 流水处理器
+    participant 数据库 as 数据库
+    participant 缓存 as 缓存服务
 
-    Note over MQ: 业务核心发布SplitTradeRecordedEvent
-    MQ->>BS: 消费 SplitTradeRecordedEvent
-    BS->>BS: 1. 解析事件，提取核心数据
-    BS->>DB: 2. 根据biz_order_no查询是否已存在
-    alt 记录不存在
-        BS->>DB: 3. 插入split_order_statement记录
-        BS->>BS: 4. 根据underlying_transaction_no，异步查询账户系统<br>获取关联的account_transaction记录
-        BS->>DB: 5. 插入/更新account_transaction_statement记录
-    else 记录已存在
-        BS->>DB: 3. 对比版本/状态，决定是否更新
+    账户系统->>MQ: 发布 AccountBalanceChangedEvent
+    MQ->>处理器: 消费事件
+    处理器->>处理器: 1. 解析事件，验证数据
+    处理器->>缓存: 2. 查询账户信息缓存(tiancai_account_id)
+    alt 缓存命中
+        缓存-->>处理器: 返回账户信息
+    else 缓存未命中
+        处理器->>数据库: 查询账户信息
+        数据库-->>处理器: 返回账户信息
+        处理器->>缓存: 更新缓存
     end
-    BS->>DB: 记录data_sync_log (EVENT类型)
+    处理器->>数据库: 3. 查询上一条流水(获取balance_before)
+    数据库-->>处理器: 返回上一条流水
+    处理器->>处理器: 4. 计算balance_after
+    处理器->>数据库: 5. 插入新流水记录(事务)
+    处理器->>数据库: 6. 更新日终汇总表(增量)
+    数据库-->>处理器: 操作成功
+    处理器->>处理器: 7. 标记对账状态为PENDING
 ```
 
-### 5.2 T+1日对账文件生成流程
+### 5.2 日终对账文件生成流程
 ```mermaid
 sequenceDiagram
-    participant Scheduler as 定时任务
-    participant BS as 对账单系统
-    participant DB as 数据库
-    participant FS as 文件存储(OSS/S3)
+    participant 调度器 as 定时任务调度器
+    participant 生成器 as 对账文件生成器
+    participant 数据库 as 数据库
+    participant 存储 as 对象存储服务
     participant MQ as 消息队列
 
-    Scheduler->>BS: 触发T-1日对账文件生成任务 (fileDate=T-1)
-    BS->>DB: 1. 查询需要生成文件的商户列表
-    loop 每个商户
-        BS->>DB: 2. 查询该商户T-1日的split_order_statement数据
-        BS->>DB: 3. 查询该商户T-1日的account_transaction_statement数据
-        BS->>BS: 4. 数据组装、格式化
-        BS->>FS: 5. 上传生成的对账文件(CSV)
-        BS->>DB: 6. 插入statement_file记录
-        BS->>MQ: 发布StatementFileGeneratedEvent
+    调度器->>生成器: 触发T+1日对账任务(02:00)
+    生成器->>数据库: 1. 查询待生成对账的机构列表
+    数据库-->>生成器: 返回机构列表[TC001, TC002]
+    
+    loop 每个机构
+        生成器->>生成器: 2. 前置检查(日期、状态等)
+        生成器->>数据库: 3. 查询当日已对账流水
+        数据库-->>生成器: 返回流水记录
+        
+        alt 有流水数据
+            生成器->>生成器: 4. 数据转换与格式化
+            生成器->>存储: 5. 上传文件到对象存储
+            存储-->>生成器: 返回下载URL
+            生成器->>数据库: 6. 记录文件元数据
+            生成器->>MQ: 7. 发布ReconciliationFileGeneratedEvent
+        else 无流水数据
+            生成器->>生成器: 记录日志，跳过
+        end
     end
-    BS->>DB: 7. 记录data_sync_log (SCHEDULED类型)
 ```
 
-### 5.3 商户查询分账指令账单流程
+### 5.3 数据一致性校验流程
 ```mermaid
 sequenceDiagram
-    participant M as 商户(通过三代系统)
-    participant C as 三代系统
-    participant BS as 对账单系统
-    participant DB as 数据库
+    participant 调度器 as 定时任务调度器
+    participant 校验器 as 数据一致性校验器
+    participant 数据库 as 数据库(对账单系统)
+    participant 清结算 as 清结算系统API
+    participant 钱包 as 行业钱包系统API
+    participant MQ as 消息队列
 
-    M->>C: 请求查看分账账单
-    C->>BS: GET /statement/split-orders?merchantNo=M100001&tradeDateStart=...
-    BS->>DB: 执行分页查询split_order_statement表
-    DB-->>BS: 返回账单数据
-    BS-->>C: 返回PageResponse<SplitOrderStatementResponse>
-    C-->>M: 渲染展示账单列表
+    调度器->>校验器: 触发T+1日数据校验(03:00)
+    
+    par 校验清结算数据
+        校验器->>数据库: 1. 查询本地SETTLEMENT流水
+        数据库-->>校验器: 返回本地记录
+        校验器->>清结算: 2. 查询结算记录API
+        清结算-->>校验器: 返回远程记录
+        校验器->>校验器: 3. 比对记录，找出差异
+        alt 发现差异
+            校验器->>数据库: 4. 标记不一致流水
+            校验器->>MQ: 5. 发布DataInconsistencyDetectedEvent
+        end
+    and 校验分账数据
+        校验器->>数据库: 1. 查询本地TIANCAI_SPLIT流水
+        数据库-->>校验器: 返回本地记录
+        校验器->>钱包: 2. 查询分账订单API
+        钱包-->>校验器: 返回远程记录
+        校验器->>校验器: 3. 比对记录，找出差异
+        alt 发现差异
+            校验器->>数据库: 4. 标记不一致流水
+            校验器->>MQ: 5. 发布DataInconsistencyDetectedEvent
+        end
+    end
 ```
 
 ## 6. 错误处理
 
-### 6.1 预期错误及HTTP状态码
-- **400 Bad Request**：查询参数无效（如日期格式错误、不支持的业务类型）。
-- **404 Not Found**：请求的对账文件不存在。
-- **409 Conflict**：正在生成对账文件，重复触发。
-- **422 Unprocessable Entity**：文件生成失败（如数据异常、存储不可用）。
-- **500 Internal Server Error**：数据同步内部错误、数据库异常。
+### 6.1 预期错误码列表
+| 错误码 | HTTP状态码 | 描述 | 处理策略 |
+| :--- | :--- | :--- | :--- |
+| `RECON_FILE_NOT_FOUND` | 404 | 对账文件不存在或已过期 | 检查文件ID和有效期，可触发重新生成 |
+| `RECON_GENERATION_IN_PROGRESS` | 409 | 对账文件正在生成中 | 返回当前生成状态，提示稍后重试 |
+| `INVALID_RECON_DATE` | 400 | 对账日期无效（未来日期） | 检查日期参数，只允许生成历史日期对账 |
+| `NO_DATA_FOR_RECON` | 404 | 指定日期无对账数据 | 返回空结果，或提示选择其他日期 |
+| `ACCOUNT_NOT_FOUND` | 404 | 天财账户不存在 | 检查账户ID，或等待账户信息同步 |
+| `EVENT_DATA_INVALID` | 400 | 事件数据格式或内容无效 | 记录错误日志，丢弃事件，监控异常事件源 |
+| `DATA_SOURCE_UNAVAILABLE` | 503 | 上游数据源（API）不可用 | 实现熔断机制，对账任务暂停并告警 |
+| `STORAGE_SERVICE_ERROR` | 500 | 文件存储服务错误 | 重试上传，多次失败后标记生成失败 |
+| `DATA_INCONSISTENCY` | 500 | 数据一致性校验失败 | 记录差异详情，发布告警，需人工介入 |
+| `QUERY_TIMEOUT` | 504 | 查询超时（大数据量） | 优化查询，添加分页，使用预聚合数据 |
 
 ### 6.2 处理策略
-- **事件消费失败**：消息队列应配置死信队列。对于因数据格式错误导致的永久失败，事件进入死信队列并告警，由人工排查。对于暂时性失败（如网络抖动），依靠消息队列的重试机制。
-- **数据同步补漏**：定时补漏任务发现数据缺失时，首先尝试调用上游系统的查询接口补数据。补数据失败应记录详细日志并告警，但不影响当日已生成文件的正确性（缺失数据纳入次日文件或生成差错文件）。
-- **文件生成失败**：
-    - 若单个商户文件生成失败（如存储上传失败），记录失败状态，不影响其他商户文件生成。任务可配置重试机制。
-    - 若全局性失败（如数据库连接不上），整个生成任务失败，发出高级别告警。
-- **查询性能下降**：`split_order_statement` 和 `account_transaction_statement` 表数据量巨大，需通过 `settlement_date`, `trade_time`, `merchant_no` 等索引优化查询。对于历史数据，提供归档或分表策略。
+1. **事件处理错误**：
+   - **数据格式错误**：记录详细错误日志，丢弃无效事件，监控异常事件源。
+   - **依赖服务不可用**（如账户信息查询）：将事件放入死信队列，等待服务恢复后重试。
+   - **重复事件**：基于`biz_trade_no`实现幂等，重复事件直接忽略。
+
+2. **对账文件生成错误**：
+   - **生成过程中失败**：标记文件状态为`FAILED`，记录错误原因，支持手动重试。
+   - **存储服务失败**：实现重试机制（3次指数退避），最终失败则告警。
+   - **数据量过大**：支持分片生成，或优化查询使用游标分批处理。
+
+3. **数据一致性校验错误**：
+   - **上游API不可用**：跳过本次校验，记录日志并告警，下次重试。
+   - **发现数据差异**：标记不一致记录，发布告警事件，但不阻断主流程。
+   - **自动修复**：对于明确可修复的差异（如金额舍入误差），可自动调整并记录修复日志。
+
+4. **查询接口错误**：
+   - **参数错误**：返回明确的错误提示，指导调用方修正。
+   - **数据量过大**：强制分页，限制单次查询时间范围（如最多31天）。
+   - **敏感数据访问**：实现机构/账户级别的数据权限控制。
+
+5. **监控与告警**：
+   - **关键指标监控**：事件处理延迟、对账文件生成成功率、数据一致性差异数。
+   - **错误率监控**：各接口错误率、事件处理错误率。
+   - **数据延迟监控**：流水记录延迟（事件发生到入库的时间差）。
+   - **容量监控**：数据库表大小、文件存储使用量。
 
 ## 7. 依赖说明
 
-### 7.1 上游模块交互（数据提供方）
-1. **业务核心**：
-    - **交互关系**：**异步消息消费 + 可选同步RPC调用**。
-    - **数据流**：消费 `SplitTradeRecordedEvent` 事件，获取分账交易流水。这是 `split_order_statement` 表的主数据源。
-    - **交互要点**：需理解事件数据的完整语义，并实现消费幂等。网络隔离等情况下，可提供查询接口供本模块主动拉取补数。
+### 7.1 上游依赖（数据来源）
 
-2. **账户系统**：
-    - **交互关系**：**异步消息消费 + 同步RPC调用**。
-    - **数据流**：消费 `AccountBalanceChangedEvent` 或 `InternalTransferCompletedEvent`，获取资金动账流水。这是 `account_transaction_statement` 表的主数据源。
-    - **交互要点**：动账事件频率可能很高，需保证消费端处理性能。同时，需提供按流水号或时间范围查询的接口，用于数据补全和关联查询。
+| 依赖系统 | 交互场景 | 接口方式 | 关键要求与注意事项 |
+| :--- | :--- | :--- | :--- |
+| **账户系统** | 1. 消费账户余额变动事件<br>2. 查询账户信息（补全）<br>3. 消费账户创建事件 | 异步事件消费 + 同步REST API | 1. 事件格式需稳定，包含必要业务信息<br>2. 事件顺序需保证（至少分区有序）<br>3. 需要账户ID到天财账户ID的映射关系 |
+| **清结算系统** | 1. 消费结算完成事件<br>2. 查询结算记录（对账校验） | 异步事件消费 + 同步REST API | 1. 结算事件需包含关联的天财账户ID<br>2. 提供按日期和机构的结算记录查询API<br>3. 结算金额计算规则需明确 |
+| **行业钱包系统** | 1. 消费分账订单完成事件<br>2. 查询分账订单详情（对账校验） | 异步事件消费 + 同步REST API | 1. 分账事件需包含付方和收方账户ID<br>2. 提供按日期和机构的分账订单查询API<br>3. 需明确分账业务场景的标识 |
+| **三代系统/业务核心** | 1. 获取机构与商户信息<br>2. 消费业务完成事件（可选） | 同步REST API + 异步事件消费 | 1. 提供机构信息查询接口<br>2. 商户-账户映射关系需保持一致 |
 
-3. **清结算系统**：
-    - **交互关系**：**异步消息消费 + 同步RPC调用**。
-    - **数据流**：消费 `SettlementCompletedEvent`, `FeeCalculatedEvent`, `RefundProcessedEvent`，获取结算、手续费、退货的关联信息。
-    - **交互要点**：这些事件用于丰富账单细节，非必需。消费失败可降级处理，不影响主体账单生成。需提供按 `biz_order_no` 查询相关详情的接口。
+### 7.2 下游依赖（服务消费者）
 
-### 7.2 下游模块交互（数据消费方）
-1. **三代系统**：
-    - **交互关系**：**同步RPC调用（HTTP REST）**。
-    - **服务提供**：提供账单查询、明细查看、文件下载接口。
-    - **交互要点**：接口需考虑商户隔离和数据权限。对于大量数据导出，需支持异步文件生成和下载。响应格式应便于前端展示。
+| 依赖系统 | 交互场景 | 接口方式 | 关键要求与注意事项 |
+| :--- | :--- | :--- | :--- |
+| **天财系统** | 1. 下载对账文件<br>2. 查询账户动账明细<br>3. 获取业务汇总数据 | 同步REST API + 文件下载 | 1. 接口需支持天财的认证鉴权<br>2. 对账文件格式需符合天财要求<br>3. 查询性能需满足天财的实时性要求 |
+| **三代系统运营后台** | 1. 查询对账状态<br>2. 查看数据差异告警<br>3. 手动触发对账生成 | 同步REST API | 1. 提供丰富的查询和筛选条件<br>2. 支持运营人员的人工干预操作<br>3. 数据展示需直观易懂 |
+| **监控与告警系统** | 1. 消费数据不一致告警事件<br>2. 采集系统监控指标 | 异步事件消费 + 指标上报 | 1. 告警事件需包含足够的问题定位信息<br>2. 监控指标需覆盖系统健康度和数据质量 |
 
-2. **内部运营/风控系统**：
-    - **交互关系**：**同步RPC调用**。
-    - **服务提供**：提供更全面的查询和分析接口，可能涉及多商户、全量数据。
+### 7.3 集成设计原则
+1. **事件驱动，最终一致**：
+   - 核心流水数据通过消费事件获取，保证数据的最终一致性。
+   - 对账文件在日终批量生成，不追求实时性。
+   - 通过定期校验发现并修复数据差异。
 
-### 7.3 内部依赖
-- **数据库**：MySQL集群，存储所有账单和明细数据。考虑按 `settlement_date` 进行分表，以应对海量数据。
-- **缓存**：Redis集群，用于缓存热点商户的账单摘要、文件生成状态、以及查询结果缓存（短时间）。
-- **消息队列**：Kafka/RocketMQ，消费上游系统事件。
-- **文件存储**：对象存储服务（如OSS、S3），用于存储生成的对账文件。
-- **定时任务调度**：分布式调度框架，用于触发每日定时同步补漏和文件生成任务。
+2. **数据聚合，统一视图**：
+   - 将来自多个系统的异构数据聚合为统一的业务视图。
+   - 建立清晰的关联关系（账户、交易、订单）。
+   - 提供不同粒度的数据查询（明细、汇总、文件）。
 
-**文档版本**：1.0  
-**最后更新**：2023-10-27  
-**设计者**：软件架构师
+3. **读写分离，性能优化**：
+   - 流水记录高频写入，对账查询高频读取，考虑读写分离架构。
+   - 大数据量表（如`account_ledger`）采用分区策略。
+   - 预计算汇总数据，避免实时聚合影响性能。
+
+4. **容错与降级**：
+   - 事件处理支持重试和死信队列。
+   - 上游服务不可用时，对账生成任务可降级（使用最后已知数据或跳过）。
+   - 文件生成失败不影响核心流水记录功能。
+
+5. **安全与审计**：
+   - 对账数据涉及资金，需严格的数据权限控制（机构隔离）。
+   - 所有对账文件生成和下载操作需记录审计日志。
+   - 敏感数据（如金额）在传输和存储中需加密。
 
 ---
 # 4 接口设计
@@ -4865,97 +6254,125 @@ sequenceDiagram
 
 ## 4.1 对外接口
 
-本系统对外暴露的接口主要服务于“天财商龙”业务、商户及运营管理，是外部系统与分账平台交互的入口。所有接口均需遵循统一的认证、鉴权、限流及数据安全规范。
+本节描述系统向外部业务方（如商户、机构用户、前端应用）提供的服务接口。
 
-### 4.1.1 商户与业务管理接口
-
-此类接口主要由三代系统提供，是天财商龙业务的核心入口，负责商户进件、关系绑定及分账指令发起。
-
-| 接口路径与方法 | 所属模块 | 功能说明 | 请求/响应格式 |
+### 4.1.1 商户业务开通与管理
+| 接口路径 | 方法 | 所属模块 | 功能说明 |
 | :--- | :--- | :--- | :--- |
-| `POST /api/v1/tiancai/merchants/onboarding` | 三代系统 | **天财业务商户进件**。为商户开通分账业务，配置结算模式、费率等信息。 | 请求：商户基本信息、业务配置。<br>响应：商户号、进件状态。 |
-| `POST /api/v1/tiancai/bindings` | 三代系统 | **发起关系绑定**。触发付方（总部）与收方（门店/会员）的签约与认证流程，建立分账授权关系。 | 请求：付方、收方标识，业务场景。<br>响应：绑定任务ID、状态。 |
-| `POST /api/v1/tiancai/split-orders/collection` | 三代系统 | **发起资金归集**。将门店的收款资金归集至总部账户。 | 请求：归集订单号、付方（门店）、收方（总部）、金额。<br>响应：分账指令号、状态。 |
-| `POST /api/v1/tiancai/split-orders/batch-payment` | 三代系统 | **发起批量付款**。总部向其绑定的多个门店进行批量付款。 | 请求：批量付款订单号、付方（总部）、付款明细列表。<br>响应：分账指令号、状态。 |
-| `POST /api/v1/tiancai/split-orders/member-settlement` | 三代系统 | **发起会员结算**。为会员消费进行结算，将资金从总部账户划转至会员账户。 | 请求：结算订单号、付方（总部）、收方（会员）、金额。<br>响应：分账指令号、状态。 |
+| `/api/v1/tiancai/merchants/{merchant_no}/enable` | POST | 三代系统 | 为指定收单商户开通天财分账业务能力，触发天财专用账户创建流程。 |
+| `/api/v1/tiancai/business/open` | POST | 业务核心 | 为指定商户开通天财分账业务（业务编排入口）。 |
 
-### 4.1.2 电子签约与认证接口
-
-此类接口由电子签约平台提供，为分账关系建立提供法律合规的授权基础，包括H5页面交互接口。
-
-| 接口路径与方法 | 所属模块 | 功能说明 | 请求/响应格式 |
+### 4.1.2 账户管理
+| 接口路径 | 方法 | 所属模块 | 功能说明 |
 | :--- | :--- | :--- | :--- |
-| `POST /api/v1/contract/initiate` | 电子签约平台 | **发起签约认证**。由行业钱包系统调用，为指定用户创建签约任务。 | 请求：用户标识、签约类型。<br>响应：签约任务ID。 |
-| `GET /api/v1/contract/task/{signTaskId}` | 电子签约平台 | **查询签约任务状态**。查询指定签约任务的当前状态与结果。 | 请求：路径参数 `signTaskId`。<br>响应：任务状态、协议信息、认证结果。 |
-| `POST /api/v1/contract/open-payment-auth` | 电子签约平台 | **发起代付协议签署**。为付方（总部）发起开通批量付款权限的协议签署流程。 | 请求：付方商户信息、协议模板。<br>响应：签约流程ID。 |
-| `GET /h5/v1/contract/data` | 电子签约平台 | **H5页面获取签约数据**。供前端H5页面加载签约所需的初始化数据。 | 请求：查询参数（如临时令牌）。<br>响应：用户信息、待签协议内容。 |
-| `POST /h5/v1/contract/verify-sms` | 电子签约平台 | **H5页面提交短信验证码**。用户在H5页面完成短信验证码校验。 | 请求：短信验证码、会话标识。<br>响应：验证结果。 |
+| `/api/v1/tiancai/accounts` | POST | 账户系统 | 创建天财专用账户。 |
+| `/api/v1/tiancai/accounts` | GET | 账户系统 | 根据条件查询天财账户列表。 |
+| `/api/v1/tiancai/accounts/{tiancai_account_id}` | GET | 账户系统 | 查询天财账户详情。 |
+| `/api/v1/accounts` | GET | 钱包APP/商服平台模块 | 获取当前登录用户有权查看的天财专用账户列表。 |
 
-### 4.1.3 账户与账单查询接口
-
-此类接口面向商户或运营人员，提供账户信息、交易流水及对账单的查询与下载服务。
-
-| 接口路径与方法 | 所属模块 | 功能说明 | 请求/响应格式 |
+### 4.1.3 关系绑定与认证
+| 接口路径 | 方法 | 所属模块 | 功能说明 |
 | :--- | :--- | :--- | :--- |
-| `GET /api/v1/accounts/{accountNo}` | 账户系统 | **查询账户详情**。查询指定账户的余额、状态等核心信息。 | 请求：路径参数 `accountNo`。<br>响应：账户详情、余额。 |
-| `POST /api/v1/accounts/batch-query` | 账户系统 | **批量查询账户信息**。根据账户号列表批量查询账户信息。 | 请求：账户号列表。<br>响应：账户信息列表。 |
-| `GET /api/v1/statement/split-orders` | 对账单系统 | **查询‘天财分账’指令账单**。按条件查询分账指令的汇总账单。 | 请求：查询条件（商户号、日期、状态等）。<br>响应：分账指令账单列表。 |
-| `GET /api/v1/statement/account-transactions` | 对账单系统 | **查询机构动账明细**。查询指定商户的资金流水明细。 | 请求：查询条件（账户、时间范围）。<br>响应：资金流水明细列表。 |
-| `GET /api/v1/statement/split-orders/{bizOrderNo}/detail` | 对账单系统 | **查询指定分账指令的完整明细**。查询单笔分账指令下的所有子订单或资金明细。 | 请求：路径参数 `bizOrderNo`。<br>响应：分账指令的完整明细。 |
-| `POST /api/v1/statement/files/generate` | 对账单系统 | **触发生成指定日期的对账文件**。手动触发生成某日的对账汇总文件。 | 请求：对账日期、文件类型。<br>响应：文件生成任务ID。 |
-| `GET /api/v1/statement/files` | 对账单系统 | **查询已生成的对账文件列表**。查询历史对账文件的生成记录及下载链接。 | 请求：查询条件（日期、状态）。<br>响应：对账文件信息列表。 |
+| `/api/v1/tiancai/accounts/{tiancai_account_id}/relationships` | POST | 账户系统 | 建立天财账户间的关系绑定。 |
+| `/api/v1/relation-bindings/initiate` | POST | 钱包APP/商服平台模块 | 发起关系绑定流程，获取签约或认证链接。 |
+| `/api/v1/tiancai/business/bindings` | POST | 业务核心 | 发起账户关系绑定业务请求。 |
+| `/api/v1/verification/transfer-payment` | POST | 认证系统 | 发起打款验证，验证账户控制权。 |
+| `/api/v1/verification/transfer-payment/{verificationId}/confirm` | POST | 认证系统 | 提交用户回填的打款金额，完成验证。 |
+| `/api/v1/verification/face` | POST | 认证系统 | 发起人脸识别验证请求。 |
+| `/api/v1/verification/{verificationId}` | GET | 认证系统 | 同步查询某次验证的详细状态和结果。 |
+
+### 4.1.4 分账业务
+| 接口路径 | 方法 | 所属模块 | 功能说明 |
+| :--- | :--- | :--- | :--- |
+| `/api/v1/tiancai/split-orders` | POST | 三代系统 | 天财发起分账指令的统一入口（归集、批量付款、会员结算）。 |
+| `/api/v1/tiancai/split-orders` | POST | 钱包APP/商服平台模块 | 发起分账指令（归集、批量付款、会员结算）。 |
+| `/api/v1/tiancai/business/split-orders` | POST | 业务核心 | 发起分账业务请求。 |
+| `/api/v1/tiancai/split-orders/{split_order_id}` | GET | 三代系统 | 查询分账指令处理状态。 |
+| `/api/v1/split-orders` | GET | 钱包APP/商服平台模块 | 分页查询分账订单列表。 |
+
+### 4.1.5 结算与资金处理
+| 接口路径 | 方法 | 所属模块 | 功能说明 |
+| :--- | :--- | :--- | :--- |
+| `/api/v1/settlement/instructions` | POST | 清结算系统 | 接收结算指令，将资金从待结算账户结算至目标天财收款账户。 |
+| `/api/v1/refund/fund-adjustments` | POST | 清结算系统 | 处理天财场景的退货资金调拨。 |
+| `/api/v1/settlement/instructions/{instruction_id}` | GET | 清结算系统 | 查询结算指令状态。 |
+| `/api/v1/settlement/records` | GET | 清结算系统 | 查询结算记录。 |
+| `/api/v1/refund/adjustments` | GET | 清结算系统 | 查询退货资金调拨记录。 |
+
+### 4.1.6 对账与查询
+| 接口路径 | 方法 | 所属模块 | 功能说明 |
+| :--- | :--- | :--- | :--- |
+| `/api/v1/tiancai/reconciliations` | GET | 对账单系统 | 查询对账单列表，支持多维度筛选。 |
+| `/api/v1/tiancai/reconciliations/generate` | POST | 对账单系统 | 触发对账文件的即时生成。 |
+| `/api/v1/tiancai/accounts/{tiancai_account_id}/ledger` | GET | 对账单系统 | 查询指定天财账户的资金变动明细。 |
+| `/api/v1/tiancai/institutions/{institution_code}/summary` | GET | 对账单系统 | 查询天财机构在指定日期的各类业务汇总数据。 |
+| `/api/v1/tiancai/business/reconciliations` | POST | 业务核心 | 按机构、日期、业务类型生成对账文件。 |
+
+### 4.1.7 电子签约
+| 接口路径 | 方法 | 所属模块 | 功能说明 |
+| :--- | :--- | :--- | :--- |
+| `/api/v1/contracts/processes` | POST | 电子签约平台 | 创建签约流程。 |
+| `/api/v1/contracts/processes/{processId}` | GET | 电子签约平台 | 查询签约流程状态。 |
+| `/api/v1/contracts/templates/preview` | GET | 电子签约平台 | 生成协议预览。 |
+
+### 4.1.8 用户与权限
+| 接口路径 | 方法 | 所属模块 | 功能说明 |
+| :--- | :--- | :--- | :--- |
+| `/api/v1/user/current` | GET | 钱包APP/商服平台模块 | 获取当前登录用户身份、机构及权限信息。 |
+
+### 4.1.9 计费试算
+| 接口路径 | 方法 | 所属模块 | 功能说明 |
+| :--- | :--- | :--- | :--- |
+| `/v1/billing/calculate` | POST | 计费中台 | 计费试算接口，在业务发起前预先计算并返回费用明细。 |
 
 ## 4.2 模块间接口
 
-模块间接口用于系统内部各微服务或组件之间的通信，通常通过内部网络调用，不直接对外暴露。接口设计强调稳定性、幂等性和清晰的职责边界。
+本节描述系统内部各微服务模块之间的关键调用接口。
 
-### 4.2.1 账户与资金处理接口
-
-此类接口围绕底层账户操作和资金划转，是分账业务资金流的基础。
-
-| 接口路径与方法 | 调用方 -> 提供方 | 功能说明 | 请求/响应格式 |
+### 4.2.1 账户系统
+| 接口路径 | 方法 | 调用方 | 功能说明 |
 | :--- | :--- | :--- | :--- |
-| `POST /api/v1/accounts` | 三代系统/钱包APP -> **账户系统** | **创建账户**。为商户或用户创建底层资金账户。 | 请求：账户类型、所属主体信息。<br>响应：账户号、状态。 |
-| `PUT /api/v1/accounts/{accountNo}/status` | 三代系统 -> **账户系统** | **更新账户状态**。冻结、解冻或注销指定账户。 | 请求：路径参数 `accountNo`， 请求体：目标状态。<br>响应：操作结果。 |
-| `POST /api/v1/accounts/transfer` | 行业钱包系统/账务核心 -> **账户系统** | **账户间转账（内部调用）**。执行两底层账户之间的资金划转，保证事务性。 | 请求：付款账户、收款账户、金额、业务订单号。<br>响应：流水号、划转结果。 |
-| `POST /api/v1/wallet/accounts`<br>`POST /api/v1/wallet/accounts/create` | 三代系统 -> **行业钱包系统**/**钱包APP** | **创建天财专用钱包账户**。在钱包层创建账户，并映射底层账户。 | 请求：商户信息、账户类型。<br>响应：钱包账户ID、状态。 |
-| `POST /api/v1/wallet/transfer`<br>`POST /api/v1/wallet/transfers/execute` | 账务核心 -> **行业钱包系统**/**钱包APP** | **执行分账（资金划转）**。驱动钱包层及底层账户完成分账资金的实际划转。 | 请求：分账指令号、付方收方信息、金额。<br>响应：钱包订单号、受理状态。 |
+| `/api/v1/accounts/{account_no}/ledger/entries` | POST | 账务核心系统、计费中台等 | 执行原子化的账务记账（内部调用）。 |
 
-### 4.2.2 分账业务与流程编排接口
-
-此类接口用于驱动分账业务流程，涉及关系校验、指令执行、状态同步等。
-
-| 接口路径与方法 | 调用方 -> 提供方 | 功能说明 | 请求/响应格式 |
+### 4.2.2 三代系统
+| 接口路径 | 方法 | 调用方 | 功能说明 |
 | :--- | :--- | :--- | :--- |
-| `POST /api/v1/auth/bindings` | 三代系统 -> **认证系统** | **发起付方与收方的关系绑定流程**。整合签约与认证，建立法律授权关系。 | 请求：付方、收方标识，业务场景。<br>响应：绑定关系ID、流程状态。 |
-| `POST /api/v1/wallet/bindings/validate` | 账务核心 -> **行业钱包系统**/**钱包APP** | **校验绑定关系有效性**。在执行分账前，快速校验付方与收方是否存在有效授权。 | 请求：付方、收方标识，业务类型。<br>响应：校验结果（有效/无效）、失效原因。 |
-| `POST /api/v1/split/execute`<br>`POST /api/v1/split/batch-execute` | 三代系统 -> **账务核心系统** | **执行（批量）分账**。接收业务指令，处理分账核心逻辑，并驱动资金划转。 | 请求：分账订单详情（付方、收方列表、金额）。<br>响应：分账处理结果、内部订单号。 |
-| `POST /api/v1/split/validate-relationship` | 账务核心系统 -> **账务核心系统** (内部) | **校验分账关系**。内部逻辑接口，用于复核分账关系的合法性。 | 请求：付方、收方、业务场景。<br>响应：校验结果。 |
-| `POST /api/v1/biz-core/trades/sync-split` | 行业钱包系统 -> **业务核心** | **同步分账交易数据**。将成功的分账交易数据同步至核心交易流水，需保证幂等。 | 请求：标准化的分账交易数据、唯一请求ID。<br>响应：同步状态、核心流水号。 |
+| `/api/internal/tiancai/callback/process` | POST | 行业钱包系统、电子签约平台等 | 供下游系统回调，通知异步流程状态变更。 |
 
-### 4.2.3 清结算与计费接口
-
-此类接口处理资金清算、结算、手续费计算等后端资金处理流程。
-
-| 接口路径与方法 | 调用方 -> 提供方 | 功能说明 | 请求/响应格式 |
+### 4.2.3 行业钱包系统
+| 接口路径 | 方法 | 调用方 | 功能说明 |
 | :--- | :--- | :--- | :--- |
-| `PUT /internal/api/v1/settlement/config` | 三代系统 -> **清结算系统** | **更新商户结算配置**。设置或修改商户的结算周期、结算账户等配置。 | 请求：商户号、结算配置信息。<br>响应：更新结果。 |
-| `POST /internal/api/v1/settlement/execute` | 定时任务/运营后台 -> **清结算系统** | **执行结算**。触发指定批次或商户的结算任务，完成资金出款。 | 请求：结算批次号或商户号、结算日期。<br>响应：结算任务ID。 |
-| `POST /internal/api/v1/refund/process` | 业务核心/退货网关 -> **清结算系统** | **处理退货**。处理从天财收款账户发起的退货请求，进行资金逆向处理。 | 请求：原交易号、退货金额、退货原因。<br>响应：退货订单号、处理状态。 |
-| `POST /api/v1/fee/calculate-and-charge` | 清结算系统 -> **计费中台** | **计算并执行手续费扣划**。基于分账交易信息计算手续费，并发起扣款。 | 请求：交易信息、商户费率标识。<br>响应：手续费订单号、计算金额。 |
-| `POST /internal/api/v1/fee/callback/charge-result` | 清结算系统 -> **计费中台** | **手续费扣划结果回调**。通知计费中台手续费账户扣款的实际结果。 | 请求：手续费订单号、扣款状态、流水号。<br>响应：确认接收。 |
-| `POST /internal/api/v1/fee/sync/config` | 三代系统 -> **计费中台** | **同步费率配置**。将商户进件或变更的费率规则同步至计费中台。 | 请求：商户号、费率规则详情。<br>响应：同步结果。 |
+| `/api/internal/tiancai/split-orders` | POST | 三代系统、业务核心 | 处理分账指令（内部接口）。 |
 
-### 4.2.4 回调与状态同步接口
-
-此类接口用于模块间的异步通知和状态同步，确保流程状态的一致性。
-
-| 接口路径与方法 | 调用方 -> 提供方 | 功能说明 | 请求/响应格式 |
+### 4.2.4 账务核心系统
+| 接口路径 | 方法 | 调用方 | 功能说明 |
 | :--- | :--- | :--- | :--- |
-| `POST /api/v1/auth/callback/esign` | 电子签约平台 -> **认证系统** | **电子签约结果回调**。通知认证系统签约或身份认证的最终结果。 | 请求：签约任务ID、认证结果、证据文件。<br>响应：处理状态。 |
-| `GET /api/v1/wallet/transfer-orders/{walletOrderNo}`<br>`GET /api/v1/wallet/transfers/{requestId}` | 账务核心/三代系统 -> **行业钱包系统**/**钱包APP** | **查询分账指令状态**。查询由钱包系统处理的资金划转指令的当前状态。 | 请求：路径参数（钱包订单号/请求ID）。<br>响应：指令状态、失败原因、完成时间。 |
-| `GET /api/v1/split/orders/{splitOrderNo}` | 三代系统/对账单系统 -> **账务核心系统** | **查询分账订单详情**。查询分账核心系统处理的分账订单详细信息及资金明细。 | 请求：路径参数 `splitOrderNo`。<br>响应：订单详情、关联流水、状态历史。 |
-| `GET /api/v1/fee/orders/{feeOrderNo}` | 清结算系统/运营后台 -> **计费中台** | **查询计费指令状态**。查询某笔手续费计算与扣款的详细状态。 | 请求：路径参数 `feeOrderNo`。<br>响应：计费详情、扣款状态、关联交易。 |
+| `/api/v1/tiancai/settlement-trigger` | POST | 清结算系统 | 由清结算系统调用，触发将待结算账户资金结算至天财收款账户。 |
+| `/api/v1/tiancai/refund-adjustment` | POST | 清结算系统 | 处理涉及天财收款账户的退货资金调整。 |
+
+### 4.2.5 计费中台
+| 接口路径 | 方法 | 调用方 | 功能说明 |
+| :--- | :--- | :--- | :--- |
+| `/v1/billing/confirm` | POST | 业务核心、三代系统 | 费用确认与冻结接口，在业务正式执行前确认并冻结费用。 |
+| `/internal/v1/billing/settle` | POST | 调度任务 | 费用结算指令生成接口（内部），由调度任务触发，对已冻结费用生成结算指令。 |
+
+### 4.2.6 电子签约平台
+| 接口路径 | 方法 | 调用方 | 功能说明 |
+| :--- | :--- | :--- | :--- |
+| `/api/v1/webhook/verification` | POST | 认证系统 | 接收认证系统回调，更新签约流程状态。 |
+
+### 4.2.7 对账单系统
+| 接口路径 | 方法 | 调用方 | 功能说明 |
+| :--- | :--- | :--- | :--- |
+| `/api/internal/tiancai/reconciliations/verify` | POST | 调度任务 | 触发指定日期和业务类型的数据一致性校验。 |
+
+### 4.2.8 业务核心
+| 接口路径 | 方法 | 调用方 | 功能说明 |
+| :--- | :--- | :--- | :--- |
+| `/api/v1/tiancai/business/{business_id}` | GET | 钱包APP/商服平台模块 | 查询具体业务请求的详细状态和结果。 |
+
+**请求/响应格式说明：**
+以上接口的请求和响应格式，通常遵循系统统一的RESTful API规范。请求体多为JSON格式，包含业务参数；响应体包含状态码、消息和业务数据。具体字段定义需参考各接口的详细设计文档。关键内部接口（如账务记账、分账指令处理）会定义严格的数据契约，以确保资金处理的准确性和一致性。
 ---
 # 5 数据库设计
 # 5. 数据库设计
@@ -4964,804 +6381,199 @@ sequenceDiagram
 
 ```mermaid
 erDiagram
+    %% 账户与商户核心
     account {
-        string account_no PK "账户号"
-        string merchant_no "商户号"
-        string account_type "账户类型"
+        varchar account_no PK "账户号"
         decimal balance "余额"
-        string status "状态"
-        datetime create_time "创建时间"
-    }
-
-    account_transaction {
-        bigint id PK "流水ID"
-        string account_no FK "账户号"
-        string trade_no "关联交易号"
-        decimal amount "变动金额"
-        decimal balance_after "变动后余额"
-        string trans_type "交易类型"
-        datetime create_time "创建时间"
-    }
-
-    internal_account {
-        string account_no PK "账户号"
-        string account_name "账户名称"
-        string account_type "账户类型"
-        string status "状态"
-    }
-
-    t_sign_task {
-        string sign_task_id PK "签约任务ID"
-        string merchant_no "商户号"
-        string sign_type "签约类型"
-        string status "任务状态"
-        datetime create_time "创建时间"
-    }
-
-    t_contract_record {
-        string contract_id PK "协议ID"
-        string sign_task_id FK "签约任务ID"
-        string signer_id "签署方ID"
-        string contract_file_url "协议文件地址"
-        string status "签署状态"
-        datetime sign_time "签署时间"
-    }
-
-    t_auth_record {
-        string auth_id PK "认证ID"
-        string sign_task_id FK "签约任务ID"
-        string auth_type "认证类型"
-        string auth_result "认证结果"
-        datetime auth_time "认证时间"
-    }
-
-    auth_binding {
-        string binding_id PK "绑定关系ID"
-        string payer_id "付方ID"
-        string payee_id "收方ID"
-        string auth_status "授权状态"
-        datetime effective_time "生效时间"
-        datetime expire_time "失效时间"
-    }
-
-    payment_enable {
-        string merchant_no PK "商户号"
-        string batch_payment_status "批量付款状态"
-        string member_settlement_status "会员结算状态"
-        datetime enable_time "开通时间"
-    }
-
-    auth_evidence {
-        string evidence_id PK "证据ID"
-        string binding_id FK "绑定关系ID"
-        string evidence_type "证据类型"
-        string evidence_content "证据内容"
-        datetime create_time "创建时间"
-    }
-
-    tiancai_merchant_config {
-        string merchant_no PK "商户号"
-        string merchant_type "商户类型"
-        string settlement_mode "结算模式"
-        string status "状态"
-        datetime create_time "创建时间"
+        varchar status "状态"
+        varchar capability_flags "能力标记"
     }
 
     tiancai_account {
-        string merchant_no PK "商户号"
-        string account_no FK "账户号"
-        string wallet_account_id FK "钱包账户ID"
-        datetime bind_time "绑定时间"
+        varchar tiancai_account_id PK "天财账户ID"
+        varchar account_no FK "关联底层账户号"
+        varchar account_type "账户类型"
+        varchar institution_code "所属机构代码"
+        varchar status "状态"
     }
 
-    binding_relationship {
-        string relationship_id PK "关系ID"
-        string payer_merchant_no "付方商户号"
-        string payee_merchant_no "收方商户号"
-        string scene_type "场景类型"
-        string status "状态"
-        datetime create_time "创建时间"
+    tiancai_merchant_config {
+        varchar merchant_no PK "商户号"
+        varchar status "天财业务开通状态"
+        timestamp enabled_at "开通时间"
     }
 
-    split_order {
-        string split_order_no PK "分账指令号"
-        string biz_order_no "业务订单号"
-        string payer_merchant_no "付方商户号"
-        string order_type "指令类型"
+    merchant_account_mapping {
+        varchar id PK
+        varchar merchant_no FK "商户号"
+        varchar tiancai_account_id FK "天财账户ID"
+    }
+
+    %% 关系绑定与认证
+    account_relationship {
+        varchar id PK
+        varchar source_account_id FK "源账户ID"
+        varchar target_account_id FK "目标账户ID"
+        varchar relation_type "关系类型"
+        varchar status "状态"
+        varchar contract_process_id FK "签约流程ID"
+    }
+
+    verification_record {
+        varchar verification_id PK "验证ID"
+        varchar business_type "业务类型"
+        varchar target_account_id FK "目标账户ID"
+        varchar status "状态"
+        json verification_data "验证数据"
+    }
+
+    contract_process {
+        varchar process_id PK "流程ID"
+        varchar business_type "业务类型"
+        varchar business_id "关联业务ID"
+        varchar status "状态"
+        varchar signed_document_id FK "已签署文件ID"
+    }
+
+    %% 业务流程与订单
+    business_process {
+        varchar business_id PK "业务ID"
+        varchar business_type "业务类型"
+        varchar merchant_no FK "商户号"
+        varchar status "状态"
+        varchar result "结果"
+    }
+
+    tiancai_split_order {
+        varchar split_order_id PK "分账订单ID"
+        varchar business_id FK "关联业务ID"
+        varchar split_order_no "分账订单号"
+        varchar order_type "订单类型"
         decimal total_amount "总金额"
-        string status "状态"
-        datetime create_time "创建时间"
+        varchar status "状态"
     }
 
-    split_order_item {
-        bigint id PK "明细ID"
-        string split_order_no FK "分账指令号"
-        string payee_merchant_no "收方商户号"
+    split_order_detail {
+        varchar id PK
+        varchar split_order_id FK "分账订单ID"
+        varchar payee_account_id FK "收款方账户ID"
         decimal amount "分账金额"
-        string status "状态"
+        varchar status "状态"
     }
 
-    split_relationship_cache {
-        string cache_key PK "缓存键"
-        string payer_id "付方ID"
-        string payee_id "收方ID"
-        json relationship_data "关系数据"
-        datetime expire_time "过期时间"
-    }
-
-    split_account_trans_rel {
-        string split_order_no FK "分账指令号"
-        string account_trans_id FK "账户流水ID"
-        string rel_type "关联类型"
-    }
-
-    wallet_account {
-        string wallet_account_id PK "钱包账户ID"
-        string merchant_no "商户号"
-        string account_no FK "账户号"
-        string wallet_type "钱包类型"
-        string status "状态"
-        datetime create_time "创建时间"
-    }
-
-    wallet_binding_cache {
-        string cache_key PK "缓存键"
-        string payer_id "付方ID"
-        string payee_id "收方ID"
-        json binding_data "绑定数据"
-        datetime expire_time "过期时间"
-    }
-
-    wallet_transfer_order {
-        string wallet_order_no PK "钱包指令号"
-        string split_order_no FK "分账指令号"
-        string payer_wallet_id FK "付方钱包ID"
-        string payee_wallet_id FK "收方钱包ID"
+    %% 账务与计费
+    account_transaction {
+        varchar transaction_id PK "交易流水ID"
+        varchar account_no FK "账户号"
+        varchar business_order_no "业务订单号"
         decimal amount "金额"
-        string status "状态"
-        datetime create_time "创建时间"
+        varchar transaction_type "交易类型"
+        timestamp transaction_time "交易时间"
     }
 
-    split_trade_sync_record {
-        string sync_id PK "同步ID"
-        string wallet_order_no FK "钱包指令号"
-        string trade_no "交易流水号"
-        string sync_status "同步状态"
-        datetime sync_time "同步时间"
+    billing_order {
+        varchar billing_order_id PK "计费订单ID"
+        varchar business_order_no "关联业务订单号"
+        decimal total_fee "总费用"
+        varchar fee_status "费用状态"
+        varchar settlement_instruction_id FK "结算指令ID"
     }
 
-    settlement_config {
-        string merchant_no PK "商户号"
-        string settlement_account_no FK "结算账户号"
-        string settlement_cycle "结算周期"
-        string status "状态"
-        datetime update_time "更新时间"
-    }
-
-    settlement_task {
-        string task_id PK "任务ID"
-        string merchant_no FK "商户号"
-        string batch_no "结算批次号"
-        decimal settle_amount "结算金额"
-        string status "状态"
-        datetime settle_time "结算时间"
-    }
-
-    settlement_detail {
-        string detail_id PK "明细ID"
-        string task_id FK "任务ID"
-        string trade_no "关联交易号"
+    settlement_instruction {
+        varchar instruction_id PK "指令ID"
+        varchar business_order_no "关联业务订单号"
         decimal amount "结算金额"
-        datetime create_time "创建时间"
+        varchar payer_account_id FK "付款方账户ID"
+        varchar payee_account_id FK "收款方账户ID"
+        varchar status "状态"
     }
 
-    refund_order {
-        string refund_no PK "退货单号"
-        string original_trade_no "原交易号"
-        string merchant_no FK "商户号"
-        decimal refund_amount "退货金额"
-        string status "状态"
-        datetime create_time "创建时间"
+    %% 对账与文件
+    account_ledger {
+        varchar ledger_id PK "流水ID"
+        varchar tiancai_account_id FK "天财账户ID"
+        varchar business_order_no "业务订单号"
+        decimal amount "金额"
+        varchar ledger_type "流水类型"
+        date business_date "业务日期"
     }
 
-    fee_order {
-        string fee_order_no PK "手续费订单号"
-        string split_order_no FK "分账指令号"
-        string merchant_no FK "商户号"
-        decimal fee_amount "手续费金额"
-        string status "状态"
-        datetime create_time "创建时间"
+    reconciliation_file {
+        varchar file_id PK "文件ID"
+        varchar institution_code "机构代码"
+        date reconciliation_date "对账日期"
+        varchar file_type "文件类型"
+        varchar file_path "文件路径"
+        varchar status "状态"
     }
 
-    fee_config {
-        string config_id PK "配置ID"
-        string merchant_no "商户号"
-        string fee_type "费用类型"
-        decimal fee_rate "费率"
-        datetime effective_time "生效时间"
-    }
-
-    fee_charge_detail {
-        string charge_id PK "扣费ID"
-        string fee_order_no FK "手续费订单号"
-        string account_no FK "账户号"
-        decimal charge_amount "扣费金额"
-        datetime charge_time "扣费时间"
-    }
-
-    fee_reconciliation {
-        string recon_id PK "对账ID"
-        date recon_date "对账日期"
-        string merchant_no FK "商户号"
-        decimal total_fee "总手续费"
-        string file_path "文件路径"
-    }
-
-    binding_validation_cache {
-        string cache_key PK "缓存键"
-        string payer_id "付方ID"
-        string payee_id "收方ID"
-        boolean is_valid "是否有效"
-        datetime expire_time "过期时间"
-    }
-
-    wallet_account_balance_log {
-        bigint id PK "日志ID"
-        string wallet_account_id FK "钱包账户ID"
-        decimal balance_before "变动前余额"
-        decimal balance_after "变动后余额"
-        decimal change_amount "变动金额"
-        datetime create_time "创建时间"
-    }
-
-    split_trade {
-        string trade_no PK "交易流水号"
-        string split_order_no FK "分账指令号"
-        string payer_merchant_no "付方商户号"
-        string payee_merchant_no "收方商户号"
-        decimal amount "交易金额"
-        string trade_type "交易类型"
-        datetime trade_time "交易时间"
-    }
-
-    sync_request_log {
-        string request_id PK "请求ID"
-        string biz_unique_key "业务唯一键"
-        string sync_status "同步状态"
-        datetime create_time "创建时间"
-    }
-
-    split_order_statement {
-        string statement_id PK "账单ID"
-        string split_order_no FK "分账指令号"
-        date statement_date "账单日期"
-        decimal total_amount "总金额"
-        string file_path "文件路径"
-        datetime generate_time "生成时间"
-    }
-
-    account_transaction_statement {
-        string statement_id PK "账单ID"
-        string merchant_no FK "商户号"
-        date statement_date "账单日期"
-        decimal total_income "总收入"
-        decimal total_expenditure "总支出"
-        string file_path "文件路径"
-    }
-
-    statement_file {
-        string file_id PK "文件ID"
-        string file_type "文件类型"
-        date file_date "文件日期"
-        string file_path "文件路径"
-        string status "状态"
-        datetime generate_time "生成时间"
-    }
-
-    data_sync_log {
-        string log_id PK "日志ID"
-        string sync_type "同步类型"
-        date sync_date "同步日期"
-        string status "状态"
-        datetime create_time "创建时间"
-    }
-
-    account ||--o{ account_transaction : "产生"
-    account ||--o{ tiancai_account : "关联"
-    internal_account ||--o{ account_transaction : "参与"
-    t_sign_task ||--o{ t_contract_record : "包含"
-    t_sign_task ||--o{ t_auth_record : "包含"
-    auth_binding ||--o{ auth_evidence : "关联"
-    tiancai_merchant_config ||--o{ tiancai_account : "配置"
-    tiancai_account ||--o{ wallet_account : "映射"
-    binding_relationship ||--o{ split_order : "授权"
-    split_order ||--o{ split_order_item : "包含"
-    split_order ||--o{ split_account_trans_rel : "关联"
-    split_order ||--o{ wallet_transfer_order : "驱动"
-    split_order ||--o{ fee_order : "产生"
-    wallet_account ||--o{ wallet_transfer_order : "参与"
-    wallet_account ||--o{ wallet_account_balance_log : "记录"
-    wallet_transfer_order ||--o{ split_trade_sync_record : "同步"
-    settlement_config ||--o{ settlement_task : "配置"
-    settlement_task ||--o{ settlement_detail : "包含"
-    fee_order ||--o{ fee_charge_detail : "包含"
-    fee_config ||--o{ fee_order : "依据"
-    split_order ||--o{ split_trade : "对应"
-    split_order ||--o{ split_order_statement : "对账"
-    account ||--o{ account_transaction_statement : "对账"
+    %% 关系定义
+    account ||--o{ tiancai_account : "映射为"
+    tiancai_merchant_config ||--o{ merchant_account_mapping : "拥有"
+    tiancai_account ||--o{ merchant_account_mapping : "被映射"
+    tiancai_account ||--o{ account_relationship : "作为源"
+    tiancai_account ||--o{ account_relationship : "作为目标"
+    account_relationship }o--|| contract_process : "通过"
+    verification_record }o--|| tiancai_account : "验证"
+    business_process ||--o{ tiancai_split_order : "产生"
+    tiancai_split_order ||--o{ split_order_detail : "包含"
+    tiancai_split_order }o--|| account_transaction : "生成"
+    tiancai_split_order }o--|| billing_order : "关联"
+    billing_order }o--|| settlement_instruction : "驱动"
+    tiancai_account ||--o{ account_ledger : "拥有流水"
+    tiancai_split_order }o--|| account_ledger : "对应"
 ```
 
 ## 5.2 表结构
 
-### 账户系统模块
+### 5.2.1 账户与商户核心表
 
-#### 表: account (账户主表)
-- **所属模块**: 账户系统
-- **主要字段说明**:
-  - `account_no` (PK): 账户号，唯一标识
-  - `merchant_no`: 所属商户号
-  - `account_type`: 账户类型（如：基本户、结算户、待结算户）
-  - `balance`: 账户余额
-  - `status`: 账户状态（正常、冻结、注销等）
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 一对多关联 `account_transaction` 表，记录所有资金流水
-  - 一对一关联 `tiancai_account` 表，与天财商户关联
-  - 一对多关联 `wallet_account` 表，作为底层账户映射
+| 表名 | 所属模块 | 主要字段说明 | 与其他表的关系 |
+| :--- | :--- | :--- | :--- |
+| **account** | 账户系统 | `account_no` (PK): 账户号，唯一标识一个底层资金账户。<br>`balance`: 当前账户余额。<br>`status`: 账户状态（如：ACTIVE, FROZEN, CLOSED）。<br>`capability_flags`: 账户能力标记（如：可收款、可付款、可分账）。 | 1. 被 `tiancai_account` 表通过 `account_no` 关联。 |
+| **tiancai_account** | 账户系统 | `tiancai_account_id` (PK): 天财业务专用账户ID。<br>`account_no` (FK): 关联的底层标准账户号。<br>`account_type`: 账户类型（如：总部、门店、会员）。<br>`institution_code`: 所属天财机构代码。<br>`status`: 天财账户状态。 | 1. 外键 `account_no` 关联 `account` 表。<br>2. 被 `merchant_account_mapping`、`account_relationship`、`account_ledger` 等多表关联。 |
+| **tiancai_merchant_config** | 三代系统 | `merchant_no` (PK): 收单商户号。<br>`status`: 该商户的天财分账业务开通状态。<br>`enabled_at`: 业务开通时间。 | 1. 被 `merchant_account_mapping` 表通过 `merchant_no` 关联。 |
+| **merchant_account_mapping** | 业务核心/三代系统 | `id` (PK): 主键。<br>`merchant_no` (FK): 商户号。<br>`tiancai_account_id` (FK): 天财账户ID。 | 1. 外键 `merchant_no` 关联 `tiancai_merchant_config` 表。<br>2. 外键 `tiancai_account_id` 关联 `tiancai_account` 表。 |
 
-#### 表: account_transaction (账户流水表)
-- **所属模块**: 账户系统
-- **主要字段说明**:
-  - `id` (PK): 流水ID，自增主键
-  - `account_no` (FK): 关联的账户号
-  - `trade_no`: 关联的业务交易号
-  - `amount`: 资金变动金额（正为入账，负为出账）
-  - `balance_after`: 变动后余额
-  - `trans_type`: 交易类型（分账、结算、退款、手续费等）
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 多对一关联 `account` 表，属于某个账户
-  - 多对一关联 `internal_account` 表，可能涉及内部账户
-  - 通过 `split_account_trans_rel` 表与分账指令关联
+### 5.2.2 关系绑定与认证表
 
-#### 表: internal_account (内部账户表)
-- **所属模块**: 账户系统
-- **主要字段说明**:
-  - `account_no` (PK): 内部账户号
-  - `account_name`: 内部账户名称
-  - `account_type`: 账户类型（如：待结算账户、手续费账户）
-  - `status`: 状态
-- **与其他表的关系**:
-  - 一对多关联 `account_transaction` 表，参与资金流水记录
+| 表名 | 所属模块 | 主要字段说明 | 与其他表的关系 |
+| :--- | :--- | :--- | :--- |
+| **account_relationship** | 账户系统/行业钱包系统 | `id` (PK): 主键。<br>`source_account_id` (FK): 源天财账户ID（如：门店）。<br>`target_account_id` (FK): 目标天财账户ID（如：总部）。<br>`relation_type`: 关系类型（如：归集授权）。<br>`status`: 绑定状态。<br>`contract_process_id` (FK): 关联的电子签约流程ID。 | 1. 外键 `source_account_id` 和 `target_account_id` 均关联 `tiancai_account` 表。<br>2. 外键 `contract_process_id` 关联 `contract_process` 表。 |
+| **verification_record** | 认证系统 | `verification_id` (PK): 验证记录唯一ID。<br>`business_type`: 验证业务类型（打款、人脸等）。<br>`target_account_id` (FK): 被验证的天财账户ID。<br>`status`: 验证状态。<br>`verification_data`: 验证过程数据（JSON格式）。 | 1. 外键 `target_account_id` 关联 `tiancai_account` 表。 |
+| **contract_process** | 电子签约平台 | `process_id` (PK): 签约流程ID。<br>`business_type`: 关联业务类型（如：账户绑定）。<br>`business_id`: 关联的业务ID（如：`account_relationship.id`）。<br>`status`: 签约流程状态。<br>`signed_document_id`: 已签署的文件ID。 | 1. 被 `account_relationship` 表通过 `contract_process_id` 关联。 |
 
-### 电子签约平台模块
+### 5.2.3 业务流程与订单表
 
-#### 表: t_sign_task (签约任务主表)
-- **所属模块**: 电子签约平台
-- **主要字段说明**:
-  - `sign_task_id` (PK): 签约任务ID
-  - `merchant_no`: 关联商户号
-  - `sign_type`: 签约类型（个人/企业）
-  - `status`: 任务状态（初始化、进行中、成功、失败）
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 一对多关联 `t_contract_record` 表，包含多个协议签署记录
-  - 一对多关联 `t_auth_record` 表，包含多个认证记录
+| 表名 | 所属模块 | 主要字段说明 | 与其他表的关系 |
+| :--- | :--- | :--- | :--- |
+| **business_process** | 业务核心 | `business_id` (PK): 业务流程唯一ID。<br>`business_type`: 业务类型（开通、绑定、分账）。<br>`merchant_no` (FK): 发起业务的商户号。<br>`status`: 业务流程状态。<br>`result`: 最终处理结果。 | 1. 外键 `merchant_no` 关联 `tiancai_merchant_config` 表。<br>2. 被 `tiancai_split_order` 表通过 `business_id` 关联。 |
+| **tiancai_split_order** | 三代系统/行业钱包系统/账务核心系统 | `split_order_id` (PK): 分账订单主键ID。<br>`business_id` (FK): 关联的业务流程ID。<br>`split_order_no`: 分账订单号，用于外部展示和关联。<br>`order_type`: 订单类型（归集、批量付款、会员结算）。<br>`total_amount`: 分账总金额。<br>`status`: 订单状态。 | 1. 外键 `business_id` 关联 `business_process` 表。<br>2. 被 `split_order_detail`、`account_transaction`、`account_ledger` 等表关联。 |
+| **split_order_detail** | 行业钱包系统 | `id` (PK): 主键。<br>`split_order_id` (FK): 所属分账订单ID。<br>`payee_account_id` (FK): 收款方天财账户ID。<br>`amount`: 分给该收款方的金额。<br>`status`: 该笔分账明细的状态。 | 1. 外键 `split_order_id` 关联 `tiancai_split_order` 表。<br>2. 外键 `payee_account_id` 关联 `tiancai_account` 表。 |
 
-#### 表: t_contract_record (协议签署记录表)
-- **所属模块**: 电子签约平台
-- **主要字段说明**:
-  - `contract_id` (PK): 协议ID
-  - `sign_task_id` (FK): 关联的签约任务ID
-  - `signer_id`: 签署方ID（商户号或个人ID）
-  - `contract_file_url`: 协议文件存储地址
-  - `status`: 签署状态（待签署、已签署、失效）
-  - `sign_time`: 签署时间
-- **与其他表的关系**:
-  - 多对一关联 `t_sign_task` 表，属于某个签约任务
-  - 可能作为证据关联到 `auth_evidence` 表
+### 5.2.4 账务、计费与结算表
 
-#### 表: t_auth_record (身份认证记录表)
-- **所属模块**: 电子签约平台
-- **主要字段说明**:
-  - `auth_id` (PK): 认证ID
-  - `sign_task_id` (FK): 关联的签约任务ID
-  - `auth_type`: 认证类型（打款认证、人脸识别、短信验证）
-  - `auth_result`: 认证结果（成功/失败）
-  - `auth_time`: 认证时间
-- **与其他表的关系**:
-  - 多对一关联 `t_sign_task` 表，属于某个签约任务
-  - 可能作为证据关联到 `auth_evidence` 表
+| 表名 | 所属模块 | 主要字段说明 | 与其他表的关系 |
+| :--- | :--- | :--- | :--- |
+| **account_transaction** | 账务核心系统 | `transaction_id` (PK): 交易流水ID。<br>`account_no` (FK): 发生交易的底层账户号。<br>`business_order_no`: 关联的业务订单号（如分账订单号）。<br>`amount`: 交易金额。<br>`transaction_type`: 交易类型（支出、收入）。<br>`transaction_time`: 交易时间。 | 1. 外键 `account_no` 关联 `account` 表。<br>2. 通过 `business_order_no` 与 `tiancai_split_order.split_order_no` 逻辑关联。 |
+| **billing_order** | 计费中台 | `billing_order_id` (PK): 计费订单ID。<br>`business_order_no`: 关联的业务订单号。<br>`total_fee`: 计算出的总费用。<br>`fee_status`: 费用状态（待确认、已冻结、已结算）。<br>`settlement_instruction_id` (FK): 关联的结算指令ID。 | 1. 通过 `business_order_no` 与业务订单逻辑关联。<br>2. 外键 `settlement_instruction_id` 关联 `settlement_instruction` 表。 |
+| **settlement_instruction** | 计费中台/清结算系统 | `instruction_id` (PK): 结算指令ID。<br>`business_order_no`: 关联的业务订单号。<br>`amount`: 需要结算的金额。<br>`payer_account_id` (FK): 付款方天财账户ID。<br>`payee_account_id` (FK): 收款方天财账户ID。<br>`status`: 指令状态。 | 1. 外键 `payer_account_id` 和 `payee_account_id` 关联 `tiancai_account` 表。<br>2. 被 `billing_order` 表关联。 |
 
-#### 表: t_sms_record (短信验证记录表)
-- **所属模块**: 电子签约平台
-- **主要字段说明**:
-  - `sms_id` (PK): 短信记录ID
-  - `mobile`: 手机号
-  - `sms_code`: 验证码
-  - `biz_type`: 业务类型
-  - `status`: 状态（已发送、已验证、已失效）
-  - `create_time`: 创建时间
-  - `verify_time`: 验证时间
-- **与其他表的关系**:
-  - 支持 `t_auth_record` 表的短信认证流程
+### 5.2.5 对账与文件表
 
-### 认证系统模块
+| 表名 | 所属模块 | 主要字段说明 | 与其他表的关系 |
+| :--- | :--- | :--- | :--- |
+| **account_ledger** | 对账单系统 | `ledger_id` (PK): 账户流水明细ID。<br>`tiancai_account_id` (FK): 天财账户ID。<br>`business_order_no`: 引起流水的业务订单号。<br>`amount`: 流水金额。<br>`ledger_type`: 流水类型（如：分账收入、结算支出）。<br>`business_date`: 业务发生日期。 | 1. 外键 `tiancai_account_id` 关联 `tiancai_account` 表。<br>2. 通过 `business_order_no` 与 `tiancai_split_order` 等业务订单表逻辑关联。 |
+| **reconciliation_file** | 对账单系统 | `file_id` (PK): 对账文件ID。<br>`institution_code`: 所属机构代码。<br>`reconciliation_date`: 对账日期。<br>`file_type`: 文件类型（日账单、交易明细等）。<br>`file_path`: 文件在对象存储中的路径。<br>`status`: 文件生成状态。 | 1. 通过 `institution_code` 与 `tiancai_account.institution_code` 逻辑关联。 |
 
-#### 表: auth_binding (关系绑定主表)
-- **所属模块**: 认证系统
-- **主要字段说明**:
-  - `binding_id` (PK): 绑定关系ID
-  - `payer_id`: 付方ID（商户号）
-  - `payee_id`: 收方ID（商户号或个人ID）
-  - `auth_status`: 授权状态（待认证、已授权、已失效）
-  - `effective_time`: 生效时间
-  - `expire_time`: 失效时间
-- **与其他表的关系**:
-  - 一对多关联 `auth_evidence` 表，存储相关法律证据
-  - 与 `binding_relationship` 表业务上对应
+### 5.2.6 其他辅助表
 
-#### 表: payment_enable (付款开通表)
-- **所属模块**: 认证系统
-- **主要字段说明**:
-  - `merchant_no` (PK): 商户号
-  - `batch_payment_status`: 批量付款开通状态
-  - `member_settlement_status`: 会员结算开通状态
-  - `enable_time`: 开通时间
-- **与其他表的关系**:
-  - 一对一关联商户，控制其分账业务权限
-
-#### 表: auth_evidence (认证证据链表)
-- **所属模块**: 认证系统
-- **主要字段说明**:
-  - `evidence_id` (PK): 证据ID
-  - `binding_id` (FK): 关联的绑定关系ID
-  - `evidence_type`: 证据类型（协议、认证记录、日志等）
-  - `evidence_content`: 证据内容或存储地址
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 多对一关联 `auth_binding` 表，为绑定关系提供法律证据
-
-### 三代系统模块
-
-#### 表: tiancai_merchant_config (天财商户配置表)
-- **所属模块**: 三代系统
-- **主要字段说明**:
-  - `merchant_no` (PK): 商户号
-  - `merchant_type`: 商户类型（总部、门店、会员等）
-  - `settlement_mode`: 结算模式（T+1、D+0等）
-  - `status`: 状态（正常、禁用）
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 一对一关联 `tiancai_account` 表，配置账户信息
-  - 一对一关联 `settlement_config` 表，配置结算信息
-
-#### 表: tiancai_account (天财账户关联表)
-- **所属模块**: 三代系统
-- **主要字段说明**:
-  - `merchant_no` (PK): 商户号
-  - `account_no` (FK): 关联的底层账户号
-  - `wallet_account_id` (FK): 关联的钱包账户ID
-  - `bind_time`: 绑定时间
-- **与其他表的关系**:
-  - 一对一关联 `tiancai_merchant_config` 表，属于某个商户
-  - 一对一关联 `account` 表，映射到底层账户
-  - 一对一关联 `wallet_account` 表，映射到钱包账户
-
-#### 表: binding_relationship (绑定关系表)
-- **所属模块**: 三代系统
-- **主要字段说明**:
-  - `relationship_id` (PK): 关系ID
-  - `payer_merchant_no`: 付方商户号
-  - `payee_merchant_no`: 收方商户号
-  - `scene_type`: 场景类型（归集、批量付款、会员结算）
-  - `status`: 状态（有效、无效）
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 一对多关联 `split_order` 表，授权分账指令执行
-  - 与 `auth_binding` 表业务上对应
-
-#### 表: split_order (分账指令表)
-- **所属模块**: 三代系统
-- **主要字段说明**:
-  - `split_order_no` (PK): 分账指令号
-  - `biz_order_no`: 业务订单号（上游系统传入）
-  - `payer_merchant_no`: 付方商户号
-  - `order_type`: 指令类型（归集、批量付款、会员结算）
-  - `total_amount`: 总金额
-  - `status`: 指令状态（初始化、处理中、成功、失败）
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 一对多关联 `split_order_item` 表，包含多个分账明细
-  - 一对多关联 `wallet_transfer_order` 表，驱动钱包层执行
-  - 一对多关联 `fee_order` 表，产生手续费订单
-  - 一对一关联 `split_trade` 表，对应核心交易流水
-
-### 账务核心系统模块
-
-#### 表: split_order_item (分账订单明细表)
-- **所属模块**: 账务核心系统
-- **主要字段说明**:
-  - `id` (PK): 明细ID，自增主键
-  - `split_order_no` (FK): 关联的分账指令号
-  - `payee_merchant_no`: 收方商户号
-  - `amount`: 分账金额
-  - `status`: 状态
-- **与其他表的关系**:
-  - 多对一关联 `split_order` 表，属于某个分账指令
-
-#### 表: split_relationship_cache (分账关系缓存表)
-- **所属模块**: 账务核心系统
-- **主要字段说明**:
-  - `cache_key` (PK): 缓存键（如：payer:payee:scene）
-  - `payer_id`: 付方ID
-  - `payee_id`: 收方ID
-  - `relationship_data`: 关系数据（JSON格式）
-  - `expire_time`: 缓存过期时间
-- **与其他表的关系**:
-  - 缓存 `binding_relationship` 或 `auth_binding` 表的数据
-
-#### 表: split_account_trans_rel (分账与底层账户流水关联表)
-- **所属模块**: 账务核心系统
-- **主要字段说明**:
-  - `split_order_no` (FK): 分账指令号
-  - `account_trans_id` (FK): 账户流水ID
-  - `rel_type`: 关联类型（付款、收款、手续费等）
-- **与其他表的关系**:
-  - 多对一关联 `split_order` 表，属于某个分账指令
-  - 多对一关联 `account_transaction` 表，关联具体流水
-
-### 行业钱包系统模块
-
-#### 表: wallet_account (钱包账户表)
-- **所属模块**: 行业钱包系统
-- **主要字段说明**:
-  - `wallet_account_id` (PK): 钱包账户ID
-  - `merchant_no`: 关联商户号
-  - `account_no` (FK): 映射的底层账户号
-  - `wallet_type`: 钱包类型（天财专用）
-  - `status`: 状态（正常、冻结）
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 一对一关联 `tiancai_account` 表，与天财商户关联
-  - 一对多关联 `wallet_transfer_order` 表，参与分账指令
-  - 一对多关联 `wallet_account_balance_log` 表，记录余额变更
-
-#### 表: wallet_binding_cache (绑定关系缓存表)
-- **所属模块**: 行业钱包系统
-- **主要字段说明**:
-  - `cache_key` (PK): 缓存键
-  - `payer_id`: 付方ID
-  - `payee_id`: 收方ID
-  - `binding_data`: 绑定数据（JSON格式）
-  - `expire_time`: 缓存过期时间
-- **与其他表的关系**:
-  - 缓存 `auth_binding` 或 `binding_relationship` 表的数据
-
-#### 表: wallet_transfer_order (钱包分账指令表)
-- **所属模块**: 行业钱包系统
-- **主要字段说明**:
-  - `wallet_order_no` (PK): 钱包指令号
-  - `split_order_no` (FK): 关联的分账指令号
-  - `payer_wallet_id` (FK): 付方钱包账户ID
-  - `payee_wallet_id` (FK): 收方钱包账户ID
-  - `amount`: 转账金额
-  - `status`: 状态（待处理、处理中、成功、失败）
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 多对一关联 `split_order` 表，由分账指令驱动
-  - 多对一关联 `wallet_account` 表（付方）
-  - 多对一关联 `wallet_account` 表（收方）
-  - 一对多关联 `split_trade_sync_record` 表，同步到业务核心
-
-#### 表: split_trade_sync_record (分账交易同步记录表)
-- **所属模块**: 行业钱包系统
-- **主要字段说明**:
-  - `sync_id` (PK): 同步ID
-  - `wallet_order_no` (FK): 关联的钱包指令号
-  - `trade_no`: 同步生成的交易流水号
-  - `sync_status`: 同步状态（成功、失败）
-  - `sync_time`: 同步时间
-- **与其他表的关系**:
-  - 多对一关联 `wallet_transfer_order` 表，同步其数据
-  - 与 `split_trade` 表业务上对应
-
-### 清结算系统模块
-
-#### 表: settlement_config (商户结算配置表)
-- **所属模块**: 清结算系统
-- **主要字段说明**:
-  - `merchant_no` (PK): 商户号
-  - `settlement_account_no` (FK): 结算账户号
-  - `settlement_cycle`: 结算周期（T+1、D+0等）
-  - `status`: 状态（启用、停用）
-  - `update_time`: 更新时间
-- **与其他表的关系**:
-  - 一对一关联 `tiancai_merchant_config` 表，同步结算配置
-  - 一对多关联 `settlement_task` 表，生成结算任务
-
-#### 表: settlement_task (结算任务表)
-- **所属模块**: 清结算系统
-- **主要字段说明**:
-  - `task_id` (PK): 任务ID
-  - `merchant_no` (FK): 商户号
-  - `batch_no`: 结算批次号
-  - `settle_amount`: 结算金额
-  - `status`: 任务状态（待结算、结算中、已结算、失败）
-  - `settle_time`: 结算时间
-- **与其他表的关系**:
-  - 多对一关联 `settlement_config` 表，依据配置执行
-  - 一对多关联 `settlement_detail` 表，包含结算明细
-
-#### 表: settlement_detail (结算动账明细表)
-- **所属模块**: 清结算系统
-- **主要字段说明**:
-  - `detail_id` (PK): 明细ID
-  - `task_id` (FK): 关联的结算任务ID
-  - `trade_no`: 关联的交易流水号
-  - `amount`: 结算金额
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 多对一关联 `settlement_task` 表，属于某个结算任务
-  - 关联 `split_trade` 表，结算具体交易
-
-#### 表: refund_order (退货订单表)
-- **所属模块**: 清结算系统
-- **主要字段说明**:
-  - `refund_no` (PK): 退货单号
-  - `original_trade_no`: 原交易流水号
-  - `merchant_no` (FK): 商户号
-  - `refund_amount`: 退货金额
-  - `status`: 状态（待处理、处理中、成功、失败）
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 关联 `split_trade` 表，处理原交易退货
-
-#### 表: fee_order (手续费订单表)
-- **所属模块**: 清结算系统
-- **主要字段说明**:
-  - `fee_order_no` (PK): 手续费订单号
-  - `split_order_no` (FK): 关联的分账指令号
-  - `merchant_no` (FK): 商户号（承担手续费的商户）
-  - `fee_amount`: 手续费金额
-  - `status`: 状态（待计算、待扣划、已扣划、失败）
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 多对一关联 `split_order` 表，由分账指令产生
-  - 一对多关联 `fee_charge_detail` 表，记录扣费明细
-
-### 计费中台模块
-
-#### 表: fee_config (费率配置表)
-- **所属模块**: 计费中台
-- **主要字段说明**:
-  - `config_id` (PK): 配置ID
-  - `merchant_no`: 商户号
-  - `fee_type`: 费用类型（分账手续费、结算手续费等）
-  - `fee_rate`: 费率（百分比或固定值）
-  - `effective_time`: 生效时间
-- **与其他表的关系**:
-  - 一对多关联 `fee_order` 表，作为计费依据
-
-#### 表: fee_charge_detail (手续费扣费明细表)
-- **所属模块**: 计费中台
-- **主要字段说明**:
-  - `charge_id` (PK): 扣费ID
-  - `fee_order_no` (FK): 关联的手续费订单号
-  - `account_no` (FK): 扣费账户号
-  - `charge_amount`: 实际扣费金额
-  - `charge_time`: 扣费时间
-- **与其他表的关系**:
-  - 多对一关联 `fee_order` 表，属于某个手续费订单
-  - 多对一关联 `account` 表，从指定账户扣费
-
-#### 表: fee_reconciliation (计费对账表)
-- **所属模块**: 计费中台
-- **主要字段说明**:
-  - `recon_id` (PK): 对账ID
-  - `recon_date`: 对账日期
-  - `merchant_no` (FK): 商户号
-  - `total_fee`: 总手续费金额
-  - `file_path`: 对账文件存储路径
-- **与其他表的关系**:
-  - 关联 `fee_order` 表，汇总手续费数据
-
-### 钱包APP/商服平台模块
-
-#### 表: binding_validation_cache (绑定关系校验缓存表)
-- **所属模块**: 钱包APP/商服平台
-- **主要字段说明**:
-  - `cache_key` (PK): 缓存键
-  - `payer_id`: 付方ID
-  - `payee_id`: 收方ID
-  - `is_valid`: 是否有效
-  - `expire_time`: 缓存过期时间
-- **与其他表的关系**:
-  - 缓存绑定关系校验结果，加速分账前校验
-
-#### 表: wallet_account_balance_log (钱包账户余额变更日志表)
-- **所属模块**: 钱包APP/商服平台
-- **主要字段说明**:
-  - `id` (PK): 日志ID，自增主键
-  - `wallet_account_id` (FK): 钱包账户ID
-  - `balance_before`: 变动前余额
-  - `balance_after`: 变动后余额
-  - `change_amount`: 变动金额
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 多对一关联 `wallet_account` 表，记录某个钱包的余额变更
-
-### 业务核心模块
-
-#### 表: split_trade (分账交易流水表)
-- **所属模块**: 业务核心
-- **主要字段说明**:
-  - `trade_no` (PK): 交易流水号
-  - `split_order_no` (FK): 关联的分账指令号
-  - `payer_merchant_no`: 付方商户号
-  - `payee_merchant_no`: 收方商户号
-  - `amount`: 交易金额
-  - `trade_type`: 交易类型（分账、退款、结算等）
-  - `trade_time`: 交易时间
-- **与其他表的关系**:
-  - 一对一关联 `split_order` 表，对应分账指令
-  - 作为核心数据源供对账单系统使用
-
-#### 表: sync_request_log (同步请求日志表)
-- **所属模块**: 业务核心
-- **主要字段说明**:
-  - `request_id` (PK): 请求ID
-  - `biz_unique_key`: 业务唯一键（用于幂等性校验）
-  - `sync_status`: 同步状态
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 记录来自行业钱包系统的同步请求，确保接口幂等性
-
-### 对账单系统模块
-
-#### 表: split_order_statement (分账指令账单表)
-- **所属模块**: 对账单系统
-- **主要字段说明**:
-  - `statement_id` (PK): 账单ID
-  - `split_order_no` (FK): 关联的分账指令号
-  - `statement_date`: 账单日期
-  - `total_amount`: 总金额
-  - `file_path`: 对账文件存储路径
-  - `generate_time`: 生成时间
-- **与其他表的关系**:
-  - 多对一关联 `split_order` 表，对账分账指令数据
-
-#### 表: account_transaction_statement (机构动账明细表)
-- **所属模块**: 对账单系统
-- **主要字段说明**:
-  - `statement_id` (PK): 账单ID
-  - `merchant_no` (FK): 商户号
-  - `statement_date`: 账单日期
-  - `total_income`: 总收入
-  - `total_expenditure`: 总支出
-  - `file_path`: 对账文件存储路径
-- **与其他表的关系**:
-  - 多对一关联 `account` 表，对账商户资金流水
-
-#### 表: statement_file (对账文件表)
-- **所属模块**: 对账单系统
-- **主要字段说明**:
-  - `file_id` (PK): 文件ID
-  - `file_type`: 文件类型（分账指令、动账明细等）
-  - `file_date`: 文件日期
-  - `file_path`: 文件存储路径
-  - `status`: 状态（生成中、已生成、已下载）
-  - `generate_time`: 生成时间
-- **与其他表的关系**:
-  - 存储各类对账文件的元数据信息
-
-#### 表: data_sync_log (数据同步日志表)
-- **所属模块**: 对账单系统
-- **主要字段说明**:
-  - `log_id` (PK): 日志ID
-  - `sync_type`: 同步类型（分账指令、交易流水、账户流水等）
-  - `sync_date`: 同步日期
-  - `status`: 同步状态（成功、失败）
-  - `create_time`: 创建时间
-- **与其他表的关系**:
-  - 记录从各源系统同步数据的任务状态
+*   **`user` (钱包APP/商服平台模块)**: 存储平台用户信息、所属机构及权限。
+*   **`frontend_split_order` (钱包APP/商服平台模块)**: 记录前端发起的订单草稿及展示状态，与后端的 `tiancai_split_order` 关联。
+*   **`billing_rule` (计费中台)**: 存储计费规则。
+*   **`billing_detail` (计费中台)**: 记录计费订单的明细构成。
+*   **`tiancai_process_flow` (三代系统)**: 记录异步业务流程的步骤状态。
+*   **`settlement_record` (清结算系统)**: 记录结算指令执行后的资金划转结果。
+*   **`refund_fund_adjustment` (清结算系统)**: 记录退货资金调拨明细。
+*   **`contract_document` (电子签约平台)**: 存储已签署的协议文件。
+*   **`daily_summary` (对账单系统)**: 存储业务的日终汇总数据。

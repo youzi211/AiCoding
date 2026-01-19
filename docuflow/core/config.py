@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.3
 
     # 处理配置
-    chunk_size: int = 2000
+    chunk_size: int = 20000
     chunk_overlap: int = 200
     max_retries: int = 3
     step_by_step: bool = False
@@ -72,6 +72,28 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """获取缓存的设置实例"""
     return Settings()
+
+
+class APISettings(BaseSettings):
+    """API 服务配置"""
+    model_config = SettingsConfigDict(
+        env_file='.env',
+        env_file_encoding='utf-8',
+        env_prefix='DOCUFLOW_API_',
+        extra='ignore'
+    )
+
+    host: str = "0.0.0.0"
+    port: int = 8000
+    data_dir: Path = Path("data")
+    max_workers: int = 4
+    cors_origins: list[str] = ["*"]
+
+
+@lru_cache()
+def get_api_settings() -> APISettings:
+    """获取 API 配置"""
+    return APISettings()
 
 
 def get_available_models() -> list[str]:
