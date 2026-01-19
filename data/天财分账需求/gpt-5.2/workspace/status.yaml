@@ -1,97 +1,107 @@
 project_name: DocuFlow-AI Project
-created_at: '2026-01-16T17:11:43.885658'
-last_run: '2026-01-16T17:26:44.222807'
-current_phase: completed
+created_at: '2026-01-19T15:28:55.184097'
+last_run: null
+current_phase: generation
 modules:
 - name: 账户系统
   status: completed
   file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_账户系统.md
   dependencies: []
-  started_at: '2026-01-16T17:11:43.914875'
-  completed_at: '2026-01-16T17:12:40.496528'
+  started_at: null
+  completed_at: '2026-01-19T15:30:10.799415'
+  error_message: null
+  retry_count: 0
+- name: 三代系统
+  status: pending
+  file_path: null
+  dependencies:
+  - 账户系统
+  started_at: null
+  completed_at: null
   error_message: null
   retry_count: 0
 - name: 认证系统
   status: completed
   file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_认证系统.md
   dependencies: []
-  started_at: '2026-01-16T17:12:40.502621'
-  completed_at: '2026-01-16T17:13:34.738598'
+  started_at: null
+  completed_at: '2026-01-19T15:30:10.800501'
   error_message: null
   retry_count: 0
 - name: 电子签约平台
-  status: completed
-  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_电子签约平台.md
+  status: pending
+  file_path: null
   dependencies:
   - 认证系统
-  started_at: '2026-01-16T17:17:47.892929'
-  completed_at: '2026-01-16T17:18:55.746779'
-  error_message: null
-  retry_count: 0
-- name: 三代系统
-  status: completed
-  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_三代系统.md
-  dependencies:
-  - 账户系统
-  started_at: '2026-01-16T17:15:02.811383'
-  completed_at: '2026-01-16T17:16:33.989459'
+  started_at: null
+  completed_at: null
   error_message: null
   retry_count: 0
 - name: 行业钱包系统
-  status: completed
-  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_行业钱包系统.md
+  status: pending
+  file_path: null
   dependencies:
   - 账户系统
   - 三代系统
   - 电子签约平台
-  started_at: '2026-01-16T17:18:55.766277'
-  completed_at: '2026-01-16T17:20:41.654634'
+  started_at: null
+  completed_at: null
   error_message: null
   retry_count: 0
 - name: 清结算系统
-  status: completed
-  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_清结算系统.md
+  status: pending
+  file_path: null
   dependencies:
   - 账户系统
-  started_at: '2026-01-16T17:16:33.993530'
-  completed_at: '2026-01-16T17:17:47.886107'
+  started_at: null
+  completed_at: null
   error_message: null
   retry_count: 0
 - name: 计费中台
   status: completed
   file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_计费中台.md
   dependencies: []
-  started_at: '2026-01-16T17:13:34.742847'
-  completed_at: '2026-01-16T17:14:13.479652'
+  started_at: null
+  completed_at: '2026-01-19T15:30:10.800501'
+  error_message: null
+  retry_count: 0
+- name: 账务核心系统
+  status: pending
+  file_path: null
+  dependencies:
+  - 账户系统
+  started_at: null
+  completed_at: null
   error_message: null
   retry_count: 0
 - name: 业务核心
-  status: completed
-  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_业务核心.md
-  dependencies: []
-  started_at: '2026-01-16T17:14:13.483721'
-  completed_at: '2026-01-16T17:15:02.807320'
+  status: pending
+  file_path: null
+  dependencies:
+  - 行业钱包系统
+  started_at: null
+  completed_at: null
   error_message: null
   retry_count: 0
 - name: 对账单系统
-  status: completed
-  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_对账单系统.md
+  status: pending
+  file_path: null
   dependencies:
   - 账户系统
   - 清结算系统
-  - 业务核心
   - 行业钱包系统
-  started_at: '2026-01-16T17:20:41.659325'
-  completed_at: '2026-01-16T17:22:32.513575'
+  - 三代系统
+  - 业务核心
+  started_at: null
+  completed_at: null
   error_message: null
   retry_count: 0
 - name: 钱包APP/商服平台
-  status: completed
-  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_钱包APP_商服平台.md
+  status: pending
+  file_path: null
   dependencies:
   - 三代系统
-  - 行业钱包系统
-  started_at: '2026-01-16T17:22:32.525204'
-  completed_at: '2026-01-16T17:24:03.147455'
+  started_at: null
+  completed_at: null
   error_message: null
   retry_count: 0

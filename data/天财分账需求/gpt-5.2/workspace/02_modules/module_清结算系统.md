@@ -1,6 +1,6 @@
 # 模块设计: 清结算系统
 
-生成时间: 2026-01-16 17:17:47
+生成时间: 2026-01-19 15:30:59
 
 ---
 
@@ -9,752 +9,341 @@
 ## 1. 概述
 
 ### 1.1 目的
-清结算系统作为天财商龙业务场景下的资金处理核心，负责处理与“天财专用账户”相关的资金清算与结算业务。主要目的是：
-1. **资金划拨**：处理天财分账交易（转账）的资金实际流转，包括从天财收款账户到天财接收方账户的划转。
-2. **结算单生成**：为主动结算商户生成结算单，驱动资金从待结算账户（01账户）结算至其天财收款账户。
-3. **退货处理**：处理涉及天财账户的交易退货，协调退货账户（04账户）完成资金退回。
-4. **账户冻结**：根据风控或业务指令，对天财专用账户进行资金冻结/解冻操作。
-5. **对账支持**：为对账单系统提供结算相关的资金变动明细。
+本模块作为支付体系中的资金处理核心，负责处理与“天财分账业务”相关的交易清算、资金结算、计费以及退货资金处理。它连接收单交易、账户系统和行业钱包系统，确保天财专用账户的资金能够按照业务规则，从待结算账户准确、及时地结算到目标账户，并处理相关的退货资金流转。
 
 ### 1.2 范围
-- **天财分账结算**：执行天财专用账户间的转账指令，完成资金划拨。
-- **主动结算处理**：对于配置为“主动结算”的收单商户，定时（如T+1）将其待结算账户的资金结算至其绑定的天财收款账户。
-- **被动结算触发**：接收“提款”指令，将被动结算商户待结算账户的资金划拨至其指定账户（可能是天财收款账户）。
-- **退货资金结算**：当发生交易退货时，将资金从退货账户（04账户）退回至原支付账户或指定的天财账户。
-- **账户冻结/解冻**：提供接口对天财专用账户进行资金冻结与解冻。
-- **手续费处理**：与计费中台协同，在资金划拨过程中扣除相应手续费。
+- **资金结算**：将收单交易沉淀在“待结算账户（01账户）”中的资金，根据商户配置的结算模式（本场景下为“主动结算”），划转至指定的“天财收款账户”。
+- **退货处理**：处理天财场景下的退货交易，协调“退货账户（04账户）”与“天财收款账户”之间的资金调拨。
+- **计费处理**：在结算过程中，根据计费规则计算并扣除交易手续费。
+- **清算文件处理**：生成并提供与结算、退货相关的资金对账文件。
+- **与天财分账的协同**：作为分账业务的资金源头，为“行业钱包系统”的分账指令提供已结算到账的资金保障。
 
 ## 2. 接口设计
 
-### 2.1 API端点 (REST)
+### 2.1 API端点 (RESTful)
 
-#### 2.1.1 执行天财分账（转账）
-- **端点**：`POST /api/v1/settlement/tiancai-transfer`
-- **描述**：接收来自行业钱包系统的分账指令，执行天财专用账户间的资金划转。此为清结算系统的核心入口。
-- **调用方**：行业钱包系统
-- **认证**：系统间API Key认证
-- **请求头**：
+#### 2.1.1 结算指令处理接口
+- **POST /api/v1/settlement/instructions**
+    - **描述**：接收来自支付核心或定时任务触发的结算指令，将资金从待结算账户（01）结算至目标天财收款账户。支持批量处理。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "settle_req_20250120001",
+        "instruction_type": "REGULAR_SETTLEMENT", // 指令类型：REGULAR_SETTLEMENT(常规结算), REFUND_SETTLEMENT(退货结算)
+        "settle_date": "2025-01-19", // 结算日期（账期）
+        "items": [
+          {
+            "biz_settle_no": "STL_M100001_20250119", // 业务结算流水号，用于幂等
+            "source_account_no": "0100000001", // 源账户号（待结算账户01）
+            "target_tiancai_account_id": "TCA_20231011001", // 目标天财账户ID
+            "target_account_no": "3010001001", // 目标账户号（天财收款账户）
+            "currency": "CNY",
+            "settle_amount": 150000, // 结算金额（元）
+            "fee_amount": 300, // 手续费金额（元）
+            "net_amount": 149700, // 净结算金额（元）
+            "trade_summary": { // 交易汇总信息（可选，用于对账）
+              "total_count": 100,
+              "total_amount": 150000
+            }
+          }
+        ]
+      }
+      ```
+    - **响应体**：
+      ```json
+      {
+        "code": "SUCCESS",
+        "message": "处理成功",
+        "data": {
+          "instruction_id": "INST_202501200001",
+          "status": "PROCESSING", // PROCESSING, PARTIAL_SUCCESS, SUCCESS, FAILED
+          "details": [
+            {
+              "biz_settle_no": "STL_M100001_20250119",
+              "status": "SUCCESS",
+              "ledger_entry_no": "LE_202501200001" // 关联的账务流水号
+            }
+          ]
+        }
+      }
+      ```
+
+#### 2.1.2 退货资金处理接口
+- **POST /api/v1/refund/fund-adjustments**
+    - **描述**：处理天财场景的退货。当发生退货时，需从天财收款账户扣款至退货账户（04），或从退货账户退款至用户原路。
+    - **请求体**：
+      ```json
+      {
+        "request_id": "refund_adj_001",
+        "adjustment_type": "MERCHANT_REFUND", // MERCHANT_REFUND(商户退款), SYSTEM_REFUND(系统退款)
+        "original_trade_no": "PAY_20250119001", // 原支付交易号
+        "refund_trade_no": "REF_20250120001", // 本次退款交易号
+        "tiancai_account_id": "TCA_20231011001", // 关联的天财收款账户ID
+        "receive_account_no": "3010001001", // 天财收款账户号（出款方）
+        "refund_account_no": "0400000001", // 退货账户号（04账户，入款方）
+        "amount": 5000,
+        "currency": "CNY",
+        "reason": "客户取消订单"
+      }
+      ```
+    - **响应体**：返回调拨处理结果及账务流水号。
+
+#### 2.1.3 查询接口
+- **GET /api/v1/settlement/instructions/{instruction_id}**：查询结算指令状态。
+- **GET /api/v1/settlement/records?tiancai_account_id={}&settle_date={}&status={}**：查询结算记录。
+- **GET /api/v1/refund/adjustments?tiancai_account_id={}&date={}**：查询退货资金调拨记录。
+
+### 2.2 发布/消费的事件
+
+#### 2.2.1 消费的事件
+- **TradeSettledEvent** (来自支付核心)：消费已清算完成的交易汇总事件，触发结算任务。
+- **TiancaiAccountCreatedEvent** (来自账户系统)：获知天财收款账户创建，用于建立结算路由（将商户的待结算账户01与天财收款账户关联）。
+- **RefundAppliedEvent** (来自支付核心/业务系统)：消费退款申请事件，触发退货资金处理流程。
+
+#### 2.2.2 发布的事件
+- **SettlementCompletedEvent**：当资金成功从待结算账户结算至天财收款账户后发布，通知行业钱包系统资金已到位，可执行分账。
   ```json
   {
-    "X-App-Id": "wallet_system_id",
-    "X-Api-Key": "encrypted_secret",
-    "X-Request-Id": "uuid_from_wallet"
-  }
-  ```
-- **请求体**：
-  ```json
-  {
-    "requestId": "unique_request_id",
-    "transferType": "TIANCAI_SPLIT", // 交易类型：天财分账
-    "outAccountNo": "转出方天财账户号",
-    "inAccountNo": "转入方天财账户号",
-    "amount": "100.00", // 分账金额
-    "feeAmount": "1.00", // 手续费金额（由计费中台计算）
-    "feeDeductSide": "OUT", // 手续费扣款方：OUT-付方, IN-收方, SEPARATE-各自承担
-    "originalTransactionId": "原收单交易流水号", // 关联的原交易
-    "splitOrderNo": "分账订单号", // 钱包系统生成
-    "remark": "门店归集资金"
-  }
-  ```
-- **响应体** (成功)：
-  ```json
-  {
-    "code": "SUCCESS",
-    "message": "分账成功",
+    "event_id": "event_settle_001",
+    "event_type": "SETTLEMENT_COMPLETED",
+    "timestamp": "2025-01-20T02:00:00Z",
     "data": {
-      "settlementId": "清结算系统流水号",
-      "transferTime": "2024-01-01 10:30:25",
-      "outBalance": "900.00", // 转出方新余额
-      "inBalance": "100.00" // 转入方新余额
+      "tiancai_account_id": "TCA_20231011001",
+      "account_no": "3010001001",
+      "settle_date": "2025-01-19",
+      "net_amount": 149700,
+      "currency": "CNY",
+      "biz_settle_no": "STL_M100001_20250119"
     }
   }
   ```
-
-#### 2.1.2 触发主动结算
-- **端点**：`POST /api/v1/settlement/active-settle`
-- **描述**：由定时任务或手动触发，将指定商户待结算账户的资金结算至其天财收款账户。
-- **调用方**：内部定时任务 / 运营管理台
-- **请求体**：
-  ```json
-  {
-    "batchNo": "SETTLE_20240101_001",
-    "merchantNo": "收单商户号",
-    "settleDate": "2024-01-01", // 结算日期
-    "forceSettle": false // 是否强制结算（忽略风控等限制）
-  }
-  ```
-- **响应体**：
-  ```json
-  {
-    "code": "SUCCESS",
-    "data": {
-      "settlementId": "结算流水号",
-      "settleAmount": "10000.00",
-      "feeAmount": "10.00",
-      "actualAmount": "9990.00",
-      "fromAccount": "待结算账户号",
-      "toAccount": "天财收款账户号",
-      "status": "SUCCESS"
-    }
-  }
-  ```
-
-#### 2.1.3 账户资金冻结/解冻
-- **端点**：`POST /api/v1/settlement/account-freeze`
-- **描述**：冻结或解冻指定天财账户的资金。
-- **调用方**：风控系统 / 行业钱包系统 / 运营管理台
-- **请求体**：
-  ```json
-  {
-    "requestId": "unique_request_id",
-    "accountNo": "天财账户号",
-    "operation": "FREEZE | UNFREEZE",
-    "freezeType": "ACCOUNT | AMOUNT", // 账户冻结 | 金额冻结
-    "freezeAmount": "50.00", // freezeType为AMOUNT时必填
-    "reason": "风控预警-可疑交易",
-    "expireTime": "2024-01-08 10:00:00", // 冻结到期时间
-    "operator": "system_risk_control"
-  }
-  ```
-- **响应体**：
-  ```json
-  {
-    "code": "SUCCESS",
-    "data": {
-      "freezeId": "冻结操作流水号",
-      "accountNo": "账户号",
-      "frozenBalance": "50.00", // 冻结后冻结金额
-      "availableBalance": "950.00", // 可用余额
-      "operationTime": "2024-01-01 11:00:00"
-    }
-  }
-  ```
-
-#### 2.1.4 查询结算状态
-- **端点**：`GET /api/v1/settlement/status/{settlementId}`
-- **描述**：根据结算流水号查询结算执行状态。
-- **调用方**：行业钱包系统 / 对账单系统 / 运营管理台
-- **响应体**：
-  ```json
-  {
-    "code": "SUCCESS",
-    "data": {
-      "settlementId": "清结算系统流水号",
-      "originalRequestId": "原请求ID",
-      "transferType": "TIANCAI_SPLIT",
-      "outAccountNo": "转出账户",
-      "inAccountNo": "转入账户",
-      "amount": "100.00",
-      "status": "PROCESSING | SUCCESS | FAILED | PARTIAL_SUCCESS",
-      "failReason": "失败原因",
-      "createTime": "2024-01-01 10:30:00",
-      "completeTime": "2024-01-01 10:30:25"
-    }
-  }
-  ```
-
-### 2.2 发布的事件
-
-#### 2.2.1 分账完成事件
-- **事件名**：`TIANCAI_TRANSFER_COMPLETED`
-- **发布时机**：天财分账资金划拨成功完成时
-- **事件内容**：
-  ```json
-  {
-    "eventId": "uuid",
-    "eventType": "TIANCAI_TRANSFER_COMPLETED",
-    "timestamp": "2024-01-01T10:30:25Z",
-    "data": {
-      "settlementId": "清结算流水号",
-      "splitOrderNo": "分账订单号",
-      "originalTransactionId": "原交易流水号",
-      "outAccountNo": "转出账户",
-      "inAccountNo": "转入账户",
-      "amount": "100.00",
-      "feeAmount": "1.00",
-      "transferTime": "2024-01-01 10:30:25",
-      "status": "SUCCESS"
-    }
-  }
-  ```
-
-#### 2.2.2 结算单生成事件
-- **端点**：`SETTLEMENT_ORDER_GENERATED`
-- **发布时机**：主动结算处理完成，结算单生成时
-- **事件内容**：
-  ```json
-  {
-    "eventId": "uuid",
-    "eventType": "SETTLEMENT_ORDER_GENERATED",
-    "timestamp": "2024-01-02T02:00:00Z",
-    "data": {
-      "settlementId": "结算流水号",
-      "batchNo": "SETTLE_20240101_001",
-      "merchantNo": "收单商户号",
-      "settleDate": "2024-01-01",
-      "settleAmount": "10000.00",
-      "feeAmount": "10.00",
-      "actualAmount": "9990.00",
-      "fromAccount": "待结算账户号",
-      "toAccount": "天财收款账户号",
-      "generateTime": "2024-01-02 02:00:00"
-    }
-  }
-  ```
-
-#### 2.2.3 账户冻结事件
-- **事件名**：`ACCOUNT_FROZEN`
-- **发布时机**：账户资金冻结/解冻操作成功时
-- **事件内容**：
-  ```json
-  {
-    "eventId": "uuid",
-    "eventType": "ACCOUNT_FROZEN",
-    "timestamp": "2024-01-01T11:00:00Z",
-    "data": {
-      "freezeId": "冻结操作流水号",
-      "accountNo": "账户号",
-      "operation": "FREEZE | UNFREEZE",
-      "freezeType": "ACCOUNT | AMOUNT",
-      "freezeAmount": "50.00",
-      "frozenBalance": "50.00",
-      "availableBalance": "950.00",
-      "reason": "风控预警",
-      "operator": "system_risk_control",
-      "operationTime": "2024-01-01 11:00:00"
-    }
-  }
-  ```
-
-### 2.3 消费的事件
-
-#### 2.3.1 账户创建事件 (`ACCOUNT_CREATED`)
-- **来源**：账户系统
-- **消费逻辑**：清结算系统监听此事件，为新创建的天财专用账户在清结算系统内初始化对应的账户影子记录，用于跟踪冻结金额等状态。
-
-#### 2.3.2 收单交易成功事件 (`TRANSACTION_SUCCESS`)
-- **来源**：业务核心
-- **消费逻辑**：记录交易信息，用于后续的退货处理。对于主动结算商户，此交易金额会计入其待结算账户的“待结算余额”。
-
-#### 2.3.3 退货申请事件 (`REFUND_REQUESTED`)
-- **来源**：业务核心
-- **消费逻辑**：触发退货资金结算流程，从退货账户（04账户）或原天财收款账户向买家退款。
+- **RefundFundAdjustmentCompletedEvent**：退货资金调拨完成时发布，供对账系统使用。
+- **SettlementInstructionProcessedEvent**：结算指令处理完成（无论成功失败）时发布，供监控和报表系统使用。
 
 ## 3. 数据模型
 
-### 3.1 数据库表设计
+### 3.1 核心表设计
 
-#### 表：settlement_order (结算订单表)
-| 字段名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| id | bigint | Y | AUTO_INCREMENT | 主键 |
-| settlement_id | varchar(32) | Y | | 清结算系统流水号，唯一 |
-| original_request_id | varchar(32) | Y | | 原请求ID（如钱包的requestId） |
-| split_order_no | varchar(32) | N | | 分账订单号（钱包生成） |
-| batch_no | varchar(32) | N | | 结算批次号（用于主动结算） |
-| transfer_type | varchar(20) | Y | | 类型：TIANCAI_SPLIT, ACTIVE_SETTLE, REFUND, WITHDRAW |
-| out_account_no | varchar(32) | Y | | 转出账户号 |
-| in_account_no | varchar(32) | Y | | 转入账户号 |
-| amount | decimal(15,2) | Y | | 交易金额 |
-| fee_amount | decimal(15,2) | Y | 0.00 | 手续费金额 |
-| fee_deduct_side | varchar(10) | Y | OUT | 手续费扣款方：OUT, IN, SEPARATE |
-| currency | varchar(3) | Y | CNY | 币种 |
-| status | varchar(20) | Y | PROCESSING | 状态：PROCESSING, SUCCESS, FAILED, PARTIAL_SUCCESS |
-| fail_reason | varchar(200) | N | | 失败原因 |
-| remark | varchar(200) | N | | 备注 |
-| create_time | datetime | Y | CURRENT_TIMESTAMP | 创建时间 |
-| update_time | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | 更新时间 |
-| complete_time | datetime | N | | 完成时间 |
+#### 表：`settlement_instruction` (结算指令表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `instruction_id` | varchar(32) | Y | | **业务指令ID**，全局唯一 |
+| `request_id` | varchar(64) | Y | | 请求流水号，用于幂等 |
+| `instruction_type` | varchar(30) | Y | | 指令类型：`REGULAR_SETTLEMENT`, `REFUND_SETTLEMENT` |
+| `settle_date` | date | Y | | 结算日期（账期） |
+| `status` | varchar(20) | Y | `INIT` | 状态：`INIT`, `PROCESSING`, `SUCCESS`, `FAILED`, `PARTIAL_SUCCESS` |
+| `total_count` | int | Y | 0 | 指令条目总数 |
+| `success_count` | int | Y | 0 | 成功条目数 |
+| `failure_count` | int | Y | 0 | 失败条目数 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
+| `updated_at` | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | |
 
-**索引**：
-- 唯一索引：`uk_settlement_id` (settlement_id)
-- 唯一索引：`uk_original_request` (original_request_id)
-- 索引：`idx_split_order_no` (split_order_no)
-- 复合索引：`idx_account_time` (out_account_no, create_time)
-- 复合索引：`idx_status_time` (status, create_time)
+#### 表：`settlement_record` (结算记录表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `biz_settle_no` | varchar(64) | Y | | **业务结算流水号**，唯一键 |
+| `instruction_id` | varchar(32) | Y | | 所属指令ID |
+| `source_account_no` | varchar(20) | Y | | 源账户（待结算账户01） |
+| `target_tiancai_account_id` | varchar(32) | Y | | 目标天财账户ID |
+| `target_account_no` | varchar(20) | Y | | 目标账户（天财收款账户） |
+| `currency` | varchar(3) | Y | `CNY` | |
+| `settle_amount` | decimal(15,2) | Y | | 结算金额（含手续费） |
+| `fee_amount` | decimal(15,2) | Y | | 手续费金额 |
+| `net_amount` | decimal(15,2) | Y | | 净结算金额 |
+| `status` | varchar(20) | Y | `INIT` | 状态：`INIT`, `ACCOUNT_PROCESSING`, `SUCCESS`, `FAILED` |
+| `ledger_entry_no` | varchar(32) | N | | 账户系统返回的账务流水号 |
+| `trade_summary` | json | N | | 交易汇总信息 |
+| `error_msg` | text | N | | 失败原因 |
+| `completed_at` | datetime | N | | 完成时间 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
 
-#### 表：account_freeze_record (账户冻结记录表)
-| 字段名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| id | bigint | Y | AUTO_INCREMENT | 主键 |
-| freeze_id | varchar(32) | Y | | 冻结操作流水号，唯一 |
-| account_no | varchar(32) | Y | | 账户号 |
-| operation | varchar(10) | Y | | 操作：FREEZE, UNFREEZE |
-| freeze_type | varchar(10) | Y | | 类型：ACCOUNT, AMOUNT |
-| freeze_amount | decimal(15,2) | N | | 冻结金额（freeze_type=AMOUNT时有效） |
-| frozen_balance | decimal(15,2) | Y | 0.00 | 操作后该账户的总冻结金额 |
-| available_balance | decimal(15,2) | Y | | 操作后可用余额（冗余，从账户系统同步） |
-| reason | varchar(200) | Y | | 冻结/解冻原因 |
-| operator | varchar(50) | Y | | 操作者 |
-| expire_time | datetime | N | | 冻结到期时间 |
-| create_time | datetime | Y | CURRENT_TIMESTAMP | 创建时间 |
+#### 表：`refund_fund_adjustment` (退货资金调拨表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `adjustment_no` | varchar(32) | Y | | **调拨流水号**，唯一 |
+| `request_id` | varchar(64) | Y | | 请求流水号，幂等 |
+| `adjustment_type` | varchar(30) | Y | | 类型：`MERCHANT_REFUND`, `SYSTEM_REFUND` |
+| `original_trade_no` | varchar(64) | Y | | 原支付交易号 |
+| `refund_trade_no` | varchar(64) | Y | | 退款交易号 |
+| `tiancai_account_id` | varchar(32) | Y | | 关联的天财账户ID |
+| `receive_account_no` | varchar(20) | Y | | 出款账户（天财收款账户） |
+| `refund_account_no` | varchar(20) | Y | | 入款账户（退货账户04） |
+| `amount` | decimal(15,2) | Y | | 调拨金额 |
+| `currency` | varchar(3) | Y | `CNY` | |
+| `status` | varchar(20) | Y | `INIT` | 状态：`INIT`, `SUCCESS`, `FAILED` |
+| `ledger_entry_no` | varchar(32) | N | | 账务流水号 |
+| `reason` | varchar(255) | N | | 调拨原因 |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
 
-**索引**：
-- 唯一索引：`uk_freeze_id` (freeze_id)
-- 索引：`idx_account_op_time` (account_no, operation, create_time)
-- 索引：`idx_expire_time` (expire_time) -- 用于定时解冻任务
-
-#### 表：settlement_account_shadow (结算账户影子表)
-| 字段名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| id | bigint | Y | AUTO_INCREMENT | 主键 |
-| account_no | varchar(32) | Y | | 账户号（与账户系统account表对应） |
-| merchant_no | varchar(32) | Y | | 商户号 |
-| account_type | varchar(20) | Y | | 账户类型 |
-| tiancai_flag | tinyint(1) | Y | 0 | 天财标记 |
-| frozen_balance | decimal(15,2) | Y | 0.00 | 冻结金额（清结算系统维护） |
-| pending_settle_balance | decimal(15,2) | Y | 0.00 | 待结算余额（仅待结算账户有效） |
-| version | int | Y | 0 | 版本号，用于乐观锁 |
-| last_sync_time | datetime | Y | | 最后与账户系统同步时间 |
-| create_time | datetime | Y | CURRENT_TIMESTAMP | 创建时间 |
-| update_time | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | 更新时间 |
-
-**索引**：
-- 唯一索引：`uk_account_no` (account_no)
-- 索引：`idx_merchant_no` (merchant_no)
-- 索引：`idx_tiancai_flag` (tiancai_flag)
-
-#### 表：daily_settlement_summary (日终结算汇总表)
-| 字段名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| id | bigint | Y | AUTO_INCREMENT | 主键 |
-| settle_date | date | Y | | 结算日期 |
-| merchant_no | varchar(32) | Y | | 商户号 |
-| account_no | varchar(32) | Y | | 结算目标账户（天财收款账户） |
-| total_settle_amount | decimal(15,2) | Y | 0.00 | 当日应结算总额 |
-| total_fee_amount | decimal(15,2) | Y | 0.00 | 手续费总额 |
-| actual_settle_amount | decimal(15,2) | Y | 0.00 | 实际结算金额 |
-| settlement_status | varchar(20) | Y | PENDING | 状态：PENDING, PROCESSING, SUCCESS, FAILED |
-| batch_no | varchar(32) | N | | 结算批次号 |
-| settlement_id | varchar(32) | N | | 结算流水号 |
-| create_time | datetime | Y | CURRENT_TIMESTAMP | 创建时间 |
-| update_time | datetime | Y | CURRENT_TIMESTAMP ON UPDATE | 更新时间 |
-
-**索引**：
-- 唯一索引：`uk_date_merchant` (settle_date, merchant_no)
-- 索引：`idx_settle_date` (settle_date)
-- 索引：`idx_settlement_status` (settlement_status)
+#### 表：`settlement_route` (结算路由表)
+| 字段名 | 类型 | 必填 | 默认值 | 描述 |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | bigint | Y | AUTO_INCREMENT | 主键 |
+| `merchant_no` | varchar(32) | Y | | 收单商户号 |
+| `settle_account_no` | varchar(20) | Y | | 待结算账户号（01账户） |
+| `tiancai_account_id` | varchar(32) | Y | | 目标天财收款账户ID |
+| `target_account_no` | varchar(20) | Y | | 目标天财收款账户号 |
+| `settle_mode` | varchar(20) | Y | `ACTIVE` | 结算模式：`ACTIVE` |
+| `status` | varchar(20) | Y | `ACTIVE` | 状态：`ACTIVE`, `INACTIVE` |
+| `created_at` | datetime | Y | CURRENT_TIMESTAMP | |
 
 ### 3.2 与其他模块的关系
-```mermaid
-erDiagram
-    SETTLEMENT_ORDER ||--o{ DAILY_SETTLEMENT_SUMMARY : "对应"
-    ACCOUNT_FREEZE_RECORD }|--|| SETTLEMENT_ACCOUNT_SHADOW : "更新"
-    SETTLEMENT_ACCOUNT_SHADOW }|--|| ACCOUNT : "映射"
-    
-    SETTLEMENT_SYSTEM }|--|| ACCOUNT_SYSTEM : "调用转账"
-    SETTLEMENT_SYSTEM }|--|| WALLET_SYSTEM : "接收指令"
-    SETTLEMENT_SYSTEM }|--|| BILLING_SYSTEM : "获取手续费"
-    SETTLEMENT_SYSTEM }|--|| BUSINESS_CORE : "监听交易"
-    
-    ACCOUNT_SYSTEM {
-        varchar system_id PK
-    }
-    
-    WALLET_SYSTEM {
-        varchar system_id PK
-    }
-    
-    BILLING_SYSTEM {
-        varchar system_id PK
-    }
-    
-    BUSINESS_CORE {
-        varchar system_id PK
-    }
-```
+- **账户系统**：通过调用账务操作接口(`/ledger/entries`)执行资金划转，是核心的资金操作依赖方。
+- **行业钱包系统**：消费本模块发布的`SettlementCompletedEvent`，作为触发分账的起点。
+- **支付核心（三代系统）**：消费其发布的交易清算完成事件，是结算任务的触发源；同时为其提供退货资金处理服务。
+- **对账单系统**：为本模块提供交易明细数据以汇总结算金额，并消费本模块发布的事件生成资金结算对账单。
 
 ## 4. 业务逻辑
 
-### 4.1 核心算法
+### 4.1 核心算法与规则
 
-#### 4.1.1 结算流水号生成算法
-```python
-def generate_settlement_id(transfer_type, timestamp, sequence):
-    """
-    生成清结算系统流水号
-    格式：ST + 交易类型码(2位) + 时间戳(yyMMddHHmmss) + 序列号(4位) + 随机码(2位)
-    示例：STTS2401011030250001AB
-    """
-    # 交易类型映射
-    type_map = {
-        'TIANCAI_SPLIT': 'TS',
-        'ACTIVE_SETTLE': 'AS',
-        'REFUND': 'RF',
-        'WITHDRAW': 'WD'
-    }
-    
-    prefix = "ST"
-    type_code = type_map.get(transfer_type, 'XX')
-    time_str = timestamp.strftime("%y%m%d%H%M%S")  # 24年01月01日10点30分25秒 -> 240101103025
-    seq_str = str(sequence).zfill(4)
-    random_str = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=2))
-    
-    return prefix + type_code + time_str + seq_str + random_str
-```
+#### 4.1.1 主动结算流程（天财收款账户）
+1. **触发时机**：每日定时任务（如T+1日凌晨）或实时触发（根据`TradeSettledEvent`）。
+2. **路由查找**：根据`merchant_no`查询`settlement_route`表，找到对应的待结算账户（01）和目标天财收款账户。
+3. **金额汇总**：调用对账单系统或内部汇总服务，统计指定账期(`settle_date`)内，该待结算账户对应的所有成功交易净额（交易金额 - 已发生退款）。
+4. **计费计算**：根据商户费率合同，计算该笔结算应付的手续费。
+    - `结算金额 = 交易净额`
+    - `净结算金额 = 结算金额 - 手续费`
+5. **生成指令**：创建结算指令和记录，状态置为`INIT`。
+6. **调用账户系统**：调用账户系统账务接口，执行资金划转：
+    - **借记（DEBIT）** 待结算账户（01），金额为`净结算金额`。
+    - **贷记（CREDIT）** 天财收款账户，金额为`净结算金额`。
+    - （手续费单独记入收入账户，此逻辑可能内嵌在账户系统或清结算内部）。
+7. **状态更新与发布事件**：账务成功则更新记录状态为`SUCCESS`，并发布`SettlementCompletedEvent`。失败则记录错误，进行重试或人工干预。
 
-#### 4.1.2 主动结算批次处理算法
-```java
-public SettlementBatchResult processActiveSettlementBatch(String settleDate) {
-    // 1. 查询所有需要当日结算的主动结算商户
-    List<MerchantSettleConfig> merchants = settleConfigDao.findActiveSettleMerchants(settleDate);
-    
-    // 2. 按商户生成结算批次号
-    String batchNo = "SETTLE_" + settleDate.replace("-", "") + "_001";
-    
-    // 3. 并发处理每个商户的结算（使用线程池控制并发度）
-    List<CompletableFuture<SettlementResult>> futures = merchants.stream()
-        .map(merchant -> CompletableFuture.supplyAsync(() -> 
-            settleSingleMerchant(merchant, settleDate, batchNo), executorService))
-        .collect(Collectors.toList());
-    
-    // 4. 等待所有结算完成，汇总结果
-    List<SettlementResult> results = futures.stream()
-        .map(CompletableFuture::join)
-        .collect(Collectors.toList());
-    
-    // 5. 生成批次汇总报告
-    return generateBatchReport(batchNo, results);
-}
+#### 4.1.2 天财场景退货处理规则
+1. **商户发起退款**：
+   - 资金路径：天财收款账户 (出) -> 退货账户（04）(入)。
+   - 逻辑：调用账户系统，从天财收款账户的可用余额中扣减退款金额，记入退货账户。退货账户资金后续用于原路退回给用户。
+2. **系统原路退款**：
+   - 资金路径：退货账户（04）(出) -> 银行/支付渠道。
+   - 逻辑：此步骤通常由支付核心执行，清结算系统负责确保退货账户中有足额资金。
+3. **校验**：执行调拨前，需校验天财收款账户状态是否正常、可用余额是否充足。
 
-private SettlementResult settleSingleMerchant(MerchantSettleConfig merchant, String settleDate, String batchNo) {
-    // 查询该商户待结算账户在settleDate日的待结算余额
-    BigDecimal pendingAmount = settlementAccountShadowDao.getPendingSettleBalance(
-        merchant.getSettlementAccountNo(), settleDate);
-    
-    if (pendingAmount.compareTo(BigDecimal.ZERO) <= 0) {
-        return SettlementResult.skipped(merchant.getMerchantNo(), "无待结算金额");
-    }
-    
-    // 调用计费中台计算手续费
-    FeeCalculateRequest feeRequest = buildFeeRequest(merchant, pendingAmount);
-    FeeCalculateResponse feeResponse = billingClient.calculateFee(feeRequest);
-    
-    // 执行资金划转：待结算账户 -> 天财收款账户
-    AccountTransferRequest transferRequest = buildTransferRequest(merchant, pendingAmount, feeResponse);
-    AccountTransferResponse transferResponse = accountClient.transfer(transferRequest);
-    
-    // 更新结算状态，记录日志
-    return SettlementResult.success(merchant.getMerchantNo(), pendingAmount, feeResponse.getFeeAmount());
-}
-```
+#### 4.1.3 幂等性与一致性
+- **结算**：使用`biz_settle_no`作为业务唯一键，在`settlement_record`表中实现幂等。账户系统层面使用`biz_trade_no`保证账务幂等。
+- **退货调拨**：使用`request_id`和`adjustment_no`实现双重幂等保证。
+- **分布式事务**：与账户系统的账务操作为同步调用，依赖其内部事务保证资金划转的原子性。本系统记录操作状态，用于对账和补偿。
 
-#### 4.1.3 账户余额校验与冻结金额计算
-```java
-public boolean validateAndCalculateAvailableBalance(String accountNo, BigDecimal requestAmount) {
-    // 1. 查询账户影子记录（含冻结金额）
-    SettlementAccountShadow shadow = shadowDao.selectByAccountNo(accountNo);
-    
-    // 2. 调用账户系统查询实时余额
-    AccountInfo accountInfo = accountClient.getAccountInfo(accountNo);
-    
-    // 3. 计算可用余额 = 账户系统余额 - 冻结金额
-    BigDecimal availableBalance = accountInfo.getBalance().subtract(shadow.getFrozenBalance());
-    
-    // 4. 校验请求金额是否超过可用余额
-    if (requestAmount.compareTo(availableBalance) > 0) {
-        throw new InsufficientAvailableBalanceException(
-            String.format("可用余额不足。账户余额：%s, 冻结金额：%s, 可用余额：%s, 请求金额：%s",
-                accountInfo.getBalance(), shadow.getFrozenBalance(), availableBalance, requestAmount));
-    }
-    
-    return true;
-}
-```
-
-### 4.2 业务规则
-
-#### 4.2.1 天财分账规则
-1. **账户类型限制**：仅允许在天财专用账户（标记为`tiancai_flag=1`）之间进行分账。
-2. **状态校验**：转出和转入账户必须状态正常（非冻结、非注销）。
-3. **余额校验**：转出账户的可用余额（账户余额 - 冻结金额）必须大于等于分账金额加手续费。
-4. **手续费处理**：
-   - 支持从付方、收方或双方分别承担手续费。
-   - 手续费金额由计费中台预先计算并提供。
-5. **幂等性**：基于`original_request_id`或`split_order_no`保证同一分账请求不会重复执行。
-
-#### 4.2.2 主动结算规则
-1. **结算周期**：默认T+1结算，支持自定义结算周期（如D+0, T+2）。
-2. **结算时间**：每日凌晨定时执行，支持手动触发。
-3. **最小结算金额**：可配置，低于此金额不发起结算，累计到下一周期。
-4. **风控拦截**：结算前检查商户风险状态，高风险商户暂停结算。
-5. **部分成功处理**：单商户结算失败不影响其他商户结算。
-
-#### 4.2.3 冻结规则
-1. **冻结层级**：
-   - 账户冻结：整个账户不可用，所有资金无法动用。
-   - 金额冻结：仅冻结指定金额，其余资金可用。
-2. **冻结优先级**：金额冻结支持多次，累计冻结金额不超过账户余额。
-3. **自动解冻**：支持设置冻结到期时间，到期自动解冻。
-4. **解冻顺序**：先进先出（FIFO），按冻结时间顺序解冻。
-
-#### 4.2.4 退货结算规则
-1. **资金来源**：优先从退货账户（04账户）退款，不足时从原收款天财账户扣款。
-2. **原路退回**：尽可能原路退回至买家支付账户。
-3. **部分退货**：支持单笔交易多次部分退货，累计退货金额不超过原交易金额。
-4. **手续费处理**：退货时是否返还手续费根据业务规则配置。
-
-### 4.3 验证逻辑
-
-#### 4.3.1 分账请求验证
-```java
-public void validateTransferRequest(TiancaiTransferRequest request) {
-    // 1. 基础参数校验
-    Validate.notNull(request.getOutAccountNo(), "转出账户不能为空");
-    Validate.notNull(request.getInAccountNo(), "转入账户不能为空");
-    Validate.isTrue(request.getAmount().compareTo(BigDecimal.ZERO) > 0, "分账金额必须大于0");
-    
-    // 2. 幂等性校验：检查originalRequestId是否已处理
-    SettlementOrder existing = settlementOrderDao.selectByOriginalRequestId(request.getOriginalRequestId());
-    if (existing != null) {
-        if ("SUCCESS".equals(existing.getStatus())) {
-            throw new DuplicateRequestException("该请求已成功处理");
-        } else if ("PROCESSING".equals(existing.getStatus())) {
-            throw new RequestProcessingException("该请求正在处理中");
-        }
-        // FAILED状态可重试
-    }
-    
-    // 3. 账户信息校验（调用账户系统）
-    AccountInfo outAccount = accountClient.getAccountInfo(request.getOutAccountNo());
-    AccountInfo inAccount = accountClient.getAccountInfo(request.getInAccountNo());
-    
-    Validate.isTrue(outAccount.isTiancaiFlag() && inAccount.isTiancaiFlag(), 
-        "天财分账仅支持天财专用账户");
-    Validate.isTrue("NORMAL".equals(outAccount.getAccountStatus()), "转出账户状态异常");
-    Validate.isTrue("NORMAL".equals(inAccount.getAccountStatus()), "转入账户状态异常");
-    
-    // 4. 余额与冻结金额校验
-    validateAndCalculateAvailableBalance(request.getOutAccountNo(), 
-        request.getAmount().add(request.getFeeAmount()));
-    
-    // 5. 手续费扣款方校验
-    if ("SEPARATE".equals(request.getFeeDeductSide())) {
-        // 双方承担时，需验证双方余额都足够
-        BigDecimal outFee = calculateOutFee(request.getFeeAmount()); // 计算付方承担部分
-        BigDecimal inFee = request.getFeeAmount().subtract(outFee); // 计算收方承担部分
-        
-        validateAndCalculateAvailableBalance(request.getOutAccountNo(), 
-            request.getAmount().add(outFee));
-        validateAndCalculateAvailableBalance(request.getInAccountNo(), inFee);
-    }
-}
-```
+### 4.2 验证逻辑
+- **结算指令验证**：验证结算日期有效性、目标天财账户是否存在且状态为`ACTIVE`、结算路由有效。
+- **金额验证**：结算金额、手续费需大于0，且净结算金额不大于源账户余额（由账户系统最终校验）。
+- **退货调拨验证**：验证原交易是否存在、退款金额是否合理、关联的天财账户是否有权操作此退款。
 
 ## 5. 时序图
 
-### 5.1 天财分账资金划拨时序图
-
+### 5.1 天财收款账户日常结算流程
 ```mermaid
 sequenceDiagram
+    participant Scheduler as 定时任务/事件
+    participant S as 清结算系统
+    participant B as 对账单系统
+    participant A as 账户系统
     participant W as 行业钱包系统
-    participant S as 清结算系统
-    participant B as 计费中台
-    participant A as 账户系统
-    participant MQ as 消息队列
+    participant DB as 数据库
 
-    W->>S: 1. 执行天财分账请求
-    S->>S: 2. 参数校验、幂等性检查
-    S->>B: 3. 获取手续费详情（如未提供）
-    B->>S: 4. 返回手续费计算结果
-    S->>A: 5. 调用账户转账接口
-    A->>A: 6. 校验账户类型、余额、状态
-    A->>A: 7. 执行余额更新（原子操作）
-    A->>A: 8. 记录交易明细
-    A->>S: 9. 返回转账结果
-    S->>S: 10. 更新结算订单状态
-    S->>W: 11. 返回分账结果
-    
-    S->>MQ: 12. 发布TIANCAI_TRANSFER_COMPLETED事件
-    Note over MQ: 对账单、业务核心等系统订阅
-```
-
-### 5.2 主动结算批次处理时序图
-
-```mermaid
-sequenceDiagram
-    participant Job as 定时任务
-    participant S as 清结算系统
-    participant A as 账户系统
-    participant B as 计费中台
-    participant MQ as 消息队列
-
-    Job->>S: 1. 触发T+1主动结算
-    S->>S: 2. 查询待结算商户列表
-    loop 每个商户
-        S->>S: 3. 计算待结算金额
-        S->>B: 4. 计算结算手续费
-        B->>S: 5. 返回手续费
-        S->>A: 6. 执行资金划拨<br/>(待结算账户→天财收款账户)
-        A->>S: 7. 返回划拨结果
-        S->>S: 8. 记录结算单
+    Scheduler->>S: 触发T+1日结算任务
+    S->>DB: 查询待结算的路由(merchant_no -> tiancai_account)
+    DB-->>S: 返回路由列表
+    loop 每个结算路由
+        S->>B: 查询商户在settle_date的交易净额
+        B-->>S: 返回结算金额
+        S->>S: 计算手续费及净额
+        S->>DB: 创建settlement_instruction & record(状态INIT)
+        S->>A: POST /ledger/entries (01账户出，天财账户入)
+        A->>A: 执行账务事务
+        alt 账务成功
+            A-->>S: 返回成功及流水号
+            S->>DB: 更新record状态为SUCCESS
+            S->>W: 发布SettlementCompletedEvent
+        else 账务失败
+            A-->>S: 返回错误
+            S->>DB: 更新record状态为FAILED
+        end
     end
-    S->>S: 9. 生成批次汇总报告
-    S->>Job: 10. 返回批次处理结果
-    
-    S->>MQ: 11. 发布SETTLEMENT_ORDER_GENERATED事件
-    Note over MQ: 对账单、商户通知等系统订阅
+    S->>DB: 更新instruction最终状态
 ```
 
-### 5.3 账户冻结操作时序图
-
+### 5.2 天财场景退货资金调拨流程
 ```mermaid
 sequenceDiagram
-    participant R as 风控系统
+    participant B as 业务系统
     participant S as 清结算系统
     participant A as 账户系统
-    participant MQ as 消息队列
+    participant DB as 数据库
 
-    R->>S: 1. 发起账户冻结请求
-    S->>S: 2. 参数校验、生成freezeId
-    S->>A: 3. 查询账户当前余额
-    A->>S: 4. 返回账户信息
-    S->>S: 5. 计算冻结后金额<br/>更新影子表
-    S->>A: 6. 调用账户状态变更(如需账户级冻结)
-    A->>S: 7. 返回操作结果
-    S->>S: 8. 记录冻结操作
-    S->>R: 9. 返回冻结结果
-    
-    S->>MQ: 10. 发布ACCOUNT_FROZEN事件
-    Note over MQ: 钱包、业务核心等系统订阅
+    B->>S: POST /refund/fund-adjustments (申请退款调拨)
+    S->>DB: 幂等校验(request_id/adjustment_no)
+    S->>DB: 查询关联天财账户状态及余额
+    DB-->>S: 返回账户信息
+    alt 校验通过
+        S->>DB: 创建refund_fund_adjustment记录(状态INIT)
+        S->>A: POST /ledger/entries (天财账户出，04账户入)
+        A->>A: 执行账务事务
+        alt 账务成功
+            A-->>S: 返回成功
+            S->>DB: 更新记录状态为SUCCESS
+        else 账务失败
+            A-->>S: 返回错误(如余额不足)
+            S->>DB: 更新记录状态为FAILED
+            S-->>B: 返回调拨失败
+        end
+    else 校验失败
+        S-->>B: 返回错误(如账户冻结)
+    end
 ```
 
 ## 6. 错误处理
 
-### 6.1 预期错误码
+| 错误码 | HTTP 状态码 | 描述 | 处理策略 |
+| :--- | :--- | :--- | :--- |
+| `SETTLE_ROUTE_NOT_FOUND` | 404 | 未找到该商户的生效结算路由 | 检查商户是否已开通天财账户并配置路由，结算任务暂停并告警。 |
+| `SETTLE_AMOUNT_INVALID` | 400 | 结算金额计算错误（<=0） | 记录异常，跳过该商户本次结算，发出业务告警。 |
+| `TIANCAI_ACCOUNT_INACTIVE` | 422 | 目标天财账户状态非ACTIVE | 结算任务暂停，等待账户恢复或人工处理。 |
+| `ACCOUNT_TRANSFER_FAILED` | 502 | 调用账户系统账务操作失败 | 根据账户系统返回的具体错误码决定重试策略（如网络错误重试，余额不足则失败）。 |
+| `DUPLICATE_SETTLE_NO` | 409 | 重复的`biz_settle_no` | 返回已存在的结算记录信息，确保幂等。 |
+| `REFUND_ORIGINAL_TRADE_NOT_FOUND` | 404 | 退货对应的原交易不存在 | 拒绝调拨请求。 |
+| `REFUND_ACCOUNT_BALANCE_INSUFFICIENT` | 422 | 天财收款账户余额不足 | 拒绝调拨请求，通知业务方。 |
+| `DATA_AGGREGATION_ERROR` | 500 | 从对账单系统汇总数据失败 | 重试查询，多次失败后触发告警，人工介入。 |
 
-| 错误码 | HTTP状态码 | 描述 | 处理建议 |
-|--------|------------|------|----------|
-| SETTLE_400001 | 400 | 请求参数校验失败 | 检查参数格式、必填项 |
-| SETTLE_400002 | 400 | 分账金额必须大于0 | 调整分账金额 |
-| SETTLE_403001 | 403 | 非授权系统禁止操作 | 检查API Key和系统权限 |
-| SETTLE_409001 | 409 | 重复请求（幂等性冲突） | 使用原requestId查询结果，勿重复提交 |
-| SETTLE_422001 | 422 | 账户状态异常 | 检查账户是否冻结、注销 |
-| SETTLE_422002 | 422 | 可用余额不足 | 检查账户余额和冻结金额 |
-| SETTLE_422003 | 422 | 非天财账户间转账 | 确认转出/转入账户均为天财专用账户 |
-| SETTLE_422004 | 422 | 手续费计算失败 | 联系计费中台检查配置 |
-| SETTLE_422005 | 422 | 商户结算配置不存在 | 检查商户是否配置为主动结算 |
-| SETTLE_422006 | 422 | 无待结算金额 | 商户当日无交易或已结算 |
-| SETTLE_429001 | 429 | 请求频率超限 | 降低调用频率，或联系调整限流阈值 |
-| SETTLE_500001 | 500 | 清结算系统内部错误 | 联系技术支持，提供requestId |
-| SETTLE_500002 | 500 | 依赖系统调用超时 | 检查网络和依赖系统状态，自动重试 |
-
-### 6.2 重试策略
-1. **乐观锁冲突**：账户余额更新时，最多重试3次，每次间隔200ms。
-2. **外部依赖调用失败**：
-   - 账户系统调用失败：重试2次，首次立即重试，第二次间隔1秒。
-   - 计费中台调用失败：不重试，使用默认手续费或失败。
-   - 消息发送失败：本地持久化后异步重试，最多5次，指数退避。
-3. **批量结算部分失败**：单商户结算失败不影响其他商户，记录失败原因后继续。
-
-### 6.3 补偿与对账机制
-1. **日终对账**：每日与账户系统对账，确保结算账户影子表的冻结金额、待结算余额与账户系统一致。
-2. **异常交易监控**：监控长时间处于`PROCESSING`状态的结算订单，触发人工核查。
-3. **资金平衡检查**：每日检查“出款总额 + 手续费 = 入款总额”的资金平衡公式。
-4. **差错处理流程**：
-   - 系统自动冲正：对于实时发现的错误，尝试自动冲正。
-   - 人工调账：对于隔日发现的差错，走人工调账流程。
-
-### 6.4 监控与告警
-1. **关键业务指标**：
-   - 分账成功率 < 99.9%
-   - 主动结算失败率 > 1%
-   - 平均结算延迟 > 5分钟
-   - 账户余额与影子表差异 > 0
-2. **系统性能指标**：
-   - API P99响应时间 > 500ms
-   - 数据库连接池使用率 > 80%
-   - 消息队列积压 > 1000
-3. **告警渠道**：企业微信、短信、邮件，分P0/P1/P2等级。
-4. **日志规范**：
-   - 每个结算请求分配唯一`traceId`，贯穿所有系统调用。
-   - 关键业务操作记录操作日志。
-   - 敏感信息（金额、账户号）脱敏。
+**通用策略**：
+- **业务逻辑错误(4xx)**：立即失败，记录明确日志，通知上游系统。
+- **外部依赖错误(5xx/网络超时)**：
+  - **结算任务**：标记该条记录为`FAILED`，指令状态为`PARTIAL_SUCCESS`。整体任务继续执行其他路由。失败记录进入延时重试队列。
+  - **退货调拨**：立即向调用方返回失败，支持其重试（依赖`request_id`幂等）。
+- **重试机制**：对可重试错误（网络超时、数据库死锁），采用指数退避策略，最多重试3次。
 
 ## 7. 依赖说明
 
 ### 7.1 上游依赖
+1. **支付核心（三代系统）**
+   - **交互方式**：异步事件消费 (`TradeSettledEvent`, `RefundAppliedEvent`)。
+   - **职责**：提供已清算的交易数据作为结算源；触发退款流程。
+   - **关键点**：事件数据的准确性和及时性是结算正确性的基础。需有监控确保事件不丢失。
 
-#### 7.1.1 行业钱包系统
-- **依赖关系**：核心指令来源
-- **交互方式**：同步HTTP API调用（分账请求）
-- **关键接口**：`POST /api/v1/settlement/tiancai-transfer`
-- **SLA要求**：P99响应时间 < 1s，可用性 > 99.95%
-- **流量预估**：峰值100 TPS，日均50万笔分账
+2. **账户系统**
+   - **交互方式**：同步REST API调用 (`POST /ledger/entries`)。
+   - **职责**：执行所有资金划转的底层账务操作。
+   - **关键点**：**强依赖**。其可用性和性能直接决定清结算系统的吞吐量与成功率。需有熔断和降级策略（如堆积队列）。
 
-#### 7.1.2 账户系统
-- **依赖关系**：核心资金操作依赖
-- **交互方式**：同步HTTP API调用
-- **关键接口**：
-  - 账户转账接口
-  - 账户信息查询接口
-  - 账户状态变更接口（冻结）
-- **数据一致性**：强一致性要求，转账操作需原子性
-- **SLA要求**：P99响应时间 < 300ms，可用性 > 99.99%
+3. **对账单系统**
+   - **交互方式**：同步REST API调用。
+   - **职责**：提供指定商户和账期的交易金额汇总数据。
+   - **关键点**：结算金额计算的依据，需保证数据一致性（如已汇总的金额不会因后续退货而改变）。
 
-#### 7.1.3 计费中台
-- **依赖关系**：手续费计算依赖
-- **交互方式**：同步HTTP API调用
-- **关键接口**：手续费计算接口
-- **降级策略**：调用失败时使用默认费率或失败处理
-- **SLA要求**：P99响应时间 < 200ms，可用性 > 99.9%
+4. **行业钱包系统**
+   - **交互方式**：异步事件消费 (`TiancaiAccountCreatedEvent`)。
+   - **职责**：提供天财账户创建信息，用于建立结算路由。
+   - **关键点**：需及时建立路由，否则会影响结算。
 
-#### 7.1.4 业务核心
-- **依赖关系**：交易数据来源
-- **交互方式**：异步消息消费
-- **关键事件**：`TRANSACTION_SUCCESS`, `REFUND_REQUESTED`
-- **数据用途**：用于退货处理和待结算金额计算
-- **消息可靠性**：至少一次投递，需处理幂等
-
-### 7.2 下游依赖
-
-#### 7.2.1 对账单系统
-- **依赖关系**：数据消费方
-- **交互方式**：异步消息订阅 + 批量查询接口
-- **消费事件**：`TIANCAI_TRANSFER_COMPLETED`, `SETTLEMENT_ORDER_GENERATED`
-- **数据要求**：完整的结算流水信息，用于生成机构层账单
-
-#### 7.2.2 消息队列 (Kafka)
-- **用途**：领域事件发布、异步解耦
-- **Topic配置**：
-  - `settlement-events`: 结算相关事件
-  - `account-freeze-events`: 账户冻结事件
-- **消息格式**：Protobuf/JSON Schema，带版本号
-- **可靠性**：至少一次投递，关键业务支持事务消息
-
-#### 7.2.3 数据库 (MySQL)
-- **版本**：MySQL 5.7+，建议8.0
-- **架构**：一主多从，分库分表准备
-- **分表策略**：
-  - `settlement_order`按`create_time`月份分表
-  - `account_freeze_record`按`account_no`哈希分表
-- **性能要求**：
-  - 单笔插入 < 20ms
-  - 按索引查询 < 50ms
-  - 批量查询（万级）< 2s
-
-### 7.3 容错与降级设计
-
-1. **账户系统降级**：
-   - 查询接口失败：使用本地缓存（TTL 1分钟）
-   - 转账接口失败：返回失败，由调用方决定重试
-   - 完全不可用：进入只读模式，暂停所有资金操作
-
-2. **计费中台降级**：
-   - 调用失败：使用配置的默认费率（可能偏高，避免资损）
-   - 超时：快速失败，返回"手续费计算失败"
-
-3. **批量结算容错**：
-   - 单商户失败不影响整体批次
-   - 支持手动重试单个失败商户
-   - 提供结算异常报表供运营处理
-
-4. **数据一致性保障**：
-   - 关键操作（转账）本地事务保证
-   - 最终一致性通过事件驱动和日终对账保证
-   - 提供数据修复工具处理极端不一致情况
-
----
-**文档版本**：v1.0  
-**最后更新**：2024年1月  
-**负责人**：清结算系统架构组
+### 7.2 设计原则
+- **最终一致性**：通过事件驱动，与支付核心、行业钱包等系统达成最终一致性。结算完成后发布事件，驱动下游分账。
+- **职责清晰**：
+  - **清结算**：负责“资金何时、何路径、算多少”的问题。
+  - **账户系统**：负责“资金如何安全地从一个数字转移到另一个数字”。
+  - **行业钱包**：负责“资金到账后，根据业务规则如何再分配”。
+- **可观测性**：所有结算指令、调拨记录状态可查，关键步骤有明确日志，便于对账和问题排查。
+- **弹性设计**：结算任务支持分批、并行处理，单条失败不影响整体。依赖外部系统故障时有重试和补偿机制。

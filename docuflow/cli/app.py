@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from docuflow.core.config import create_app_config, get_available_models, get_settings
-from docuflow.core.orchestrator import WorkflowOrchestrator
+from docuflow.graph.orchestrator import WorkflowOrchestrator
 from docuflow.utils import setup_logging
 
 app = typer.Typer(
@@ -33,16 +33,6 @@ def get_orchestrator(
     """创建调度器"""
     config = create_app_config(project_root, project_name, model_name)
     return WorkflowOrchestrator(config)
-
-
-# 公共参数
-def common_options(
-    project_root: Path = typer.Option(Path("."), "--root", "-r", help="项目根目录"),
-    project_name: str = typer.Option("default", "--project", "-p", help="项目名称"),
-    model_name: Optional[str] = typer.Option(None, "--model", "-m", help="模型名称"),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="详细日志")
-):
-    return project_root, project_name, model_name, verbose
 
 
 @app.command()

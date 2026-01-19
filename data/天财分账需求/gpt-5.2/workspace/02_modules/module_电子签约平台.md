@@ -1,6 +1,6 @@
 # 模块设计: 电子签约平台
 
-生成时间: 2026-01-16 17:18:55
+生成时间: 2026-01-19 14:44:18
 
 ---
 
@@ -9,430 +9,386 @@
 ## 1. 概述
 
 ### 1.1 目的
-电子签约平台作为“天财分账”业务的核心合规与授权模块，负责为“关系绑定”、“开通付款”、“归集授权”等关键业务场景提供电子协议签署、短信认证、H5页面生成、证据链留存等一体化服务。其核心目的是通过合法、合规、可追溯的电子化流程，建立并确认资金收付双方（总部与门店、总部与接收方）的授权关系，满足监管与法务要求，为后续的“天财分账”交易提供法律依据。
+电子签约平台模块是“天财分账”业务的核心前置模块，负责为分账关系建立提供合法、合规、可追溯的授权基础。其主要目的是：
+1.  **协议签署**：为总部与门店（或其他接收方）之间的分账授权关系提供标准化的电子协议签署流程。
+2.  **身份认证**：集成打款验证和人脸验证服务，对协议签署方（尤其是接收方）进行强身份认证，确保资金流转安全。
+3.  **证据链留存**：完整记录并存储协议签署、身份认证过程中的所有关键数据、文件和时间戳，形成不可篡改的证据链，满足监管和审计要求。
+4.  **流程封装**：将复杂的签约与认证流程封装成简洁的H5页面或API，供上游系统（如行业钱包系统）调用，提升用户体验和集成效率。
 
 ### 1.2 范围
-本模块专注于以下核心功能：
-1. **协议模板管理**：根据业务场景（归集、批量付款、会员结算）、资金用途、签约方角色（总部/门店/接收方）及账户类型（对公/对私）动态生成相应的电子协议。
-2. **签约流程编排**：接收行业钱包系统的签约请求，编排“短信发送 -> H5页面引导 -> 协议签署 -> 身份认证（打款/人脸）”的完整流程。
-3. **身份认证集成**：作为认证系统的上游调用方，根据签约方类型（企业/个人）发起打款验证或人脸验证，并将认证结果与协议绑定。
-4. **证据链管理**：完整记录并安全存储协议原文、签署时间、签署方信息、认证过程（验证金额、时间、类型）及认证结果，形成不可篡改的证据链。
-5. **状态同步**：将签约及认证的最终结果同步给业务系统（行业钱包），驱动关系绑定的生效。
+本模块负责：
+-   电子协议的模板管理、生成、发起签署、状态同步与归档。
+-   调用外部认证服务（打款验证/人脸验证）并管理其流程与结果。
+-   提供签约流程的H5页面嵌入和API接口。
+-   管理短信验证码的发送（用于签署确认或认证环节）。
+-   与上游的**行业钱包系统**紧密交互，接收签约任务，反馈签约结果。
+-   与底层的**账户系统**交互，获取必要的账户信息以支持打款验证。
 
-**边界说明**：
-- 本模块不负责具体的身份验证逻辑（由认证系统负责）。
-- 本模块不负责业务规则校验（如付方与发起方一致性校验，由行业钱包系统负责）。
-- 本模块不直接面向天财系统，所有请求均通过行业钱包系统发起。
-- 本模块不负责协议的法律内容审核，协议模板由法务部门提供并配置。
+**不在本模块范围**：
+-   具体的分账交易执行（由行业钱包系统处理）。
+-   商户进件与账户开立（由三代系统与账户系统处理）。
+-   费率计算与资金结算（由计费中台与清结算系统处理）。
 
 ## 2. 接口设计
 
 ### 2.1 API端点 (RESTful)
 
-#### 2.1.1 发起签约认证流程
-- **端点**: `POST /api/v1/esign/process/initiate`
-- **描述**: 行业钱包系统在业务校验通过后，调用此接口发起一个完整的签约认证流程。本接口将触发短信发送，并返回H5页面链接。
-- **请求头**:
-    - `X-Business-Id`: 业务流水号（由行业钱包生成，用于幂等）
-    - `X-System-Code`: `WALLET`
-- **请求体**:
-```json
-{
-  "requestId": "WALLET_REQ_202310120001",
-  "businessType": "TIANCAI_SPLIT_ACCOUNT",
-  "scene": "BATCH_PAYMENT", // 场景：POOLING（归集）， BATCH_PAYMENT， MEMBER_SETTLEMENT
-  "processType": "RELATION_BINDING", // 流程类型：RELATION_BINDING（关系绑定）， OPEN_PAYMENT（开通付款）， POOLING_AUTH（归集授权）
-  "payerInfo": {
-    "merchantNo": "M100001",
-    "merchantName": "北京天财餐饮有限公司（总部）",
-    "merchantType": "ENTERPRISE", // ENTERPRISE, INDIVIDUAL
-    "accountNo": "ACC100001",
-    "accountType": "TIANCAI_RECEIVE_ACCOUNT" // TIANCAI_RECEIVE_ACCOUNT
-  },
-  "payeeInfo": {
-    "merchantNo": "M100002",
-    "merchantName": "上海天财门店",
-    "merchantType": "ENTERPRISE",
-    "accountNo": "ACC100002",
-    "accountType": "TIANCAI_RECEIVE_ACCOUNT", // TIANCAI_RECEIVE_ACCOUNT 或 TIANCAI_RECEIVER_ACCOUNT
-    "bankCardInfo": { // 行业钱包根据入网信息提供
-      "cardNo": "6228480012345678901",
-      "accountName": "上海天财门店",
-      "bankCode": "ICBC"
-    },
-    "contactInfo": {
-      "name": "张三", // 法人/负责人姓名
-      "idCardNo": "110101199001011234", // 法人/负责人身份证
-      "mobile": "13800138000" // 接收短信的手机号
-    }
-  },
-  "initiatorInfo": { // 发起方信息（从天财参数中来）
-    "merchantNo": "M100001",
-    "merchantName": "北京天财餐饮有限公司（总部）"
-  },
-  "fundPurpose": "股东分红", // 资金用途，用于生成协议内容。归集场景下枚举更多。
-  "callbackUrl": "https://wallet.example.com/callback/esign", // 最终结果回调地址
-  "extInfo": {
-    "orderAggregationMaxRatio": "0.8" // 归集场景特有：订单归集最高比例
-  }
-}
-```
-- **响应体** (成功):
-```json
-{
-  "code": "SUCCESS",
-  "message": "签约流程已发起",
-  "data": {
-    "processId": "ESIGN_PROC_202310120001",
-    "status": "SMS_SENT",
-    "h5PageUrl": "https://e-sign.example.com/h5/sign?token=abc123def456", // 短信中链接指向的H5页面
-    "expiredAt": "2023-10-13T15:25:00Z" // H5页面链接有效期，通常24小时
-  }
-}
-```
+#### 2.1.1 内部接口 (供行业钱包系统调用)
 
-#### 2.1.2 查询签约流程状态
-- **端点**: `GET /api/v1/esign/process/{processId}`
-- **描述**: 根据流程ID查询签约认证的详细状态和结果。
-- **响应体**:
-```json
-{
-  "code": "SUCCESS",
-  "message": "查询成功",
-  "data": {
-    "processId": "ESIGN_PROC_202310120001",
-    "businessType": "TIANCAI_SPLIT_ACCOUNT",
-    "scene": "BATCH_PAYMENT",
-    "processType": "RELATION_BINDING",
-    "status": "COMPLETED", // SMS_SENT, PROTOCOL_SIGNED, VERIFICATION_PENDING, VERIFICATION_SUCCESS, COMPLETED, FAILED, EXPIRED
-    "payerInfo": { ... },
-    "payeeInfo": { ... },
-    "protocolInfo": {
-      "protocolId": "PROTO_202310120001",
-      "protocolName": "天财分账业务授权协议（总部与接收方）",
-      "signedAt": "2023-10-12T15:30:00Z",
-      "downloadUrl": "https://e-sign.example.com/protocol/download/xxx.pdf"
-    },
-    "verificationInfo": {
-      "verificationId": "VER202310120001",
-      "type": "REMITTANCE",
-      "status": "SUCCESS",
-      "verifiedAt": "2023-10-12T15:35:00Z"
-    },
-    "failureReason": null,
-    "createdAt": "2023-10-12T15:25:00Z",
-    "updatedAt": "2023-10-12T15:35:00Z"
-  }
-}
-```
-
-#### 2.1.3 内部回调接口（供认证系统调用）
-- **端点**: `POST /api/internal/esign/callback/verification`
-- **描述**: 认证系统在验证（打款/人脸）完成后，通过此接口异步通知电子签约平台结果。此接口为内部接口，需进行身份认证。
-- **请求体**:
-```json
-{
-  "verificationId": "VER202310120001",
-  "processId": "ESIGN_PROC_202310120001", // 发起认证时上送的关联ID
-  "status": "SUCCESS", // SUCCESS, FAILED
-  "verifiedAt": "2023-10-12T15:35:00Z",
-  "failureReason": null,
-  "evidence": {
-    "remittanceAmount": "0.12",
-    "remittanceRemark": "验证码"
-  }
-}
-```
-- **响应体**:
-```json
-{
-  "code": "SUCCESS",
-  "message": "回调处理成功"
-}
-```
-
-#### 2.1.4 短信推送接口（供行业钱包调用，可选）
-- **端点**: `POST /api/v1/notification/sms/send`
-- **描述**: 根据需求片段，电子签约平台负责封装H5并触发短信推送。此接口为行业钱包调用的统一入口。**（注：根据片段描述，此接口可能由行业钱包调用，但短信发送动作由电子签约平台执行）**
-- **请求体**: 同 `2.1.1 发起签约认证流程` 请求体。
-- **响应体**: 同 `2.1.1` 响应体。
-
-### 2.2 发布/消费的事件
-
-#### 2.2.1 消费的事件
-- **`VerificationCompletedEvent`** (来自认证系统)
-    - **用途**: 接收认证结果，更新本地的签约流程状态，并决定是否完成整个流程。
-
-#### 2.2.2 发布的事件
-- **`SigningProcessCompletedEvent`**
-    - **触发条件**: 一个签约认证流程全部完成（协议已签署且认证成功）。
-    - **事件数据**:
+**1. 发起签约认证**
+-   **端点**: `POST /api/v1/contract/initiate`
+-   **描述**: 行业钱包系统在需要建立分账关系时调用，创建签约任务并返回签约流程入口。
+-   **请求头**: `X-Request-ID`, `Authorization (Bearer Token)`
+-   **请求体**:
     ```json
     {
-      "eventId": "EVT_SIGN_202310120001",
-      "type": "SIGNING_PROCESS_COMPLETED",
-      "timestamp": "2023-10-12T15:35:00Z",
-      "payload": {
-        "processId": "ESIGN_PROC_202310120001",
-        "businessType": "TIANCAI_SPLIT_ACCOUNT",
-        "scene": "BATCH_PAYMENT",
-        "processType": "RELATION_BINDING",
-        "status": "COMPLETED",
-        "payerMerchantNo": "M100001",
-        "payeeMerchantNo": "M100002",
-        "protocolId": "PROTO_202310120001",
-        "verificationId": "VER202310120001",
-        "fundPurpose": "股东分红"
+      "taskId": "string", // 行业钱包系统生成的唯一任务ID，用于关联
+      "merchantNo": "string", // 付方（总部）商户号
+      "payerAccountNo": "string", // 付方天财收款账户号
+      "receiverType": "ENTERPRISE|INDIVIDUAL|STORE", // 接收方类型：企业、个人、门店
+      "receiverName": "string", // 接收方名称
+      "receiverCertNo": "string", // 接收方证件号（企业为统一社会信用代码，个人为身份证号）
+      "receiverAccountNo": "string", // 接收方天财接收方账户号（可选，打款验证时需要）
+      "receiverMobile": "string", // 接收方联系手机号（用于短信和H5链接）
+      "scene": "POOLING|BATCH_PAY|MEMBER_SETTLE", // 业务场景：归集、批量付款、会员结算
+      "authMode": "TRANSFER|FACE", // 认证方式：打款验证、人脸验证
+      "callbackUrl": "string" // 签约最终状态回调地址
+    }
+    ```
+-   **响应体 (成功)**:
+    ```json
+    {
+      "code": "SUCCESS",
+      "msg": "成功",
+      "data": {
+        "signTaskId": "string", // 电子签约平台生成的签约任务ID
+        "signUrl": "string", // 签约认证H5页面URL，需发送给接收方
+        "expireTime": "2023-10-01T12:00:00Z" // 链接过期时间
       }
     }
     ```
-    - **潜在消费者**: 行业钱包系统（用于激活绑定关系）、审计系统。
 
-- **`SigningProcessFailedEvent`**
-    - **触发条件**: 签约认证流程失败（协议未签署、认证失败、超时等）。
-    - **事件数据**: 类似完成事件，但`status`为`FAILED`，并包含失败原因。
-    - **潜在消费者**: 行业钱包系统（用于清理中间状态）、监控告警系统。
+**2. 查询签约任务状态**
+-   **端点**: `GET /api/v1/contract/task/{signTaskId}`
+-   **描述**: 行业钱包系统轮询或根据回调查询签约任务详细状态。
+-   **响应体**:
+    ```json
+    {
+      "code": "SUCCESS",
+      "msg": "成功",
+      "data": {
+        "signTaskId": "string",
+        "taskId": "string",
+        "status": "INIT|SIGNING|AUTHING|SUCCESS|FAIL|EXPIRED",
+        "merchantNo": "string",
+        "payerAccountNo": "string",
+        "receiverName": "string",
+        "receiverAccountNo": "string",
+        "scene": "POOLING",
+        "authMode": "TRANSFER",
+        "contractId": "string", // 已签署的协议ID
+        "authResult": "PENDING|SUCCESS|FAIL",
+        "failReason": "string", // 失败原因
+        "createTime": "2023-10-01T10:00:00Z",
+        "updateTime": "2023-10-01T11:30:00Z"
+      }
+    }
+    ```
+
+**3. 开通付款授权（总部侧）**
+-   **端点**: `POST /api/v1/contract/open-payment-auth`
+-   **描述**: 在批量付款和会员结算场景下，为付方（总部）发起额外的代付协议签署。
+-   **请求体**:
+    ```json
+    {
+      "taskId": "string",
+      "merchantNo": "string", // 总部商户号
+      "payerAccountNo": "string", // 总部天财收款账户号
+      "contactName": "string", // 总部联系人
+      "contactMobile": "string", // 总部联系人手机
+      "callbackUrl": "string"
+    }
+    ```
+-   **响应体**: 类似 `/initiate`，返回总部签约链接。
+
+#### 2.1.2 外部接口 (供H5页面调用)
+
+**1. 获取签约页面数据**
+-   **端点**: `GET /h5/v1/contract/data?signTaskId=xxx&token=yyy`
+-   **描述**: H5页面加载时调用，获取协议内容、认证方式等信息。
+-   **响应体**: 包含协议HTML片段、接收方信息、认证步骤说明等。
+
+**2. 提交短信验证码**
+-   **端点**: `POST /h5/v1/contract/verify-sms`
+-   **描述**: 用户（接收方）在H5页面输入短信验证码进行确认。
+-   **请求体**: `{"signTaskId": "string", "smsCode": "string"}`
+
+**3. 触发/查询认证**
+-   **端点**: `POST /h5/v1/auth/transfer/trigger` (打款验证)
+-   **端点**: `GET /h5/v1/auth/face/url` (获取人脸验证SDK参数)
+-   **描述**: H5页面引导用户进行相应认证。
+
+**4. 确认签署协议**
+-   **端点**: `POST /h5/v1/contract/confirm-sign`
+-   **描述**: 用户完成认证后，最终确认签署协议。
+
+### 2.2 发布/消费的事件
+
+#### 消费的事件
+-   `AccountCreatedEvent` (来自账户系统)：监听天财专用账户的开户成功事件，为后续可能的打款验证准备账户信息。
+
+#### 发布的事件
+-   `ContractSignedEvent`：当一份分账协议签署并认证成功时发布。
+    ```json
+    {
+      "eventId": "uuid",
+      "type": "CONTRACT_SIGNED",
+      "timestamp": "2023-10-01T12:00:00Z",
+      "data": {
+        "signTaskId": "string",
+        "contractId": "string",
+        "merchantNo": "string",
+        "payerAccountNo": "string",
+        "receiverName": "string",
+        "receiverAccountNo": "string",
+        "receiverCertNo": "string",
+        "scene": "POOLING",
+        "authMode": "TRANSFER",
+        "signedTime": "2023-10-01T11:59:00Z"
+      }
+    }
+    ```
+-   `PaymentAuthOpenedEvent`：当总部开通付款授权成功时发布。
+-   `ContractSignFailedEvent`：当签约任务失败时发布，包含失败原因。
 
 ## 3. 数据模型
 
-### 3.1 核心表设计
+### 3.1 核心数据库表设计
 
-#### 表: `signing_process` (签约流程主表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | BIGINT(自增) | 是 | 主键 | PK |
-| process_id | VARCHAR(32) | 是 | 业务流程号，全局唯一 | UK |
-| request_id | VARCHAR(32) | 是 | 行业钱包请求ID，用于幂等 | UK |
-| business_type | VARCHAR(32) | 是 | 业务类型，如 `TIANCAI_SPLIT_ACCOUNT` | IDX |
-| scene | VARCHAR(32) | 是 | 业务场景：`POOLING`, `BATCH_PAYMENT`, `MEMBER_SETTLEMENT` | IDX |
-| process_type | VARCHAR(32) | 是 | 流程类型：`RELATION_BINDING`, `OPEN_PAYMENT`, `POOLING_AUTH` | |
-| status | TINYINT | 是 | 状态：0-初始化，1-短信已发，2-协议已签，3-待认证，4-认证成功，5-已完成，6-失败，7-已过期 | IDX |
-| payer_merchant_no | VARCHAR(32) | 是 | 付方商户号 | IDX |
-| payer_merchant_name | VARCHAR(128) | 是 | 付方商户名 | |
-| payer_account_no | VARCHAR(32) | 是 | 付方账户号 | |
-| payee_merchant_no | VARCHAR(32) | 是 | 收方商户号 | IDX |
-| payee_merchant_name | VARCHAR(128) | 是 | 收方商户名 | |
-| payee_account_no | VARCHAR(32) | 是 | 收方账户号 | |
-| payee_contact_mobile | VARCHAR(16) | 是 | 收方联系人手机号（短信接收） | |
-| payee_contact_name | VARCHAR(64) | 是 | 收方联系人姓名 | |
-| payee_contact_id_card | VARCHAR(32) | 否 | 收方联系人身份证（个人/法人） | |
-| initiator_merchant_no | VARCHAR(32) | 是 | 发起方商户号 | |
-| initiator_merchant_name | VARCHAR(128) | 是 | 发起方商户名 | |
-| fund_purpose | VARCHAR(64) | 是 | 资金用途 | |
-| h5_page_token | VARCHAR(64) | 是 | H5页面访问令牌 | UK |
-| h5_page_url | VARCHAR(512) | 是 | H5页面地址 | |
-| callback_url | VARCHAR(512) | 是 | 行业钱包回调地址 | |
-| protocol_id | VARCHAR(32) | 否 | 关联的协议ID | |
-| verification_id | VARCHAR(32) | 否 | 关联的认证ID | |
-| failure_reason | VARCHAR(256) | 否 | 失败原因 | |
-| expired_at | DATETIME | 是 | 流程过期时间 | IDX |
-| completed_at | DATETIME | 否 | 流程完成时间 | |
-| ext_info | JSON | 否 | 扩展信息，如归集比例等 | |
-| created_at | DATETIME | 是 | 创建时间 | |
-| updated_at | DATETIME | 是 | 更新时间 | |
+```sql
+-- 签约任务主表
+CREATE TABLE `t_sign_task` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `sign_task_id` varchar(64) NOT NULL COMMENT '平台生成唯一任务ID',
+  `external_task_id` varchar(64) NOT NULL COMMENT '外部系统任务ID',
+  `merchant_no` varchar(32) NOT NULL COMMENT '付方商户号',
+  `payer_account_no` varchar(32) NOT NULL COMMENT '付方账户号',
+  `receiver_type` varchar(20) NOT NULL COMMENT '接收方类型',
+  `receiver_name` varchar(128) NOT NULL COMMENT '接收方名称',
+  `receiver_cert_no` varchar(64) NOT NULL COMMENT '接收方证件号',
+  `receiver_account_no` varchar(32) COMMENT '接收方账户号',
+  `receiver_mobile` varchar(20) NOT NULL COMMENT '接收方手机',
+  `scene` varchar(32) NOT NULL COMMENT '业务场景',
+  `auth_mode` varchar(20) NOT NULL COMMENT '认证方式',
+  `status` varchar(20) NOT NULL DEFAULT 'INIT' COMMENT '任务状态',
+  `contract_id` varchar(64) COMMENT '签署后的协议ID',
+  `contract_file_url` varchar(512) COMMENT '协议文件存储地址',
+  `auth_result` varchar(20) DEFAULT 'PENDING' COMMENT '认证结果',
+  `callback_url` varchar(512) NOT NULL COMMENT '回调地址',
+  `expire_time` datetime NOT NULL COMMENT '任务过期时间',
+  `fail_reason` varchar(512) COMMENT '失败原因',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_sign_task_id` (`sign_task_id`),
+  KEY `idx_external_task` (`external_task_id`),
+  KEY `idx_merchant` (`merchant_no`),
+  KEY `idx_receiver` (`receiver_cert_no`, `receiver_account_no`),
+  KEY `idx_status_expire` (`status`, `expire_time`)
+) ENGINE=InnoDB COMMENT='签约任务表';
 
-#### 表: `protocol_record` (协议记录表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | BIGINT(自增) | 是 | 主键 | PK |
-| protocol_id | VARCHAR(32) | 是 | 协议业务ID | UK |
-| process_id | VARCHAR(32) | 是 | 关联的流程ID | FK, IDX |
-| template_id | VARCHAR(32) | 是 | 协议模板ID | |
-| protocol_name | VARCHAR(128) | 是 | 协议名称 | |
-| protocol_content | TEXT | 是 | 协议正文（HTML/PDF模板填充后） | |
-| signatory_a | VARCHAR(128) | 是 | 签署方A（通常为拉卡拉或总部） | |
-| signatory_b | VARCHAR(128) | 是 | 签署方B（门店/接收方） | |
-| signatory_b_type | TINYINT | 是 | 签署方B类型：1-企业，2-个人 | |
-| signed_at | DATETIME | 否 | 签署时间（用户点击同意） | |
-| sign_ip | VARCHAR(64) | 否 | 签署IP地址 | |
-| sign_user_agent | VARCHAR(512) | 否 | 签署浏览器UA | |
-| evidence_hash | VARCHAR(128) | 是 | 协议内容哈希值，用于防篡改 | |
-| storage_path | VARCHAR(512) | 是 | 协议文件（PDF）存储路径 | |
-| created_at | DATETIME | 是 | 创建时间 | |
+-- 协议签署记录表
+CREATE TABLE `t_contract_record` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `contract_id` varchar(64) NOT NULL COMMENT '协议唯一ID',
+  `sign_task_id` varchar(64) NOT NULL COMMENT '关联签约任务',
+  `template_id` varchar(32) NOT NULL COMMENT '协议模板ID',
+  `template_version` varchar(16) NOT NULL COMMENT '模板版本',
+  `content_hash` varchar(128) NOT NULL COMMENT '协议内容哈希值',
+  `signer_name` varchar(128) NOT NULL COMMENT '签署方名称',
+  `signer_cert_no` varchar(64) NOT NULL COMMENT '签署方证件号',
+  `signer_role` varchar(20) NOT NULL COMMENT '签署方角色(PAYER/RECEIVER)',
+  `sign_ip` varchar(45) COMMENT '签署IP',
+  `sign_user_agent` varchar(512) COMMENT '签署终端UA',
+  `sign_time` datetime NOT NULL COMMENT '签署时间',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_contract_id` (`contract_id`),
+  KEY `idx_sign_task` (`sign_task_id`),
+  KEY `idx_signer` (`signer_cert_no`)
+) ENGINE=InnoDB COMMENT='协议签署记录表';
 
-#### 表: `sms_template` (短信模板表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | BIGINT(自增) | 是 | 主键 | PK |
-| template_code | VARCHAR(32) | 是 | 模板代码，如 `POOLING_ENTERPRISE` | UK |
-| scene | VARCHAR(32) | 是 | 适用场景 | IDX |
-| signatory_type | TINYINT | 是 | 签署方类型：1-企业，2-个人 | IDX |
-| process_type | VARCHAR(32) | 是 | 流程类型 | IDX |
-| content_template | VARCHAR(512) | 是 | 短信内容模板，含变量占位符 | |
-| h5_template_name | VARCHAR(64) | 是 | 关联的H5页面模板名 | |
-| is_active | BOOLEAN | 是 | 是否启用 | |
-| created_at | DATETIME | 是 | 创建时间 | |
+-- 身份认证记录表
+CREATE TABLE `t_auth_record` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `auth_id` varchar(64) NOT NULL COMMENT '认证记录ID',
+  `sign_task_id` varchar(64) NOT NULL COMMENT '关联签约任务',
+  `auth_mode` varchar(20) NOT NULL COMMENT '认证方式',
+  `auth_target` varchar(64) NOT NULL COMMENT '认证对象证件号',
+  `auth_status` varchar(20) NOT NULL DEFAULT 'PROCESSING' COMMENT '认证状态',
+  `request_param` json COMMENT '请求参数',
+  `response_data` json COMMENT '响应数据',
+  `auth_time` datetime COMMENT '认证完成时间',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_auth_id` (`auth_id`),
+  KEY `idx_sign_task` (`sign_task_id`),
+  KEY `idx_target` (`auth_target`)
+) ENGINE=InnoDB COMMENT='身份认证记录表';
 
-#### 表: `evidence_chain` (证据链表)
-| 字段名 | 类型 | 必填 | 描述 | 索引 |
-|--------|------|------|------|------|
-| id | BIGINT(自增) | 是 | 主键 | PK |
-| process_id | VARCHAR(32) | 是 | 关联流程ID | FK, IDX |
-| evidence_type | VARCHAR(32) | 是 | 证据类型：`PROTOCOL`, `VERIFICATION_REQUEST`, `VERIFICATION_RESULT`, `SMS_RECORD` | |
-| evidence_key | VARCHAR(128) | 是 | 证据关键标识（如协议ID、认证ID） | |
-| evidence_data | JSON | 是 | 证据详细数据 | |
-| created_at | DATETIME | 是 | 创建时间 | |
+-- 短信验证记录表
+CREATE TABLE `t_sms_record` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `sign_task_id` varchar(64) NOT NULL,
+  `mobile` varchar(20) NOT NULL,
+  `sms_code` varchar(12) NOT NULL,
+  `sms_type` varchar(32) NOT NULL COMMENT 'SIGN_CONFIRM/AUTH_VERIFY',
+  `biz_id` varchar(64) COMMENT '外部短信服务ID',
+  `status` varchar(20) NOT NULL DEFAULT 'SENT' COMMENT 'SENT/USED/EXPIRED',
+  `expire_time` datetime NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_task_mobile` (`sign_task_id`, `mobile`, `status`),
+  KEY `idx_expire` (`expire_time`)
+) ENGINE=InnoDB COMMENT='短信验证记录表';
+```
 
 ### 3.2 与其他模块的关系
-- **行业钱包系统**: 主要调用方和结果消费者。发起签约流程，并监听`SigningProcessCompletedEvent`以激活绑定关系。
-- **认证系统**: 服务调用方。电子签约平台根据签约方类型，调用认证系统进行打款或人脸验证。
-- **短信网关**: 服务调用方。用于发送包含H5链接的短信通知。
-- **文件存储服务**: 用于存储生成的PDF协议文件。
-- **审计系统**: 事件消费者，记录所有签约操作。
+-   **行业钱包系统**：上游调用方。电子签约平台接收其发起的签约任务，完成后通过回调或事件通知其结果。
+-   **账户系统**：下游依赖。进行打款验证时，需要查询或验证接收方账户信息，并监听账户创建事件。
+-   **外部认证服务**：下游依赖。调用第三方打款验证或人脸验证服务。
+-   **短信服务平台**：下游依赖。调用内部或第三方短信服务发送验证码。
+-   **文件存储服务**：下游依赖。用于存储已签署的电子协议PDF文件。
 
 ## 4. 业务逻辑
 
-### 4.1 核心算法与流程
+### 4.1 核心流程算法
 
-#### 4.1.1 签约认证流程编排（以批量付款-对公为例）
-1. **接收请求与幂等校验**：根据`requestId`和`businessType`防止重复创建流程。
-2. **参数校验**：校验必填字段，如手机号格式、商户信息非空等。
-3. **确定模板**：根据`scene`、`processType`、`payeeInfo.merchantType`查询`sms_template`表，确定短信模板和H5模板。
-4. **生成H5页面与令牌**：
-    - 生成唯一的`h5_page_token`，与`process_id`绑定。
-    - 根据H5模板和传入参数，渲染生成动态H5页面内容（包含协议展示、确认按钮等）。
-    - 生成带有token的H5页面访问URL。
-5. **发送短信**：
-    - 使用确定的短信模板，将H5 URL、商户名等变量填充，生成最终短信内容。
-    - 调用短信网关，向`payeeInfo.contactInfo.mobile`发送短信。
-6. **保存流程记录**：状态置为`SMS_SENT`。
-7. **H5页面交互**（用户侧）：
-    - 用户点击短信链接，访问H5页面。
-    - 页面展示协议内容，用户阅读后点击“同意并签署”。
-    - 前端调用电子签约平台后端签署接口（内部），记录签署行为，生成`protocol_record`，流程状态更新为`PROTOCOL_SIGNED`。
-8. **触发身份认证**：
-    - 根据`payeeInfo.merchantType`（企业->打款，个人->人脸）调用认证系统对应接口。
-    - 调用时需关联`processId`，并设置`callbackUrl`为电子签约平台内部回调接口。
-    - 流程状态更新为`VERIFICATION_PENDING`。
-9. **处理认证回调**：
-    - 接收认证系统回调，更新`verification_id`和认证结果。
-    - 若认证成功，流程状态更新为`COMPLETED`，发布`SigningProcessCompletedEvent`，并异步回调行业钱包的`callbackUrl`。
-    - 若认证失败，流程状态更新为`FAILED`，发布`SigningProcessFailedEvent`。
-10. **超时处理**：定时任务扫描过期（`expired_at`）且未完成的流程，将其状态置为`EXPIRED`，并发布失败事件。
-
-#### 4.1.2 协议模板渲染与生成
-- **模板管理**：协议模板由法务部门以HTML或特定标记语言（如Thymeleaf, Velocity）提供，在电子签约平台管理后台进行上传和版本管理。
-- **动态填充**：根据流程中的具体信息（商户名称、账户号、资金用途、归集比例等）填充模板变量，生成最终的协议正文。
-- **证据固化**：对填充后的协议内容计算哈希值（如SHA-256），并存储为PDF文件，哈希值存入`protocol_record`作为防篡改证据。
+**签约认证总流程：**
+1.  **任务接收与初始化**：验证入参，创建签约任务，根据`receiverType`和`scene`选择协议模板。
+2.  **H5页面生成**：生成带有时效性和防篡改Token的签约链接。
+3.  **接收方操作流**：
+    a. **协议查看与短信验证**：接收方查看协议，通过短信验证码确认身份。
+    b. **身份认证**：
+        - 打款验证：调用账户系统，向`receiverAccountNo`打款（小额随机），引导用户回填金额。
+        - 人脸验证：调用人脸识别SDK，引导用户刷脸。
+    c. **协议签署**：认证成功后，用户进行最终签署确认，系统生成带时间戳的电子签名。
+4.  **证据链固化**：将协议原文、签署记录、认证结果、操作日志打包，计算哈希值，并可能上链或存证。
+5.  **结果通知**：更新任务状态，回调行业钱包系统，发布`ContractSignedEvent`。
 
 ### 4.2 业务规则
-1. **流程与场景映射**：
-    - `RELATION_BINDING` + `BATCH_PAYMENT`：总部（付方，企业）与接收方（收方，企业/个人）的关系绑定。
-    - `RELATION_BINDING` + `MEMBER_SETTLEMENT`：总部（付方，企业）与门店（收方，企业/个人）的关系绑定。
-    - `POOLING_AUTH` + `POOLING`：门店（付方，企业/个人）与总部（收方，企业）的归集授权。
-    - `OPEN_PAYMENT` + `BATCH_PAYMENT`/`MEMBER_SETTLEMENT`：总部（付方，企业）开通付款权限（签署代付授权协议）。
-2. **认证方式规则**：
-    - **对公企业**：一律使用**打款验证**（认证系统向对公户打款）。
-    - **对私个人/个体户**：一律使用**人脸验证**。
-    - **例外**：归集授权场景(`POOLING_AUTH`)下，付方门店即使是个体户，也使用打款验证（与富友流程对齐）。
-3. **协议签署方**：
-    - 所有协议均为**双方协议**。
-    - `RELATION_BINDING`/`POOLING_AUTH`：签署方为**总部（或拉卡拉）与门店/接收方**。
-    - `OPEN_PAYMENT`：签署方为**拉卡拉与总部**（代付授权协议）。
-4. **流程状态机**：
-    ```
-    INIT -> SMS_SENT -> PROTOCOL_SIGNED -> VERIFICATION_PENDING -> (VERIFICATION_SUCCESS -> COMPLETED) 或 (VERIFICATION_FAILED -> FAILED)
-    任何状态都可能因超时 -> EXPIRED
-    ```
-5. **幂等性**：基于行业钱包的`requestId`和`businessType`保证同一业务请求不会重复创建流程。
+1.  **签约关系唯一性**：同一付方账户与同一接收方账户，在同一业务场景下，只允许存在一份`SUCCESS`状态的协议。
+2.  **认证方式规则**：
+    - `receiverType`为`ENTERPRISE`（企业），强制使用**打款验证**。
+    - `receiverType`为`INDIVIDUAL`（个人/个体户），强制使用**人脸验证**。
+    - `receiverType`为`STORE`（门店），可由业务方指定，默认推荐打款验证。
+3.  **协议模板管理**：不同`scene`和`receiverType`组合对应不同的协议模板。模板的任何变更需生成新版本，旧任务仍使用旧版本。
+4.  **链接安全**：H5链接需包含一次性Token和有效期（如30分钟），防止重放攻击。
+5.  **短信防刷**：同一手机号在短时间内（如1分钟）只能请求一次短信，每日有上限。
 
-### 4.3 验证逻辑（作为服务提供方）
-1. **输入参数校验**：确保行业钱包传入的参数完整，符合业务规则（如手机号格式、场景与流程类型匹配）。
-2. **模板存在性校验**：确保配置的短信和协议模板存在且已启用。
-3. **流程状态校验**：在用户签署、认证回调等环节，校验当前流程状态是否允许进行该操作，防止重复操作或无效操作。
+### 4.3 验证逻辑
+-   **入参校验**：必填字段、商户号与账户号是否存在且匹配、接收方证件号格式等。
+-   **业务状态校验**：发起签约时，付方账户状态必须正常；接收方账户（如果已存在）状态必须正常。
+-   **认证结果校验**：严格依赖外部认证服务的返回结果，只有明确成功时才可推进流程。
+-   **防重复签署**：签署前校验是否已存在生效的同类协议。
 
 ## 5. 时序图
 
-### 5.1 批量付款场景关系绑定完整流程（对公企业）
+### 5.1 核心流程：发起并完成签约认证
 
 ```mermaid
 sequenceDiagram
-    participant T as 天财系统
-    participant W as 行业钱包系统
-    participant E as 电子签约平台
-    participant S as 短信网关
-    participant A as 认证系统
-    participant AC as 账务核心系统
-    participant U as 用户(接收方法人)
+    participant Wallet as 行业钱包系统
+    participant ES as 电子签约平台
+    participant H5 as 签约H5页面
+    participant Receiver as 接收方用户
+    participant AuthSvc as 外部认证服务
+    participant SMS as 短信服务
+    participant Acct as 账户系统
 
-    T->>W: 1. 发起关系绑定请求(场景=BATCH_PAYMENT)
-    W->>W: 2. 业务校验(付方企业/发起方一致性等)
-    W->>E: 3. 发起签约认证流程(含收方银行卡/法人信息)
-    E->>E: 4. 幂等校验，生成流程与H5 Token
-    E->>E: 5. 根据场景、企业类型选择模板
-    E->>S: 6. 发送短信(含H5链接)
-    S-->>U: 7. 短信送达(法人手机)
-    E-->>W: 8. 返回processId及状态(SMS_SENT)
+    Wallet->>ES: 1. 发起签约认证(initiate)
+    ES->>ES: 2. 创建签约任务，生成唯一signTaskId
+    ES->>SMS: 3. 发送签约链接短信(含H5 URL)
+    ES-->>Wallet: 4. 返回signTaskId及签约链接
+    Wallet->>Receiver: 5. 引导用户点击链接(或线下通知)
 
-    U->>E: 9. 点击链接访问H5页面
-    E->>E: 10. 验证Token，渲染协议页面
-    U->>E: 11. 点击“同意签署”
-    E->>E: 12. 记录签署，生成协议，状态更新为PROTOCOL_SIGNED
-    E->>A: 13. 发起打款验证(关联processId, callbackUrl)
-    A->>A: 14. 生成随机金额/备注
-    A->>AC: 15. 请求小额打款
-    AC-->>A: 16. 返回打款结果
-    A-->>E: 17. 返回verificationId(PENDING)
-    E->>E: 18. 状态更新为VERIFICATION_PENDING
+    Receiver->>H5: 6. 访问签约H5页面
+    H5->>ES: 7. 获取页面数据(GET /h5/data)
+    ES-->>H5: 8. 返回协议内容、认证方式等
+    H5->>Receiver: 9. 展示协议，请求发送验证码
+    Receiver->>H5: 10. 点击“发送验证码”
+    H5->>ES: 11. 请求发送短信
+    ES->>SMS: 12. 调用短信服务发送验证码
+    SMS->>Receiver: 13. 接收短信验证码
+    Receiver->>H5: 14. 输入验证码并提交
+    H5->>ES: 15. 验证短信码(POST /verify-sms)
+    ES-->>H5: 16. 验证通过
 
-    Note over U,A: 用户查看对公户入账，回填金额/备注
-    U->>E: 19. 在H5页面回填验证信息
-    E->>A: 20. 确认打款验证
-    A->>A: 21. 核验金额/备注
-    A->>E: 22. 回调通知验证结果(SUCCESS)
-    E->>E: 23. 状态更新为COMPLETED，保存证据链
-    E->>W: 24. 异步回调通知结果
-    E->>W: 25. 发布SigningProcessCompletedEvent
-    W->>W: 26. 激活绑定关系
+    alt 认证方式为打款验证
+        H5->>Receiver: 17. 提示“即将进行打款验证”
+        ES->>Acct: 18. 发起打款验证请求(小额打款)
+        Acct->>Receiver: 19. 向接收方账户打款(实际入账)
+        Receiver->>H5: 20. 查询银行账户并输入打款金额
+        H5->>ES: 21. 提交打款金额
+        ES->>AuthSvc: 22. 校验打款金额
+        AuthSvc-->>ES: 23. 返回认证结果
+    else 认证方式为人脸验证
+        H5->>ES: 17. 请求人脸验证参数
+        ES-->>H5: 18. 返回人脸SDK配置
+        H5->>Receiver: 19. 引导用户刷脸
+        Receiver->>AuthSvc: 20. 通过SDK完成人脸识别
+        AuthSvc-->>ES: 21. 回调认证结果
+    end
+
+    ES->>ES: 24. 更新认证结果，生成最终协议
+    ES-->>H5: 25. 通知认证成功，展示最终协议
+    Receiver->>H5: 26. 点击“确认签署”
+    H5->>ES: 27. 确认签署(POST /confirm-sign)
+    ES->>ES: 28. 记录签署，生成证据链，存储协议文件
+    ES->>Wallet: 29. 回调结果(callbackUrl)
+    ES->>ES: 30. 发布ContractSignedEvent
 ```
 
 ## 6. 错误处理
 
-| 错误类型 | 错误码 | HTTP状态码 | 处理策略 |
-|----------|--------|-------------|----------|
-| 参数校验失败 | `PARAM_INVALID` | 400 | 返回具体字段错误，由行业钱包修正后重试。 |
-| 重复请求 | `REQUEST_DUPLICATED` | 409 | 返回已存在的`processId`及状态，行业钱包根据业务决定。 |
-| 模板未找到 | `TEMPLATE_NOT_FOUND` | 500 | 触发告警，检查模板配置。返回系统错误，引导运营介入。 |
-| 短信发送失败 | `SMS_SEND_FAILED` | 502 | 记录日志，可重试1-2次。若仍失败，流程状态置为`FAILED`，通知行业钱包。 |
-| 认证系统调用失败 | `VERIFICATION_SERVICE_ERROR` | 502 | 记录日志，流程状态置为`VERIFICATION_PENDING`但实际未发起。通过监控告警，人工介入或设计重试机制。 |
-| 用户签署超时 | `PROCESS_EXPIRED` | 410 | 流程自然过期，状态更新，无需特殊处理。行业钱包可引导用户重新发起。 |
-| 内部回调Token验证失败 | `CALLBACK_TOKEN_INVALID` | 401 | 记录安全告警，拒绝回调请求。检查认证系统配置。 |
-| 系统内部错误 | `INTERNAL_ERROR` | 500 | 记录错误日志，触发告警，返回通用错误信息。流程状态可能不一致，需人工核查。 |
+| 错误类型 | 错误码 | 处理策略 |
+| :--- | :--- | :--- |
+| **参数校验失败** | `4000` | 请求参数格式错误或缺失，返回具体错误字段，调用方需修正后重试。 |
+| **业务校验失败** | `4001` | 如商户不存在、账户状态异常、重复签约等。记录日志，返回明确业务错误信息。 |
+| **认证服务异常** | `5001` | 调用打款/人脸验证服务超时或失败。记录详细日志，任务状态置为`AUTHING_FAIL`，支持异步重试机制。 |
+| **短信发送失败** | `5002` | 短信服务不可用。可重试数次，若最终失败，任务状态置为`FAIL`。 |
+| **回调通知失败** | `5003` | 通知行业钱包系统回调失败。启用重试队列，按指数退避策略重试，并监控告警。 |
+| **系统内部错误** | `5000` | 数据库异常、未知异常等。记录完整错误堆栈，告警，任务状态置为`FAIL`。 |
 
-**重试策略**：
-- 对于短信发送、调用认证系统等外部依赖的临时性失败，采用指数退避策略重试（最多3次）。
-- 对于用户主动触发的操作（如回填验证信息），不自动重试。
+**通用策略**：
+-   **幂等性**：所有接口通过`taskId`或`signTaskId`保证幂等。
+-   **异步与重试**：对于外部依赖调用（认证、回调）采用异步化处理，并配备可靠的重试机制。
+-   **状态机**：签约任务有明确的状态机，防止状态混乱。任何失败都应有明确的状态和原因记录。
+-   **监控与告警**：对错误率、延迟、任务积压进行监控，关键错误实时告警。
 
 ## 7. 依赖说明
 
-### 7.1 上游依赖模块
-1. **行业钱包系统**
-    - **交互方式**: 同步API调用（发起流程）、异步回调（接收结果）、事件监听（`SigningProcessCompletedEvent`）。
-    - **职责**: 业务校验的发起方，签约流程的触发者，以及最终关系绑定的执行者。
-    - **SLA要求**: 高可用性（99.95%），签约流程初始化接口平均响应时间<300ms。
+### 7.1 上游模块交互
+-   **行业钱包系统**是**主要上游调用方**。
+    -   **交互方式**：同步API调用 (`/initiate`) + 异步回调 (`callbackUrl`) + 事件监听（可选）。
+    -   **职责**：钱包系统负责业务逻辑判断（何时需要签约），并携带正确的业务参数发起调用。电子签约平台负责执行具体的签约与认证流程，并将最终结果返回。
 
-2. **认证系统**
-    - **交互方式**: 同步API调用（发起验证）、异步回调（接收结果）。
-    - **职责**: 提供打款验证和人脸验证的原子能力。
-    - **降级方案**: 无直接降级方案。若认证系统完全不可用，则所有签约流程无法完成，业务中断。需有紧急运维预案。
+### 7.2 下游模块/服务交互
+1.  **账户系统**：
+    -   **用途**：打款验证时，需要验证`receiverAccountNo`的有效性，并触发小额打款。
+    -   **交互方式**：同步RPC调用。
+2.  **外部认证服务**：
+    -   **用途**：执行打款金额校验或人脸识别。
+    -   **交互方式**：HTTP API调用 + 异步回调（针对人脸验证）。
+3.  **短信服务平台**：
+    -   **用途**：发送签约链接和验证码短信。
+    -   **交互方式**：异步消息队列或HTTP API。
+4.  **文件存储服务 (如OSS)**：
+    -   **用途**：永久存储已签署的电子协议PDF文件。
+    -   **交互方式**：SDK上传。
 
-3. **短信网关**
-    - **交互方式**: 同步API调用。
-    - **职责**: 将包含H5链接的短信送达用户手机。
-    - **降级方案**: 若短信发送失败，可尝试重试。若完全不可用，流程无法开始，需告警。
-
-### 7.2 下游服务模块
-1. **文件存储服务** (如OSS、S3)
-    - **交互方式**: SDK调用。
-    - **职责**: 存储生成的PDF协议文件，需保证持久性和安全性。
-
-2. **审计/日志系统**
-    - **交互方式**: 日志输出、事件发布。
-    - **职责**: 记录所有协议签署、认证关联操作，满足合规审计要求。
-
-### 7.3 配置与治理
-- **配置中心**: 管理短信模板、协议模板、H5页面模板、流程超时时间、认证方式映射规则等。
-- **监控告警**:
-    - 业务监控：各场景签约成功率、失败率、平均完成时长、各环节耗时。
-    - 系统监控：接口响应时间、错误率、依赖服务（认证、短信）健康状态。
-- **密钥管理**: 安全存储用于生成H5 token的密钥、文件存储服务的访问密钥等。
+### 7.3 关键依赖管理
+-   **降级策略**：对于非核心依赖（如短信服务的非关键通知），可考虑降级（如记录日志后跳过）。但对于**认证服务**，无法降级，失败即导致整个签约流程失败。
+-   **超时与熔断**：所有外部调用必须设置合理的超时时间，并配置熔断器（如Hystrix或Resilience4j），防止因下游故障导致系统资源耗尽。
+-   **数据一致性**：采用“最终一致性”。签约任务状态为主，通过重试确保回调成功。证据链数据在平台内部确保强一致性。

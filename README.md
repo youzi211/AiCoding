@@ -18,6 +18,8 @@ pip install -e .
 docuflow all -p 天财分账需求 -m gpt-5.2
 ```
 
+注意：也可使用 `python -m docuflow` 方式运行；不支持 `--langgraph` 参数。
+
 ## 分步使用
 ```powershell
 # 阶段 1：初始化（术语表、架构 DAG）
@@ -128,6 +130,11 @@ docuflow assemble -p 天财分账需求
 docuflow all -p 天财分账需求 -m gpt-5.2
 ```
 
+或使用：
+```powershell
+python -m docuflow all -p 天财分账需求 -m gpt-5.2
+```
+
 ## 常用辅助命令
 - 查看项目进度：
 ```powershell
@@ -152,4 +159,12 @@ docuflow reset -p 天财分账需求 --module 认证系统
 # 重置所有模块
 docuflow reset -p 天财分账需求 --all
 ```
+
+## 疑难排查
+- 使用方式：推荐直接使用 `docuflow ...`（通过 `pip install -e .` 安装后会注册命令）；未安装脚本或想直接运行模块时，请使用 `python -m docuflow ...`。不要使用 `python docuflow ...`。
+- 参数支持：当前不支持 `--langgraph` 参数；如出现“未识别的选项”或退出码 1，请移除该参数并重试。
+- Python 版本：需 Python >= 3.11。若虚拟环境未激活，先执行 `\.venv\Scripts\Activate.ps1`。
+- 环境变量：确保 `.env` 或系统环境变量已配置 `DOCUFLOW_AZURE_OPENAI_API_KEY` 以及所选模型对应的 `*_AZURE_OPENAI_*`。
+- 目录结构：输入文档需位于 `data/input/<项目名>/`，例如 `data/input/天财分账需求/`；运行后输出在 `data/<项目名>/<模型名>/`。
+- 查看帮助：`docuflow --help` 或查看子命令帮助，如 `docuflow run --help`。
 

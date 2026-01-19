@@ -24,6 +24,8 @@ dependencies = [
     "docx2txt>=0.8",
     # 向量搜索
     "faiss-cpu>=1.7.4",
+    # LangGraph
+    "langgraph>=0.2.0",
     # 工具
     "python-dotenv>=1.0",
 ]

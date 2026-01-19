@@ -1,320 +1,350 @@
 # 模块设计: 业务核心
 
-生成时间: 2026-01-16 17:15:02
+生成时间: 2026-01-19 14:52:02
 
 ---
 
-# 业务核心模块设计文档
+# 模块设计: 业务核心
+
+生成时间: 2026-01-19 15:30:00
+
+---
 
 ## 1. 概述
 
-**模块名称**: 业务核心 (Business Core)
+### 1.1 目的
+本模块是支付系统的**核心交易流水记录与对账数据源**。在“天财商龙”分账业务中，它作为交易数据的汇聚点，负责接收并持久化来自行业钱包系统的分账交易数据，为下游对账单系统提供完整、准确的“天财分账”指令账单及机构层级的动账明细。其核心价值在于构建统一、标准化的交易流水视图，确保资金流转在交易层面可追溯、可对账。
 
-**目的**:
-业务核心模块是支付系统的交易处理中枢，负责接收、校验、路由和处理各类交易请求。在本“天财分账”业务上下文中，其核心职责是作为“天财分账”交易（即天财专用账户间的资金划转）的最终处理方，接收来自行业钱包系统的分账指令，完成交易记账、状态更新，并为对账单系统提供原始交易数据。
+### 1.2 范围
+- **分账交易数据接收与存储**：提供标准接口，接收行业钱包系统同步的“天财分账”交易数据，并将其转化为本模块内部的标准化交易流水记录。
+- **交易流水标准化**：将不同业务类型（归集、批量付款、会员结算）的分账指令，映射为统一的交易模型，包含完整的交易双方、金额、状态、关联业务单号等信息。
+- **对账单数据供给**：作为对账单系统的上游数据源，提供基于“天财分账”指令维度的交易流水查询与导出能力，支持生成机构层级的动账明细。
+- **交易流水查询**：为内部运营、风控或问题排查提供交易流水查询接口。
 
-**范围**:
-1.  **交易处理**: 接收并处理“天财分账”交易类型。
-2.  **数据提供**: 存储并对外提供交易维度的详细数据，供对账单系统等下游模块消费。
-3.  **交易路由**: 作为交易入口，根据交易类型将非“天财分账”交易路由至其他处理流程（此部分为现有能力，本文档聚焦新需求）。
-4.  **与上游系统集成**: 明确与行业钱包系统的接口，确保分账指令的可靠接收与处理。
-
-**非范围**:
-- 账户管理、开户、关系绑定（由行业钱包、账户系统负责）。
-- 资金清算、结算（由清结算系统负责）。
-- 手续费计算（由计费中台负责）。
-- 对账单生成（由对账单系统负责）。
-- 协议签署、身份认证（由电子签约平台、认证系统负责）。
+### 1.3 非范围
+- 钱包账户管理、关系绑定校验、分账指令执行（由行业钱包系统处理）。
+- 底层账户的资金记账与余额管理（由账户系统处理）。
+- 交易资金的清算、结算与计费（由清结算系统、计费中台处理）。
+- 对账单的最终生成、格式化和对外提供（由对账单系统处理）。
+- 商户进件、协议签署等业务流程（由三代系统处理）。
 
 ## 2. 接口设计
 
-### 2.1 API 端点 (RESTful)
+### 2.1 REST API 端点
 
-#### 2.1.1 接收天财分账交易
-- **端点**: `POST /api/v1/tiancai/transfer`
-- **描述**: 接收由行业钱包系统发起的“天财分账”交易指令。
-- **认证**: 基于机构号(AppID)和签名验证。
-- **请求头**:
-    - `X-App-Id`: 发起方机构号（如天财机构号）。
-    - `X-Nonce`: 随机数。
-    - `X-Timestamp`: 时间戳。
-    - `X-Signature`: 请求签名。
-- **请求体 (JSON)**:
-```json
-{
-  "request_id": "TC20240321153000123456", // 请求流水号，全局唯一
-  "merchant_no": "888888880000001", // 付方收单商户号
-  "payer_account_no": "TC_PAY_ACC_1001", // 付方天财账户号（收款账户或接收方账户）
-  "payer_account_type": "TIANCAI_RECEIVE_ACCOUNT", // 付方账户类型: TIANCAI_RECEIVE_ACCOUNT, TIANCAI_RECEIVER_ACCOUNT
-  "payee_account_no": "TC_RCV_ACC_2001", // 收方天财账户号
-  "payee_account_type": "TIANCAI_RECEIVER_ACCOUNT", // 收方账户类型
-  "amount": 10000, // 分账金额（单位：分）
-  "currency": "CNY",
-  "transfer_type": "COLLECTION", // 分账场景: COLLECTION(归集), BATCH_PAY(批量付款), MEMBER_SETTLE(会员结算)
-  "business_ref_no": "ORDER_202403210001", // 业务参考号（如订单号）
-  "remark": "门店A日终归集",
-  "ext_info": { // 扩展信息
-    "store_code": "STORE_001",
-    "headquarters_code": "HQ_001"
-  }
-}
-```
-- **响应体 (JSON)**:
-```json
-{
-  "code": "SUCCESS",
-  "message": "处理成功",
-  "data": {
-    "transfer_id": "T20240321153000123456", // 系统生成的交易唯一ID
-    "request_id": "TC20240321153000123456", // 原请求流水号
-    "status": "PROCESSING", // 交易状态: PROCESSING, SUCCESS, FAILED
-    "finish_time": "2024-03-21T15:30:05+08:00" // 可选，成功/失败时间
-  }
-}
-```
+#### 2.1.1 交易数据同步接口（供行业钱包系统调用）
+- **POST /api/v1/biz-core/trades/sync-split**：同步分账交易数据
+    - **描述**：行业钱包系统在分账指令成功后，调用此接口同步交易核心数据。本接口需保证幂等性。
+    - **请求体**：`SyncSplitTradeRequest`
+    - **响应**：`SyncTradeResponse`
 
-#### 2.1.2 交易结果查询
-- **端点**: `GET /api/v1/tiancai/transfer/{transfer_id}`
-- **描述**: 根据交易ID查询天财分账交易结果。
-- **响应体**:
+#### 2.1.2 交易流水查询接口（内部/运营使用）
+- **GET /api/v1/biz-core/trades**：查询分账交易流水
+    - **查询参数**:
+        - `bizOrderNo`: 三代系统业务订单号
+        - `walletOrderNo`: 钱包侧分账指令号
+        - `underlyingTransactionNo`: 底层流水号
+        - `payerMerchantNo`: 付方商户号
+        - `receiverMerchantNo`: 收方商户号
+        - `bizType`: 业务类型
+        - `tradeDateStart`/`tradeDateEnd`: 交易日期范围
+        - `status`: 交易状态
+    - **响应**：`PageResponse<SplitTradeDetailResponse>`
+
+- **GET /api/v1/biz-core/trades/{tradeNo}**：根据交易流水号查询详情
+    - **响应**：`SplitTradeDetailResponse`
+
+### 2.2 数据结构
+
 ```json
+// SyncSplitTradeRequest (来自行业钱包系统)
 {
-  "code": "SUCCESS",
-  "message": "查询成功",
-  "data": {
-    "transfer_id": "T20240321153000123456",
-    "request_id": "TC20240321153000123456",
-    "merchant_no": "888888880000001",
-    "payer_account_no": "TC_PAY_ACC_1001",
-    "payee_account_no": "TC_RCV_ACC_2001",
-    "amount": 10000,
+  "requestId": "SYNC_SPLIT_REQ_001", // 同步请求唯一ID，用于幂等
+  "syncTimestamp": "2023-10-27T14:40:00Z",
+  "tradeData": {
+    "tradeNo": "TC202310270001", // 业务核心生成的交易流水号（可为空，由本模块生成）
+    "bizOrderNo": "SPLIT202310270001", // 三代系统业务订单号
+    "walletOrderNo": "WTO202310270001", // 钱包侧分账指令号
+    "underlyingTransactionNo": "TX202310270001", // 底层账户系统流水号
+    "bizType": "COLLECTION", // 业务类型: COLLECTION, BATCH_PAY, MEMBER_SETTLEMENT
+    "payerInfo": {
+      "merchantNo": "M100001",
+      "merchantName": "北京朝阳门店",
+      "walletAccountId": "WACC_STORE_001",
+      "accountNo": "ACC202310270001" // 底层账户号
+    },
+    "receiverInfo": {
+      "merchantNo": "M100000",
+      "merchantName": "北京总部",
+      "walletAccountId": "WACC_HQ_001",
+      "accountNo": "ACC202310270000"
+    },
+    "amount": "10000.00",
     "currency": "CNY",
-    "transfer_type": "COLLECTION",
-    "status": "SUCCESS",
-    "create_time": "2024-03-21T15:30:00+08:00",
-    "finish_time": "2024-03-21T15:30:05+08:00",
-    "fee": 0, // 手续费，由计费中台计算
-    "remark": "门店A日终归集",
-    "ext_info": {}
+    "tradeStatus": "SUCCESS", // 交易最终状态: SUCCESS, FAILED
+    "tradeTime": "2023-10-27T14:35:00Z", // 交易完成时间
+    "memo": "2023年10月营业款归集",
+    "feeInfo": { // 手续费信息（如有）
+      "feeAmount": "5.00",
+      "feeType": "SPLIT_FEE"
+    },
+    "extInfo": { // 扩展信息
+      "bindingId": "BIND_001",
+      "settlementDate": "2023-10-28" // 预期结算日期
+    }
   }
 }
-```
 
-#### 2.1.3 交易明细查询（供对账单系统调用）
-- **端点**: `GET /api/v1/tiancai/transfers`
-- **描述**: 按时间范围查询天财分账交易明细。**注意：此接口预计调用频率高，需做好性能优化和分页**。
-- **查询参数**:
-    - `start_time`: 查询开始时间 (ISO 8601)。
-    - `end_time`: 查询结束时间 (ISO 8601)。
-    - `merchant_no`: 付方商户号（可选）。
-    - `transfer_type`: 分账场景（可选）。
-    - `page_no`: 页码，从1开始。
-    - `page_size`: 每页大小，最大1000。
-- **响应体**:
-```json
+// SyncTradeResponse
 {
   "code": "SUCCESS",
-  "message": "查询成功",
+  "message": "同步成功",
   "data": {
-    "total": 1500,
-    "page_no": 1,
-    "page_size": 100,
-    "list": [
-      {
-        "transfer_id": "T20240321153000123456",
-        "request_id": "TC20240321153000123456",
-        "merchant_no": "888888880000001",
-        "payer_account_no": "TC_PAY_ACC_1001",
-        "payer_account_type": "TIANCAI_RECEIVE_ACCOUNT",
-        "payee_account_no": "TC_RCV_ACC_2001",
-        "payee_account_type": "TIANCAI_RECEIVER_ACCOUNT",
-        "amount": 10000,
-        "currency": "CNY",
-        "transfer_type": "COLLECTION",
-        "status": "SUCCESS",
-        "create_time": "2024-03-21T15:30:00+08:00",
-        "finish_time": "2024-03-21T15:30:05+08:00",
-        "business_ref_no": "ORDER_202403210001",
-        "fee": 0,
-        "remark": "门店A日终归集"
-      }
-      // ... 更多记录
-    ]
+    "tradeNo": "TC202310270001", // 业务核心生成的交易流水号
+    "syncStatus": "SUCCESS"
   }
 }
-```
 
-### 2.2 发布/消费的事件
-
-#### 2.2.1 消费的事件
-- **事件名称**: `TiancaiTransferRequested`
-- **来源**: 行业钱包系统
-- **描述**: 行业钱包系统在完成关系校验后，向业务核心发起分账指令。业务核心监听此事件（或通过API调用）来触发交易处理流程。
-- **事件载荷**: 与 `POST /api/v1/tiancai/transfer` 请求体基本一致。
-
-#### 2.2.2 发布的事件
-- **事件名称**: `TiancaiTransferProcessed`
-- **描述**: 当天财分账交易处理完成（成功或失败）时发布。
-- **消费者**: 对账单系统、监控系统、可能的业务回调。
-- **事件载荷**:
-```json
+// SplitTradeDetailResponse
 {
-  "event_id": "evt_123456789",
-  "event_type": "TiancaiTransferProcessed",
-  "timestamp": "2024-03-21T15:30:05+08:00",
-  "data": {
-    "transfer_id": "T20240321153000123456",
-    "request_id": "TC20240321153000123456",
-    "status": "SUCCESS",
-    "amount": 10000,
-    "payer_account_no": "TC_PAY_ACC_1001",
-    "payee_account_no": "TC_RCV_ACC_2001",
-    "merchant_no": "888888880000001",
-    "finish_time": "2024-03-21T15:30:05+08:00"
-  }
+  "tradeNo": "TC202310270001",
+  "bizOrderNo": "SPLIT202310270001",
+  "walletOrderNo": "WTO202310270001",
+  "underlyingTransactionNo": "TX202310270001",
+  "bizType": "COLLECTION",
+  "bizTypeDesc": "资金归集",
+  "payerMerchantNo": "M100001",
+  "payerMerchantName": "北京朝阳门店",
+  "payerWalletAccountId": "WACC_STORE_001",
+  "payerAccountNo": "ACC202310270001",
+  "receiverMerchantNo": "M100000",
+  "receiverMerchantName": "北京总部",
+  "receiverWalletAccountId": "WACC_HQ_001",
+  "receiverAccountNo": "ACC202310270000",
+  "amount": "10000.00",
+  "currency": "CNY",
+  "tradeStatus": "SUCCESS",
+  "tradeStatusDesc": "成功",
+  "tradeTime": "2023-10-27T14:35:00Z",
+  "memo": "2023年10月营业款归集",
+  "feeAmount": "5.00",
+  "settlementDate": "2023-10-28",
+  "createTime": "2023-10-27T14:40:05Z",
+  "updateTime": "2023-10-27T14:40:05Z"
 }
 ```
+
+### 2.3 发布的事件
+业务核心作为事件生产者，发布以下领域事件：
+
+- **SplitTradeRecordedEvent**：分账交易流水已记录。
+    ```json
+    {
+      "eventId": "EVT_SPLIT_TRADE_RECORDED_001",
+      "eventType": "SPLIT_TRADE_RECORDED",
+      "timestamp": "2023-10-27T14:40:05Z",
+      "data": {
+        "tradeNo": "TC202310270001",
+        "bizOrderNo": "SPLIT202310270001",
+        "bizType": "COLLECTION",
+        "payerMerchantNo": "M100001",
+        "receiverMerchantNo": "M100000",
+        "amount": "10000.00",
+        "tradeStatus": "SUCCESS",
+        "tradeTime": "2023-10-27T14:35:00Z",
+        "settlementDate": "2023-10-28"
+      }
+    }
+    ```
+
+### 2.4 消费的事件
+业务核心作为事件消费者，可订阅以下事件以丰富交易数据或触发后续流程（非必需，根据架构设计可选）：
+
+- **FeeCalculatedEvent** (来自计费中台)：更新交易流水中的手续费信息。
+- **SettlementCompletedEvent** (来自清结算系统)：更新交易流水的结算状态和实际结算日期。
 
 ## 3. 数据模型
 
 ### 3.1 核心表设计
 
-#### 表: `tiancai_transfer_record` (天财分账交易记录表)
-存储所有天财分账交易的核心信息。
+#### 表：`split_trade` (分账交易流水表)
+| 字段名 | 类型 | 必填 | 描述 | 索引 |
+|--------|------|------|------|------|
+| id | bigint(20) | Y | 自增主键 | PK |
+| trade_no | varchar(32) | Y | 业务核心交易流水号，全局唯一 | UK |
+| biz_order_no | varchar(32) | Y | 三代系统业务订单号 | UK |
+| wallet_order_no | varchar(32) | Y | 钱包侧分账指令号 | UK |
+| underlying_transaction_no | varchar(32) | Y | 底层账户系统流水号 | UK |
+| biz_type | varchar(32) | Y | 业务类型: COLLECTION, BATCH_PAY, MEMBER_SETTLEMENT | IDX |
+| payer_merchant_no | varchar(32) | Y | 付方商户号 | IDX |
+| payer_merchant_name | varchar(128) | Y | 付方商户名称 | |
+| payer_wallet_account_id | varchar(32) | Y | 付方钱包账户ID | IDX |
+| payer_account_no | varchar(32) | Y | 付方底层账户号 | IDX |
+| receiver_merchant_no | varchar(32) | Y | 收方商户号 | IDX |
+| receiver_merchant_name | varchar(128) | Y | 收方商户名称 | |
+| receiver_wallet_account_id | varchar(32) | Y | 收方钱包账户ID | IDX |
+| receiver_account_no | varchar(32) | Y | 收方底层账户号 | IDX |
+| amount | decimal(15,2) | Y | 分账金额 | |
+| currency | char(3) | Y | 币种，默认CNY | |
+| trade_status | varchar(16) | Y | 交易状态: SUCCESS, FAILED | IDX |
+| trade_time | datetime | Y | 交易完成时间（底层） | IDX |
+| memo | varchar(256) | N | 备注 | |
+| fee_amount | decimal(15,2) | N | 手续费金额 | |
+| fee_type | varchar(32) | N | 手续费类型 | |
+| settlement_date | date | N | 预期/实际结算日期 | IDX |
+| ext_info | json | N | 扩展信息（存储binding_id等） | |
+| create_time | datetime | Y | 创建时间 | IDX |
+| update_time | datetime | Y | 更新时间 | |
 
-| 字段名 | 类型 | 必填 | 默认值 | 索引 | 说明 |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `id` | BIGINT(20) | 是 | AUTO_INCREMENT | PK | 自增主键 |
-| `transfer_id` | VARCHAR(32) | 是 | | UK | **系统交易唯一ID**，全局唯一 |
-| `request_id` | VARCHAR(64) | 是 | | IDX | 上游（行业钱包）请求流水号 |
-| `merchant_no` | VARCHAR(32) | 是 | | IDX | 付方收单商户号 |
-| `payer_account_no` | VARCHAR(64) | 是 | | IDX | 付方天财账户号 |
-| `payer_account_type` | VARCHAR(32) | 是 | | | 付方账户类型 |
-| `payee_account_no` | VARCHAR(64) | 是 | | IDX | 收方天财账户号 |
-| `payee_account_type` | VARCHAR(32) | 是 | | | 收方账户类型 |
-| `amount` | DECIMAL(15,2) | 是 | | | 交易金额（元） |
-| `currency` | VARCHAR(3) | 是 | ‘CNY’ | | 币种 |
-| `transfer_type` | VARCHAR(32) | 是 | | IDX | 分账场景 |
-| `business_ref_no` | VARCHAR(128) | 否 | | IDX | 业务参考号 |
-| `status` | VARCHAR(32) | 是 | ‘PROCESSING’ | IDX | 交易状态 |
-| `fee` | DECIMAL(15,2) | 否 | 0 | | 手续费（元） |
-| `fee_rule_id` | VARCHAR(64) | 否 | | | 手续费规则ID |
-| `remark` | VARCHAR(256) | 否 | | | 备注 |
-| `ext_info` | JSON | 否 | | | 扩展信息，存储 `store_code`, `headquarters_code` 等 |
-| `create_time` | DATETIME(3) | 是 | CURRENT_TIMESTAMP(3) | IDX | 创建时间 |
-| `update_time` | DATETIME(3) | 是 | CURRENT_TIMESTAMP(3) ON UPDATE | | 更新时间 |
-| `finish_time` | DATETIME(3) | 否 | | | 交易完成时间 |
-
-**索引设计**:
-- 主键: `id`
-- 唯一索引: `uk_transfer_id` (`transfer_id`)
-- 普通索引:
-    - `idx_merchant_no_status` (`merchant_no`, `status`) — 用于商户维度查询
-    - `idx_create_time` (`create_time`) — 用于对账单系统按时间范围拉取
-    - `idx_request_id` (`request_id`) — 用于上游请求幂等校验
-    - `idx_business_ref_no` (`business_ref_no`) — 用于业务关联查询
-    - `idx_payer_account_no` (`payer_account_no`) — 用于付方账户查询
-    - `idx_payee_account_no` (`payee_account_no`) — 用于收方账户查询
+#### 表：`sync_request_log` (同步请求日志表)
+| 字段名 | 类型 | 必填 | 描述 | 索引 |
+|--------|------|------|------|------|
+| id | bigint(20) | Y | 自增主键 | PK |
+| request_id | varchar(64) | Y | 同步请求唯一ID（来自行业钱包） | UK |
+| source_system | varchar(32) | Y | 来源系统: WALLET_SYSTEM | IDX |
+| biz_order_no | varchar(32) | Y | 关联的业务订单号 | IDX |
+| trade_no | varchar(32) | N | 生成的交易流水号 | IDX |
+| sync_status | varchar(16) | Y | 同步状态: SUCCESS, FAILED | IDX |
+| request_body | json | Y | 原始请求体 | |
+| response_body | json | N | 响应体 | |
+| fail_reason | varchar(512) | N | 失败原因 | |
+| create_time | datetime | Y | 创建时间 | IDX |
 
 ### 3.2 与其他模块的关系
-- **行业钱包系统**: 业务核心的**上游调用方**。行业钱包发起分账请求 (`request_id` 关联)，业务核心处理并返回结果。
-- **账务核心系统**: 业务核心的**下游调用方**。业务核心在交易处理中，调用账务核心的“转账/分账记账分录码”完成资金在账户系统底层的划转。
-- **计费中台**: 业务核心的**下游调用方**。在处理交易时，调用计费中台计算手续费 (`fee_rule_id` 关联)。
-- **对账单系统**: 业务核心的**数据提供方**。对账单系统通过查询接口或监听事件，获取天财分账交易明细，用于生成“机构天财分账指令账单”。
-- **清结算系统**: **间接关联**。天财分账交易不直接涉及清结算，但交易双方账户的底层资金来源于清结算的结算动作。
+- **行业钱包系统**：**主要数据上游**。通过同步接口接收分账交易数据。两者通过 `biz_order_no` 和 `wallet_order_no` 强关联。本模块是行业钱包系统 `SplitTradeDataPreparedEvent` 事件的消费者（通过接口调用形式）。
+- **对账单系统**：**主要数据下游**。对账单系统将定期或实时从本表 (`split_trade`) 拉取或接收事件 (`SplitTradeRecordedEvent`)，以生成“天财分账”指令账单和机构动账明细。
+- **账户系统**：**间接关联**。通过 `underlying_transaction_no` 关联底层资金流水，用于对账和问题追溯。
+- **三代系统**：**间接关联**。通过 `biz_order_no` 关联业务源头。
+- **计费中台/清结算系统**：**可选数据丰富源**。通过订阅其事件，可以完善交易流水的手续费和结算信息。
 
 ## 4. 业务逻辑
 
-### 4.1 核心处理流程
-1.  **接收请求**: 通过API或消息队列接收来自行业钱包的 `TiancaiTransferRequested` 事件。
-2.  **幂等校验**: 根据 `request_id` 检查是否已处理过相同请求，避免重复交易。
-3.  **基础校验**:
-    - 必填字段非空。
-    - 金额大于0。
-    - 付方账户号 ≠ 收方账户号。
-    - 账户类型枚举值有效。
-    - 分账场景枚举值有效。
-4.  **调用计费**: 调用计费中台接口，计算本次分账交易的手续费。
-5.  **调用账务记账**:
-    - 组装请求，调用账务核心系统的“转账/分账记账分录码”接口。
-    - 请求包含：付方账户、收方账户、金额、手续费、业务摘要等。
-6.  **更新交易状态**:
-    - 账务调用成功：更新交易状态为 `SUCCESS`，记录 `finish_time`。
-    - 账务调用失败：更新交易状态为 `FAILED`，记录失败原因。
-7.  **发布事件**: 交易处理完成后，发布 `TiancaiTransferProcessed` 事件。
-8.  **响应上游**: 通过API同步返回处理结果给行业钱包系统。
+### 4.1 核心算法
+- **交易流水号生成**：`TC` + `年月日` + `6位序列号` (如 `TC20231027000001`)。
+- **幂等性校验**：基于 `sync_request_log.request_id` 实现接口级幂等。对于同一 `request_id` 的请求，直接返回已记录的结果。
+- **数据标准化映射**：将行业钱包同步的 `SyncSplitTradeRequest.tradeData` 映射为 `split_trade` 表的标准字段，确保数据结构统一。
+- **批量查询优化**：对账单系统可能进行大批量数据拉取，需基于 `trade_time` 和 `settlement_date` 设计高效的分页查询。
 
 ### 4.2 业务规则
-- **交易状态流**: `PROCESSING` -> (`SUCCESS` | `FAILED`)。仅支持单向流转。
-- **手续费承担方**: 默认由付方承担。具体规则由计费中台根据业务场景 (`transfer_type`) 和协议确定。
-- **交易时效**: 应保证交易的实时处理，目标在秒级内完成。
-- **数据一致性**: 交易记录状态必须与账务核心的记账结果严格一致。
+1. **数据同步规则**：
+    - 只接收状态为 `SUCCESS` 或 `FAILED` 的最终态分账交易数据。`PROCESSING` 等中间状态数据不应同步。
+    - 必须校验关键字段非空：`bizOrderNo`, `walletOrderNo`, `underlyingTransactionNo`, `payerInfo`, `receiverInfo`, `amount`, `tradeStatus`, `tradeTime`。
+    - 交易流水号 (`tradeNo`) 优先使用请求中携带的（如果行业钱包预生成），否则由本模块按规则生成。
+
+2. **数据一致性规则**：
+    - 对于同一笔分账业务（相同的 `bizOrderNo`），应只存在一条成功的交易流水记录。
+    - 通过 `sync_request_log` 的幂等控制，防止重复同步导致数据重复。
+    - 若收到同一 `bizOrderNo` 但交易状态更新的数据（如从 FAILED 变更为 SUCCESS 的重试成功），应更新原记录并记录日志。
+
+3. **对账数据准备规则**：
+    - `settlement_date` 字段至关重要，是对账单系统按日汇总的关键维度。需确保其准确性，优先使用同步数据中的 `settlementDate`，若无则根据 `tradeTime` 和业务规则推导。
+    - 交易金额 (`amount`) 为实际划转的资金额，不包含手续费。手续费单独记录在 `fee_amount` 中。
 
 ### 4.3 验证逻辑
-- **接口签名验证**: 所有来自外部的API调用必须通过签名验证，防止伪造请求。
-- **账户状态验证**: 账务核心在记账时会校验付方账户状态（是否冻结、余额是否充足），业务核心依赖其返回结果。
-- **关系绑定验证**: **此校验已由上游行业钱包系统完成**。业务核心信任行业钱包的校验结果，不重复校验分账双方的关系绑定和协议状态。
+- **接口请求验证**：
+    - 验证 `requestId` 和 `tradeData` 必填。
+    - 验证 `tradeData` 中金额为正数，币种为支持的类型。
+    - 验证 `tradeStatus` 为枚举允许的值。
+    - 验证 `tradeTime` 不为未来时间。
+- **业务逻辑验证**：
+    - 校验 `bizOrderNo`、`walletOrderNo`、`underlyingTransactionNo` 三者组合在系统中是否已存在，避免产生冲突记录。
+    - 校验付方和收方商户号是否存在于内部商户库（可缓存或异步校验，不影响主流程）。
 
 ## 5. 时序图
 
+### 5.1 分账交易数据同步流程
 ```mermaid
 sequenceDiagram
-    participant Wallet as 行业钱包系统
-    participant Core as 业务核心
-    participant Fee as 计费中台
-    participant AcctCore as 账务核心系统
+    participant W as 行业钱包系统
+    participant BC as 业务核心
+    participant DB as 数据库
     participant MQ as 消息队列
-    participant Statement as 对账单系统
 
-    Note over Wallet, Core: 【天财分账交易处理主流程】
-    Wallet->>+Core: POST /tiancai/transfer<br/>(携带request_id)
-    Core->>Core: 1. 幂等校验(request_id)
-    Core->>Core: 2. 基础参数校验
-    Core->>+Fee: 调用计费接口
-    Fee-->>-Core: 返回手续费结果
-    Core->>+AcctCore: 调用记账接口(付方/收方/金额/手续费)
-    AcctCore-->>-Core: 返回记账结果(成功/失败)
-    alt 记账成功
-        Core->>Core: 更新交易状态为SUCCESS
-    else 记账失败
-        Core->>Core: 更新交易状态为FAILED
+    Note over W: 分账指令执行成功
+    W->>BC: POST /trades/sync-split (SyncSplitTradeRequest)
+    BC->>BC: 1. 解析并验证请求
+    BC->>DB: 查询sync_request_log by request_id (幂等校验)
+    alt 请求已处理过 (幂等)
+        BC->>DB: 获取已生成的trade_no
+        BC-->>W: 返回成功(含已有trade_no)
+    else 新请求
+        BC->>BC: 2. 生成trade_no (若请求中未提供)
+        BC->>DB: 3. 插入split_trade记录 (事务)
+        BC->>DB: 4. 插入sync_request_log记录 (事务)
+        BC->>MQ: 发布SplitTradeRecordedEvent
+        BC-->>W: 返回成功(含生成的trade_no)
     end
-    Core-->>-Wallet: 返回交易处理结果(含transfer_id)
-    Core->>MQ: 发布事件 TiancaiTransferProcessed
+    Note over MQ: 对账单系统消费事件，触发对账单生成
+```
 
-    Note over Core, Statement: 【对账单数据提供流程】
-    Statement->>+Core: GET /tiancai/transfers<br/>(按时间范围分页查询)
-    Core-->>-Statement: 返回交易明细列表
+### 5.2 对账单系统拉取数据流程
+```mermaid
+sequenceDiagram
+    participant BS as 对账单系统
+    participant BC as 业务核心
+    participant DB as 数据库
+
+    Note over BS: 定时任务或手动触发
+    BS->>BC: GET /trades?settlementDate=2023-10-28&bizType=COLLECTION...
+    BC->>DB: 执行分页查询split_trade表
+    DB-->>BC: 返回分账交易流水列表
+    BC-->>BS: 返回PageResponse<SplitTradeDetailResponse>
+    Note over BS: 基于流水数据生成“天财分账”指令账单
 ```
 
 ## 6. 错误处理
 
-| 错误场景 | 错误码 | HTTP状态码 | 处理策略 |
-| :--- | :--- | :--- | :--- |
-| 请求签名验证失败 | `AUTH_SIGNATURE_INVALID` | 401 | 拒绝请求，记录安全日志。 |
-| 请求参数缺失或格式错误 | `PARAMETER_INVALID` | 400 | 返回具体错误字段信息。 |
-| 重复请求 (`request_id` 已存在) | `REQUEST_ID_DUPLICATE` | 409 | 查询原交易结果并返回，确保幂等。 |
-| 计费中台服务不可用或超时 | `FEE_SERVICE_UNAVAILABLE` | 502 | 交易失败，状态置为`FAILED`，记录错误。需有重试或降级策略（如使用默认费率）。 |
-| 账务核心服务不可用或超时 | `ACCOUNTING_SERVICE_UNAVAILABLE` | 502 | 交易失败，状态置为`FAILED`。此为关键依赖，需有报警和人工介入流程。 |
-| 账务核心返回账户余额不足 | `ACCOUNT_INSUFFICIENT_BALANCE` | 200 (业务失败) | 交易失败，状态置为`FAILED`，具体原因记录在`remark`或扩展字段。 |
-| 账务核心返回账户冻结 | `ACCOUNT_FROZEN` | 200 (业务失败) | 同上。 |
-| 数据库异常 | `DATABASE_ERROR` | 500 | 交易失败，状态置为`FAILED`。记录详细日志，触发报警。 |
+### 6.1 预期错误及HTTP状态码
+- **400 Bad Request**：
+    - `INVALID_REQUEST_BODY`：请求体JSON解析失败或格式错误。
+    - `MISSING_REQUIRED_FIELD`：缺少必填字段。
+    - `INVALID_PARAMETER`：参数值无效（如金额非正、状态非法、时间为未来）。
+- **409 Conflict**：
+    - `DUPLICATE_REQUEST`：`requestId` 重复（幂等返回，实际为成功语义，但用409标识冲突）。
+    - `TRADE_CONFLICT`：`bizOrderNo`等业务标识与现有记录冲突且状态不一致。
+- **500 Internal Server Error**：数据库操作失败、系统内部异常。
 
-**通用策略**:
-- **重试**: 对于暂时的网络超时或下游服务短暂不可用，可在业务核心层面实现有限次数的重试（特别是调用计费和账务时）。
-- **补偿与对账**: 依赖每日对账单系统生成的账单，与行业钱包、账户系统进行资金和交易的对账，及时发现并处理异常数据。
-- **监控与报警**: 对交易失败率、处理延迟、下游服务健康度进行监控，设置阈值报警。
+### 6.2 处理策略
+- **同步接口错误**：
+    - 对于参数校验错误，立即返回 `400` 并描述具体错误字段，方便调用方排查。
+    - 对于数据库唯一键冲突（如 `trade_no` 重复，极小概率），记录告警日志，尝试生成新的流水号重试插入。
+    - 对于数据库连接超时等临时错误，可进行短暂重试（如2次），重试失败后返回 `500`，依赖行业钱包系统的同步重试机制。
+- **数据不一致处理**：
+    - 监控 `split_trade` 表与 `sync_request_log` 表的一致性，定期运行核对脚本。
+    - 如果发现同一 `bizOrderNo` 存在多条 `SUCCESS` 记录（异常情况），发出严重告警，需人工介入核查并修复数据。
+- **下游依赖**：
+    - 事件发布 (`SplitTradeRecordedEvent`) 采用异步且尽力而为的模式。如果消息队列暂时不可用，记录本地日志并告警，由后续补偿任务重新发布。不影响主同步流程的响应。
 
 ## 7. 依赖说明
 
-| 上游模块 | 交互方式 | 数据流 | 关键点 |
-| :--- | :--- | :--- | :--- |
-| **行业钱包系统** | 同步HTTP API (主) / 异步消息 (备) | 接收分账请求 (`request_id`, 账户信息，金额，场景) | 1. **强依赖**。需定义清晰的接口契约和降级方案。<br>2. 依赖其完成**关系绑定校验**，业务核心不再校验。<br>3. 需支持**幂等**处理。 |
-| **计费中台** | 同步HTTP API | 请求计费，返回手续费金额和规则。 | 1. **弱依赖**。可考虑降级方案（如缓存费率、使用0费率），避免因计费失败阻塞核心交易。 |
-| **账务核心系统** | 同步HTTP API | 请求执行资金划转的记账操作。 | 1. **强依赖**。交易成功的核心。<br>2. 需保证调用**高可用和低延迟**。<br>3. 业务核心交易状态必须与账务结果**强一致**。 |
-| **下游模块** | 交互方式 | 数据流 | 关键点 |
-| **对账单系统** | 同步HTTP API (查询) / 异步消息 (事件) | 提供交易明细数据。 | 1. 查询接口**频率高**，需做好数据库索引优化和查询限流。<br>2. 事件驱动可作为数据最终一致的补充。 |
-| **监控/日志系统** | 日志输出 / 指标上报 | 输出处理日志、性能指标、错误信息。 | 用于系统可观测性。 |
+### 7.1 上游模块交互（数据提供方）
+1. **行业钱包系统**：
+    - **调用关系**：**同步RPC调用（HTTP REST）**。行业钱包系统作为调用方。
+    - **关键接口**：`POST /api/v1/biz-core/trades/sync-split`
+    - **交互要点**：
+        - 本模块需提供高可用、高性能的同步接口，确保行业钱包系统能及时送达数据。
+        - 接口设计必须幂等，以应对行业钱包系统可能因网络超时等原因发起的重试。
+        - 响应应明确，成功则返回 `trade_no`，失败则给出具体错误码和原因。
+        - 本模块是行业钱包系统数据流的终点之一，负责交易数据的最终落地。
 
-**整体协调**:
-业务核心在本方案中定位为**执行者**。其正确运行的前提是上游（行业钱包）已确保业务合法性（账户存在、关系绑定、协议生效）。业务核心的重点是保障交易处理的**高效、准确、可靠**，并与账务系统紧密协作，确保每一笔分账指令都能正确反映为底层账户的资金变动。
+### 7.2 下游模块交互（数据消费方）
+1. **对账单系统**：
+    - **调用关系**：**同步RPC调用（HTTP REST） + 异步消息驱动**。
+    - **数据提供方式**：
+        - **主动拉取**：对账单系统通过查询接口 (`GET /trades`) 主动拉取指定日期、类型的交易流水。
+        - **事件驱动**：对账单系统消费 `SplitTradeRecordedEvent` 事件，实现近实时对账单更新。
+    - **交互要点**：
+        - 查询接口需支持灵活的组合条件筛选和高效的分页，以应对大数据量导出场景。
+        - 事件数据应包含对账单生成所需的核心字段，如 `tradeNo`, `settlementDate`, `amount` 等。
+        - 双方需约定数据字段的含义和格式，确保对账单的准确性。
+
+### 7.3 内部依赖
+- **数据库**：MySQL集群，存储所有交易流水和同步日志。`split_trade` 表可能增长迅速，需考虑按 `settlement_date` 或 `trade_time` 进行分表或归档策略。
+- **缓存**：Redis集群，可选用于缓存热点商户信息、或作为查询结果的临时缓存，提升查询性能。
+- **消息队列**：用于发布 `SplitTradeRecordedEvent` 事件，需保证至少成功投递一次。
+- **配置中心**：管理接口限流、开关、序列号生成器等配置。
+
+---
+**文档版本**：1.0  
+**最后更新**：2023-10-27  
+**设计者**：软件架构师

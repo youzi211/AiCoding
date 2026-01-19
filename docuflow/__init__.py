@@ -7,7 +7,7 @@ DocuFlow-AI: 将需求文档转换为结构化设计文档
 """
 __version__ = "0.1.0"
 
-from docuflow.core.orchestrator import WorkflowOrchestrator
+from docuflow.graph.orchestrator import WorkflowOrchestrator
 from docuflow.core.config import create_app_config
 
 __all__ = ["WorkflowOrchestrator", "create_app_config", "__version__"]
