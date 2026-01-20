@@ -161,8 +161,51 @@ class WorkflowOrchestrator:
         config = {"configurable": {"thread_id": "generation"}}
 
         try:
-            # 并行图会自动循环处理所有模块直到完成
-            result = app.invoke(state, config)
+            # 使用 stream 模式来获取中间状态，便于发送批判事件
+            last_result = None
+            for event in app.stream(state, config, stream_mode="values"):
+                last_result = event
+                # 检查是否有完成的模块批次
+                completed_batch = event.get("completed_modules_batch", [])
+                if completed_batch:
+                    for module_result in completed_batch:
+                        module_name = module_result.get("current_module")
+                        if not module_name:
+                            continue
+
+                        # 发送模块开始事件
+                        self._emit_progress("module_start", {"module": module_name})
+
+                        # 发送批判相关事件
+                        critique_history = module_result.get("critique_history", [])
+                        for critique in critique_history:
+                            self._emit_progress("critique_result", {
+                                "module": module_name,
+                                "iteration": critique.get("iteration"),
+                                "score": critique.get("score"),
+                                "passed": critique.get("passed")
+                            })
+                            if not critique.get("passed") and critique.get("iteration") < len(critique_history):
+                                self._emit_progress("regenerate_start", {
+                                    "module": module_name,
+                                    "iteration": critique.get("iteration")
+                                })
+
+                        # 发送模块完成事件
+                        if module_result.get("error"):
+                            self._emit_progress("module_error", {
+                                "module": module_name,
+                                "error": module_result.get("error")
+                            })
+                        else:
+                            self._emit_progress("module_complete", {
+                                "module": module_name,
+                                "critique_iterations": module_result.get("critique_iterations", 0),
+                                "critique_score": module_result.get("final_score"),
+                                "critique_passed": module_result.get("critique_passed", True)
+                            })
+
+            result = last_result or {}
 
             if result.get("error") and result.get("error_type") == "permanent":
                 self.logger.error(f"生成失败: {result['error']}")

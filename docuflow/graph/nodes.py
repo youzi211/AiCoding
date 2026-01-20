@@ -13,7 +13,8 @@ from docuflow.core.models import (
 from docuflow.parsers import DocumentParserFactory, DocumentChunker, ChunkRetriever
 from docuflow.llm import (
     LLMGenerationError, GlossaryGenerator, DAGGenerator,
-    ModuleDesignGenerator, ModuleSummaryGenerator, SystemDesignGenerator
+    ModuleDesignGenerator, ModuleSummaryGenerator, SystemDesignGenerator,
+    ModuleCritiqueGenerator
 )
 from docuflow.utils import (
     get_logger, ensure_directory_structure, get_input_files,
@@ -340,7 +341,7 @@ def skip_failed_module_node(state: DocuFlowState) -> dict[str, Any]:
 
 
 def process_single_module_node(state: DocuFlowState) -> dict[str, Any]:
-    """处理单个模块（并行执行时使用）- 包含构建上下文、生成设计、更新状态"""
+    """处理单个模块（并行执行时使用）- 包含构建上下文、生成设计、批判循环、更新状态"""
     config = _get_config(state)
     module_name = state["current_module"]
     dag = ArchitectureDAG.model_validate(state["dag"])
@@ -376,7 +377,43 @@ def process_single_module_node(state: DocuFlowState) -> dict[str, Any]:
         generator = ModuleDesignGenerator(config)
         design_content = generator.generate(module_name, context)
 
-        header = f"# 模块设计: {module_name}\n\n生成时间: {get_timestamp()}\n\n---\n\n"
+        # 3. 批判循环（如果启用）
+        critique_iterations = 0
+        final_score = None
+        final_passed = True
+        last_suggestions = None
+        critique_history = []
+
+        if config.critique_enabled:
+            critique_gen = ModuleCritiqueGenerator(config)
+            for i in range(config.critique_max_iterations):
+                result = critique_gen.critique(
+                    module_name, design_content, context, config.critique_threshold
+                )
+                critique_iterations = i + 1
+                final_score = result.get("score", 0)
+                final_passed = result.get("passed", False)
+                last_suggestions = result.get("suggestions")
+
+                # 记录历史
+                critique_history.append({
+                    "iteration": critique_iterations,
+                    "score": final_score,
+                    "passed": final_passed
+                })
+
+                if final_passed:
+                    logger.info(f"[并行] 模块 '{module_name}' 批判通过 (迭代 {critique_iterations}, 分数 {final_score:.2f})")
+                    break
+                if i < config.critique_max_iterations - 1:
+                    logger.info(f"[并行] 模块 '{module_name}' 批判未通过，正在改进 (迭代 {critique_iterations})")
+                    design_content = generator.regenerate(module_name, design_content, result, context)
+                else:
+                    logger.warning(f"[并行] 模块 '{module_name}' 达到最大批判迭代次数，使用最终版本")
+
+        # 4. 保存文件
+        iteration_info = f"\n批判迭代: {critique_iterations}" if config.critique_enabled and critique_iterations > 0 else ""
+        header = f"# 模块设计: {module_name}\n\n生成时间: {get_timestamp()}{iteration_info}\n\n---\n\n"
         output_file = config.modules_dir / module_name_to_filename(module_name)
         safe_write_text(output_file, header + design_content)
 
@@ -387,7 +424,12 @@ def process_single_module_node(state: DocuFlowState) -> dict[str, Any]:
                 "current_module": module_name,
                 "module_design": design_content,
                 "error": None,
-                "file_path": str(output_file.relative_to(config.project_root))
+                "file_path": str(output_file.relative_to(config.project_root)),
+                "critique_iterations": critique_iterations,
+                "final_score": final_score,
+                "critique_passed": final_passed,
+                "critique_suggestions": last_suggestions,
+                "critique_history": critique_history
             }
         }
 
@@ -569,12 +611,38 @@ def generate_database_design_node(state: DocuFlowState) -> dict[str, Any]:
 # Phase 4: 组装节点
 # ============================================================
 
+def _slugify(text: str) -> str:
+    """将文本转换为 Markdown 锚点格式
+
+    GitHub/CommonMark 锚点规则:
+    - 转小写
+    - 移除除字母、数字、空格、连字符外的所有字符
+    - 空格替换为连字符
+    - 连续连字符合并为一个
+    """
+    import re
+    # 转小写
+    text = text.lower()
+    # 只保留字母、数字、空格、连字符、下划线
+    text = re.sub(r'[^\w\s-]', '', text, flags=re.UNICODE)
+    # 空格和下划线替换为连字符
+    text = re.sub(r'[\s_]+', '-', text)
+    # 合并连续连字符
+    text = re.sub(r'-+', '-', text)
+    # 去除首尾连字符
+    text = text.strip('-')
+    return text
+
+
 def assemble_document_node(state: DocuFlowState) -> dict[str, Any]:
     """组装最终文档"""
     logger.info("正在组装最终文档...")
     config = _get_config(state)
     status = ProjectStatus.model_validate(state["status"])
     topo_order = state["topo_order"]
+
+    # 生成模块锚点映射
+    module_anchors = {name: _slugify(name) for name in topo_order}
 
     sections = [
         f"# {status.project_name} - 软件设计文档\n",
@@ -586,7 +654,7 @@ def assemble_document_node(state: DocuFlowState) -> dict[str, Any]:
     ]
 
     for i, name in enumerate(topo_order, 1):
-        sections.append(f"   - 3.{i} [{name}](#3{i}-{name.replace(' ', '-')})\n")
+        sections.append(f"   - 3.{i} [{name}](#3{i}-{module_anchors[name]})\n")
 
     sections.append("4. [接口设计](#4-接口设计)\n5. [数据库设计](#5-数据库设计)\n")
 
@@ -648,3 +716,87 @@ def backoff_delay_node(state: DocuFlowState) -> dict[str, Any]:
     logger.info(f"第 {retry_count} 次重试，延迟 {delay} 秒...")
     time.sleep(delay)
     return {}
+
+
+# ============================================================
+# 批判节点
+# ============================================================
+
+def critique_module_node(state: DocuFlowState) -> dict[str, Any]:
+    """批判模块设计"""
+    config = _get_config(state)
+
+    # 如果批判功能未启用，直接通过
+    if not config.critique_enabled:
+        return {"critique_result": {"passed": True, "score": 1.0}, "error": None}
+
+    module_name = state["current_module"]
+    iteration = state.get("critique_iteration", 0)
+
+    # 达到最大迭代次数，强制通过
+    if iteration >= config.critique_max_iterations:
+        logger.warning(f"模块 '{module_name}' 达到最大批判次数，强制通过")
+        return {"critique_result": {"passed": True, "score": config.critique_threshold}, "error": None}
+
+    try:
+        context = LLMContext.model_validate(state["module_context"])
+        generator = ModuleCritiqueGenerator(config)
+        result = generator.critique(
+            module_name, state["module_design"], context, config.critique_threshold
+        )
+
+        # 记录历史
+        history = state.get("critique_history") or []
+        history.append({"iteration": iteration + 1, "score": result.get("score", 0)})
+
+        # 保存原始设计（仅首次）
+        original = state.get("original_module_design") or state["module_design"]
+
+        return {
+            "critique_result": result,
+            "critique_iteration": iteration + 1,
+            "critique_history": history,
+            "original_module_design": original,
+            "error": None
+        }
+    except LLMGenerationError as e:
+        logger.error(f"模块 '{module_name}' 批判失败: {e}")
+        return {"error": str(e), "error_type": _classify_error(e)}
+
+
+def regenerate_module_node(state: DocuFlowState) -> dict[str, Any]:
+    """根据批判反馈重新生成模块设计"""
+    config = _get_config(state)
+    module_name = state["current_module"]
+    iteration = state.get("critique_iteration", 1)
+
+    logger.info(f"正在根据反馈重新生成模块设计: {module_name} (迭代 {iteration})")
+
+    try:
+        context = LLMContext.model_validate(state["module_context"])
+        generator = ModuleDesignGenerator(config)
+
+        new_design = generator.regenerate(
+            module_name, state["module_design"],
+            state["critique_result"], context
+        )
+
+        # 更新文件
+        header = f"# 模块设计: {module_name}\n\n生成时间: {get_timestamp()}\n批判迭代: {iteration}\n\n---\n\n"
+        output_file = config.modules_dir / module_name_to_filename(module_name)
+        safe_write_text(output_file, header + new_design)
+
+        return {"module_design": new_design, "error": None}
+    except LLMGenerationError as e:
+        logger.error(f"模块 '{module_name}' 重新生成失败: {e}")
+        return {"error": str(e), "error_type": _classify_error(e)}
+
+
+def reset_critique_state_node(state: DocuFlowState) -> dict[str, Any]:
+    """重置批判状态，准备处理下一个模块"""
+    return {
+        "critique_result": None,
+        "critique_iteration": 0,
+        "critique_history": None,
+        "original_module_design": None
+    }

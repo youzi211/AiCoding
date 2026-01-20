@@ -35,6 +35,12 @@ class DocuFlowState(TypedDict, total=False):
     module_context: Optional[dict]
     module_design: Optional[str]
 
+    # 批判相关
+    critique_result: Optional[dict]        # {"passed": bool, "score": float, "suggestions": str}
+    critique_iteration: int                # 当前迭代次数
+    critique_history: Optional[list[dict]] # 历史记录
+    original_module_design: Optional[str]  # 原始设计（首次生成）
+
     # 并行执行支持
     ready_modules: Optional[list[str]]  # 当前可并行处理的模块列表
     completed_modules_batch: Annotated[list[dict], merge_module_results]  # 使用 reducer 收集并行结果

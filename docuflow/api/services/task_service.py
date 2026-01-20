@@ -179,6 +179,15 @@ class TaskManager:
             task.progress.current_module = None
         elif event_type == "total_modules":
             task.progress.total_modules = data.get("count", 0)
+        # 批判相关事件
+        elif event_type == "critique_start":
+            task.progress.critique_iteration = data.get("iteration", 0)
+        elif event_type == "critique_result":
+            task.progress.critique_iteration = data.get("iteration", 0)
+            if not data.get("passed", True):
+                task.progress.critique_total_iterations += 1
+        elif event_type == "regenerate_start":
+            pass  # 仅转发给前端
 
         task.progress.message = data.get("message", task.progress.message)
 

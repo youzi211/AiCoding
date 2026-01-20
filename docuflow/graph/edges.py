@@ -100,3 +100,35 @@ def step_mode_router(state: DocuFlowState) -> str:
     if state.get("step_by_step_mode") and state.get("current_module"):
         return "pause"
     return "continue"
+
+
+def critique_router(state: DocuFlowState) -> str:
+    """
+    批判路由器：批判后决定下一步操作
+
+    Returns:
+        - "reset_critique_state": 批判通过，继续处理
+        - "regenerate_module": 批判未通过且未超限，重新生成
+        - "backoff_delay": 发生错误需要重试
+        - "skip_failed_module": 永久性错误，跳过
+    """
+    # 检查错误
+    error = state.get("error")
+    if error:
+        error_type = state.get("error_type", "permanent")
+        if error_type == "permanent":
+            return "skip_failed_module"
+        return "backoff_delay"
+
+    # 检查批判结果
+    result = state.get("critique_result", {})
+    if result.get("passed", True):
+        return "reset_critique_state"
+
+    # 检查迭代次数
+    iteration = state.get("critique_iteration", 0)
+    max_iter = state.get("config", {}).get("critique_max_iterations", 2)
+    if iteration >= max_iter:
+        return "reset_critique_state"
+
+    return "regenerate_module"

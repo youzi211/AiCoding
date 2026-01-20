@@ -21,8 +21,11 @@ from docuflow.graph.nodes import (
     find_ready_modules_node,
     process_single_module_node,
     collect_parallel_results_node,
+    critique_module_node,
+    regenerate_module_node,
+    reset_critique_state_node,
 )
-from docuflow.graph.edges import module_router, generation_router, parallel_module_router
+from docuflow.graph.edges import module_router, generation_router, parallel_module_router, critique_router
 
 
 def build_graph() -> StateGraph:
@@ -46,6 +49,11 @@ def build_graph() -> StateGraph:
     workflow.add_node("update_module_status", update_module_status_node)
     workflow.add_node("skip_failed_module", skip_failed_module_node)
     workflow.add_node("backoff_delay", backoff_delay_node)
+
+    # 批判节点
+    workflow.add_node("critique_module", critique_module_node)
+    workflow.add_node("regenerate_module", regenerate_module_node)
+    workflow.add_node("reset_critique_state", reset_critique_state_node)
 
     # ============================================================
     # Phase 3: 系统概述节点
@@ -83,16 +91,34 @@ def build_graph() -> StateGraph:
     workflow.add_edge("select_next_module", "build_context")
     workflow.add_edge("build_context", "generate_module_design")
 
-    # 模块生成后的路由
+    # 模块生成后的路由 → 批判节点
     workflow.add_conditional_edges(
         "generate_module_design",
         generation_router,
         {
-            "update_module_status": "update_module_status",
+            "update_module_status": "critique_module",  # 成功后进入批判
             "backoff_delay": "backoff_delay",
             "skip_failed_module": "skip_failed_module"
         }
     )
+
+    # 批判后的路由
+    workflow.add_conditional_edges(
+        "critique_module",
+        critique_router,
+        {
+            "reset_critique_state": "reset_critique_state",
+            "regenerate_module": "regenerate_module",
+            "backoff_delay": "backoff_delay",
+            "skip_failed_module": "skip_failed_module"
+        }
+    )
+
+    # 重新生成后再次批判
+    workflow.add_edge("regenerate_module", "critique_module")
+
+    # 重置批判状态后更新模块状态
+    workflow.add_edge("reset_critique_state", "update_module_status")
 
     # 重试循环
     workflow.add_edge("backoff_delay", "generate_module_design")

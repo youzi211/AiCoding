@@ -39,6 +39,9 @@ class TaskProgress(BaseModel):
     completed_modules: int = 0
     total_modules: int = 0
     message: Optional[str] = None
+    # 批判相关进度
+    critique_iteration: int = 0              # 当前模块批判迭代次数
+    critique_total_iterations: int = 0       # 所有模块批判总迭代次数
 
 
 class TaskResponse(BaseModel):

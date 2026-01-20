@@ -12,6 +12,10 @@ from docuflow.api.services.project_service import ProjectService
 from docuflow.api.services.task_service import TaskManager
 from docuflow.api.services.notification_service import NotificationService
 from docuflow.core.config import get_api_settings
+from docuflow.utils import setup_logging
+
+# 配置日志
+setup_logging(level=20)  # INFO 级别
 
 
 @asynccontextmanager
@@ -89,7 +93,6 @@ def run():
         port=settings.port,
         reload=False,
     )
-
 
 if __name__ == "__main__":
     run()

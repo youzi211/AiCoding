@@ -168,6 +168,12 @@ class AppConfig(BaseModel):
     retrieval_method: str = Field(default="keyword")
     top_k_chunks: int = Field(default=5)
 
+    # 批判配置
+    critique_enabled: bool = Field(default=True)
+    critique_threshold: float = Field(default=0.7, ge=0, le=1)
+    critique_max_iterations: int = Field(default=2, ge=1)
+    critique_model: Optional[str] = Field(default=None)  # 批判使用的模型
+
     @property
     def global_dir(self) -> Path:
         return self.workspace_dir / "01_global"

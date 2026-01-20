@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     retrieval_method: str = "keyword"
     top_k_chunks: int = 5
 
+    # 批判配置
+    critique_enabled: bool = True          # 是否启用批判
+    critique_threshold: float = 0.7        # 通过阈值 (0-1)
+    critique_max_iterations: int = 2       # 最大迭代次数
+    critique_model: Optional[str] = None   # 批判使用的模型（None 表示使用主模型）
+
 
 @lru_cache()
 def get_settings() -> Settings:
@@ -160,6 +166,10 @@ def create_app_config(
         step_by_step_mode=settings.step_by_step,
         retrieval_method=settings.retrieval_method,
         top_k_chunks=settings.top_k_chunks,
+        critique_enabled=settings.critique_enabled,
+        critique_threshold=settings.critique_threshold,
+        critique_max_iterations=settings.critique_max_iterations,
+        critique_model=settings.critique_model,
     )
 
 

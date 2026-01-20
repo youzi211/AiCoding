@@ -18,7 +18,8 @@ from docuflow.llm.prompts import (
     MAX_DOCUMENT_SIZE, MAX_MODULE_SIZE,
     GLOSSARY_PROMPT, DAG_PROMPT, MODULE_DESIGN_PROMPT,
     MODULE_SUMMARY_PROMPT, SYSTEM_DESIGN_PROMPT,
-    INTERFACE_PROMPT, DATABASE_PROMPT
+    INTERFACE_PROMPT, DATABASE_PROMPT,
+    CRITIQUE_PROMPT, REGENERATE_PROMPT
 )
 from docuflow.utils import get_logger
 
@@ -156,6 +157,21 @@ class ModuleDesignGenerator(BaseGenerator):
         )
         return self._generate_with_validation(prompt, min_length=100, error_msg="模块设计内容过短")
 
+    def regenerate(self, module_name: str, current_design: str,
+                   critique_result: dict, context: LLMContext) -> str:
+        """根据批判反馈重新生成模块设计"""
+        self.logger.info(f"正在根据反馈改进模块设计: {module_name}")
+        issues = critique_result.get("issues", [])
+        prompt = REGENERATE_PROMPT.format(
+            module_name=module_name,
+            current_design=current_design[:MAX_MODULE_SIZE],
+            score=critique_result.get("score", 0),
+            issues="\n".join(f"- {i}" for i in issues) if issues else "无",
+            suggestions=critique_result.get("suggestions", ""),
+            context=context.to_context_string()
+        )
+        return self._generate_with_validation(prompt, min_length=100, error_msg="改进后的模块设计内容过短")
+
 
 class ModuleSummaryGenerator(BaseGenerator):
     """模块摘要生成器"""
@@ -183,3 +199,50 @@ class SystemDesignGenerator(BaseGenerator):
         self.logger.info("正在生成数据库设计...")
         prompt = DATABASE_PROMPT.format(module_summaries=summaries_text)
         return self._generate_with_validation(prompt, min_length=100, error_msg="数据库设计内容过短")
+
+
+class ModuleCritiqueGenerator(BaseGenerator):
+    """模块设计批判生成器"""
+
+    def __init__(self, config: AppConfig):
+        super().__init__(config)
+        # 如果配置了批判专用模型，使用该模型
+        if config.critique_model:
+            self.client = AzureOpenAIClient(
+                temperature=config.llm_temperature,
+                model_name=config.critique_model
+            )
+            self.logger.info(f"批判使用独立模型: {config.critique_model}")
+
+    def critique(self, module_name: str, module_design: str,
+                 context: LLMContext, threshold: float) -> dict:
+        """
+        批判评估模块设计
+
+        Args:
+            module_name: 模块名称
+            module_design: 模块设计内容
+            context: LLM 上下文
+            threshold: 通过阈值
+
+        Returns:
+            dict: {"passed": bool, "score": float, "issues": list, "suggestions": str}
+        """
+        self.logger.info(f"正在批判评估模块设计: {module_name}")
+        prompt = CRITIQUE_PROMPT.format(
+            module_name=module_name,
+            module_design=module_design[:MAX_MODULE_SIZE],
+            context=context.to_context_string(),
+            threshold=threshold
+        )
+        result = self._generate_with_validation(prompt, parse_json=True)
+
+        # 强制校验 passed 与 score 的一致性
+        score = result.get("score", 0)
+        result["passed"] = score >= threshold
+
+        self.logger.info(
+            f"模块 '{module_name}' 批判结果: "
+            f"{'通过' if result['passed'] else '未通过'} (分数: {score:.2f})"
+        )
+        return result

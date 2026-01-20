@@ -3,12 +3,14 @@ from docuflow.llm.client import AzureOpenAIClient
 from docuflow.llm.generators import (
     LLMGenerationError, BaseGenerator,
     GlossaryGenerator, DAGGenerator,
-    ModuleDesignGenerator, ModuleSummaryGenerator, SystemDesignGenerator
+    ModuleDesignGenerator, ModuleSummaryGenerator, SystemDesignGenerator,
+    ModuleCritiqueGenerator
 )
 
 __all__ = [
     "AzureOpenAIClient",
     "LLMGenerationError", "BaseGenerator",
     "GlossaryGenerator", "DAGGenerator",
-    "ModuleDesignGenerator", "ModuleSummaryGenerator", "SystemDesignGenerator"
+    "ModuleDesignGenerator", "ModuleSummaryGenerator", "SystemDesignGenerator",
+    "ModuleCritiqueGenerator"
 ]

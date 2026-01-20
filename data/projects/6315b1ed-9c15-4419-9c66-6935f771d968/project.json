@@ -1,0 +1,9 @@
+{
+  "id": "6315b1ed-9c15-4419-9c66-6935f771d968",
+  "name": "test1",
+  "description": "测试批判模型ds",
+  "model_name": "deepseek-v3.2 ",
+  "created_at": "2026-01-20T15:37:33.784297",
+  "updated_at": "2026-01-20T15:37:33.784297",
+  "tags": []
+}
