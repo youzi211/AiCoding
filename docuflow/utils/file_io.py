@@ -98,6 +98,8 @@ def ensure_directory_structure(config: 'AppConfig') -> bool:
         config.input_dir,                    # 使用配置的路径
         config.workspace_dir / "01_global",
         config.workspace_dir / "02_modules",
+        config.workspace_dir / "03_output",
+        config.workspace_dir / "04_critique_logs",  # 批判日志目录
         config.output_dir,
     ]
     try:

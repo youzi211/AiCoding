@@ -1,0 +1,94 @@
+project_name: DocuFlow-AI Project
+created_at: '2026-01-21T16:17:27.191142'
+last_run: null
+current_phase: completed
+modules:
+- name: 账户系统
+  status: completed
+  file_path: workspace\02_modules\module_账户系统.md
+  dependencies: []
+  started_at: null
+  completed_at: '2026-01-21T16:21:33.979907'
+  error_message: null
+  retry_count: 0
+- name: 三代系统
+  status: completed
+  file_path: workspace\02_modules\module_三代系统.md
+  dependencies:
+  - 账户系统
+  started_at: null
+  completed_at: '2026-01-21T16:21:33.979907'
+  error_message: null
+  retry_count: 0
+- name: 行业钱包系统
+  status: completed
+  file_path: workspace\02_modules\module_行业钱包系统.md
+  dependencies:
+  - 账户系统
+  - 三代系统
+  started_at: null
+  completed_at: '2026-01-21T16:21:33.979907'
+  error_message: null
+  retry_count: 0
+- name: 认证系统
+  status: completed
+  file_path: workspace\02_modules\module_认证系统.md
+  dependencies: []
+  started_at: null
+  completed_at: '2026-01-21T16:21:33.979907'
+  error_message: null
+  retry_count: 0
+- name: 电子签约平台
+  status: completed
+  file_path: workspace\02_modules\module_电子签约平台.md
+  dependencies:
+  - 认证系统
+  started_at: null
+  completed_at: '2026-01-21T16:21:33.979907'
+  error_message: null
+  retry_count: 0
+- name: 清结算系统
+  status: completed
+  file_path: workspace\02_modules\module_清结算系统.md
+  dependencies: []
+  started_at: null
+  completed_at: '2026-01-21T16:21:33.979907'
+  error_message: null
+  retry_count: 0
+- name: 计费中台
+  status: completed
+  file_path: workspace\02_modules\module_计费中台.md
+  dependencies: []
+  started_at: null
+  completed_at: '2026-01-21T16:21:33.979907'
+  error_message: null
+  retry_count: 0
+- name: 业务核心系统
+  status: completed
+  file_path: workspace\02_modules\module_业务核心系统.md
+  dependencies: []
+  started_at: null
+  completed_at: '2026-01-21T16:21:33.979907'
+  error_message: null
+  retry_count: 0
+- name: 对账单系统
+  status: completed
+  file_path: workspace\02_modules\module_对账单系统.md
+  dependencies:
+  - 业务核心系统
+  - 账户系统
+  - 行业钱包系统
+  - 清结算系统
+  - 三代系统
+  started_at: null
+  completed_at: '2026-01-21T16:21:33.979907'
+  error_message: null
+  retry_count: 0
+- name: 钱包APP/商服平台
+  status: completed
+  file_path: workspace\02_modules\module_钱包APP_商服平台.md
+  dependencies: []
+  started_at: null
+  completed_at: '2026-01-21T16:21:33.979907'
+  error_message: null
+  retry_count: 0

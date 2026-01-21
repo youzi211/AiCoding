@@ -20,3 +20,5 @@ wheels/
 # 但是不要忽略 .gitkeep 文件 
 !.gitkeep
 sheji.md
+.ccb*
+frontend/

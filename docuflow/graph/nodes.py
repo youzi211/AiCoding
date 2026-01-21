@@ -8,7 +8,7 @@ import networkx as nx
 from docuflow.graph.state import DocuFlowState
 from docuflow.core.models import (
     AppConfig, ArchitectureDAG, ProjectStatus, ModuleProgress,
-    ModuleStatus, LLMContext, ModuleDefinition
+    ModuleStatus, LLMContext, ModuleDefinition, CritiqueLogEntry
 )
 from docuflow.parsers import DocumentParserFactory, DocumentChunker, ChunkRetriever
 from docuflow.llm import (
@@ -395,6 +395,18 @@ def process_single_module_node(state: DocuFlowState) -> dict[str, Any]:
                 final_passed = result.get("passed", False)
                 last_suggestions = result.get("suggestions")
 
+                # 保存批判日志
+                log_entry = CritiqueLogEntry(
+                    iteration=critique_iterations,
+                    module_name=module_name,
+                    score=final_score,
+                    passed=final_passed,
+                    suggestions=last_suggestions,
+                    issues=result.get("issues", []),
+                    design_content=design_content
+                )
+                _save_critique_log(config, module_name, log_entry)
+
                 # 记录历史
                 critique_history.append({
                     "iteration": critique_iterations,
@@ -407,7 +419,9 @@ def process_single_module_node(state: DocuFlowState) -> dict[str, Any]:
                     break
                 if i < config.critique_max_iterations - 1:
                     logger.info(f"[并行] 模块 '{module_name}' 批判未通过，正在改进 (迭代 {critique_iterations})")
-                    design_content = generator.regenerate(module_name, design_content, result, context)
+                    design_content = generator.regenerate(
+                        module_name, design_content, result, context, config.critique_threshold
+                    )
                 else:
                     logger.warning(f"[并行] 模块 '{module_name}' 达到最大批判迭代次数，使用最终版本")
 
@@ -512,19 +526,78 @@ def extract_summaries_node(state: DocuFlowState) -> dict[str, Any]:
 
 
 def _format_summaries(summaries: list[dict]) -> str:
-    """格式化摘要列表"""
-    lines = []
-    for s in summaries:
-        lines.append(f"### 模块: {s.get('module_name', '未知')}")
-        lines.append(f"职责: {s.get('purpose', '无')}")
-        for api in s.get('interfaces', [])[:5]:
-            lines.append(f"  - {api.get('method', 'GET')} {api.get('path', '/')} - {api.get('description', '')}")
-        for t in s.get('database_tables', [])[:5]:
-            lines.append(f"  - 表: {t.get('name', '')} - {t.get('description', '')}")
-        if deps := s.get('dependencies', []):
-            lines.append(f"依赖: {', '.join(deps)}")
+    """将模块摘要列表格式化为用于系统级汇总的 Markdown 文本。"""
+    if not summaries:
+        return ""
+
+    lines: list[str] = []
+    for summary in summaries:
+        module_name = summary.get("module_name") or "未知模块"
+        lines.append(f"### 模块：{module_name}")
+
+        purpose = (summary.get("purpose") or "").strip()
+        if purpose:
+            lines.append(f"- 职责：{purpose}")
+
+        if features := (summary.get("key_features") or []):
+            lines.append("- 核心功能：")
+            for feat in features[:8]:
+                lines.append(f"  - {feat}")
+
+        if apis := (summary.get("interfaces") or []):
+            lines.append("- 主要接口：")
+            for api in apis[:12]:
+                method = (api.get("method") or "GET").strip()
+                path = (api.get("path") or "/").strip()
+                desc = (api.get("description") or "").strip()
+                line = f"  - {method} {path}"
+                if desc:
+                    line += f" - {desc}"
+                lines.append(line)
+
+        if tables := (summary.get("database_tables") or []):
+            lines.append("- 数据表：")
+            for table in tables[:12]:
+                name = (table.get("name") or "").strip()
+                desc = (table.get("description") or "").strip()
+                if not name:
+                    continue
+                line = f"  - {name}"
+                if desc:
+                    line += f" - {desc}"
+                lines.append(line)
+
+        if deps := (summary.get("dependencies") or []):
+            lines.append(f"- 依赖：{', '.join(deps)}")
+
         lines.append("")
-    return "\n".join(lines)
+
+    return "\n".join(lines).strip() + "\n"
+
+
+def _format_dag_overview(dag: dict | None) -> str:
+    """将架构 DAG 压缩为系统级提示可读的概览文本。"""
+    if not dag:
+        return ""
+    modules = dag.get("modules") or []
+    if not isinstance(modules, list) or not modules:
+        return ""
+
+    lines = ["- 模块依赖（DAG 概览）："]
+    for m in modules:
+        if not isinstance(m, dict):
+            continue
+        name = (m.get("name") or "").strip()
+        if not name:
+            continue
+        desc = (m.get("description") or "").strip()
+        deps = m.get("dependencies") or []
+        deps_text = ", ".join(deps) if isinstance(deps, list) and deps else "无"
+        if desc:
+            lines.append(f"  - {name}: {desc}（依赖：{deps_text}）")
+        else:
+            lines.append(f"  - {name}（依赖：{deps_text}）")
+    return "\n".join(lines).strip() + "\n"
 
 
 def generate_system_design_node(state: DocuFlowState) -> dict[str, Any]:
@@ -534,9 +607,17 @@ def generate_system_design_node(state: DocuFlowState) -> dict[str, Any]:
 
     try:
         generator = SystemDesignGenerator(config)
-        summaries_text = _format_summaries(state["module_summaries"])
+        summaries_text = _format_summaries(state.get("module_summaries") or [])
+        dag_overview = _format_dag_overview(state.get("dag"))
+        glossary_excerpt = (state.get("glossary_content") or "")[:20000]
+        requirements_excerpt = (state.get("full_document") or "")[:20000]
 
-        system_design = generator.generate_system_design(summaries_text)
+        system_design = generator.generate_system_design(
+            summaries_text,
+            dag_overview=dag_overview,
+            glossary_excerpt=glossary_excerpt,
+            requirements_excerpt=requirements_excerpt,
+        )
         safe_write_text(config.global_dir / "system_design.md", system_design)
 
         return {"system_design": system_design, "error": None, "retry_count": 0}
@@ -557,9 +638,17 @@ def generate_interface_design_node(state: DocuFlowState) -> dict[str, Any]:
 
     try:
         generator = SystemDesignGenerator(config)
-        summaries_text = _format_summaries(state["module_summaries"])
+        summaries_text = _format_summaries(state.get("module_summaries") or [])
+        dag_overview = _format_dag_overview(state.get("dag"))
+        glossary_excerpt = (state.get("glossary_content") or "")[:20000]
+        requirements_excerpt = (state.get("full_document") or "")[:20000]
 
-        interface_design = generator.generate_interface_design(summaries_text)
+        interface_design = generator.generate_interface_design(
+            summaries_text,
+            dag_overview=dag_overview,
+            glossary_excerpt=glossary_excerpt,
+            requirements_excerpt=requirements_excerpt,
+        )
         safe_write_text(config.global_dir / "interface_design.md", interface_design)
 
         return {"interface_design": interface_design, "error": None, "retry_count": 0}
@@ -580,9 +669,17 @@ def generate_database_design_node(state: DocuFlowState) -> dict[str, Any]:
 
     try:
         generator = SystemDesignGenerator(config)
-        summaries_text = _format_summaries(state["module_summaries"])
+        summaries_text = _format_summaries(state.get("module_summaries") or [])
+        dag_overview = _format_dag_overview(state.get("dag"))
+        glossary_excerpt = (state.get("glossary_content") or "")[:20000]
+        requirements_excerpt = (state.get("full_document") or "")[:20000]
 
-        database_design = generator.generate_database_design(summaries_text)
+        database_design = generator.generate_database_design(
+            summaries_text,
+            dag_overview=dag_overview,
+            glossary_excerpt=glossary_excerpt,
+            requirements_excerpt=requirements_excerpt,
+        )
         safe_write_text(config.global_dir / "database_design.md", database_design)
 
         # 保存摘要 JSON
@@ -619,18 +716,28 @@ def _slugify(text: str) -> str:
     - 移除除字母、数字、空格、连字符外的所有字符
     - 空格替换为连字符
     - 连续连字符合并为一个
+
+    对于中文等非 ASCII 字符，使用 hash 作为备选方案
     """
     import re
+    import hashlib
+
+    original_text = text
     # 转小写
     text = text.lower()
-    # 只保留字母、数字、空格、连字符、下划线
-    text = re.sub(r'[^\w\s-]', '', text, flags=re.UNICODE)
+    # 保留字母、数字、空格、连字符、中文字符
+    text = re.sub(r'[^\w\s\u4e00-\u9fff-]', '', text, flags=re.UNICODE)
     # 空格和下划线替换为连字符
     text = re.sub(r'[\s_]+', '-', text)
     # 合并连续连字符
     text = re.sub(r'-+', '-', text)
     # 去除首尾连字符
     text = text.strip('-')
+
+    # 如果 slugify 后为空（全是特殊字符），使用 hash
+    if not text:
+        text = hashlib.md5(original_text.encode()).hexdigest()[:8]
+
     return text
 
 
@@ -641,22 +748,23 @@ def assemble_document_node(state: DocuFlowState) -> dict[str, Any]:
     status = ProjectStatus.model_validate(state["status"])
     topo_order = state["topo_order"]
 
-    # 生成模块锚点映射
-    module_anchors = {name: _slugify(name) for name in topo_order}
-
+    # 不再使用 slugify 生成锚点，改用纯数字索引
     sections = [
         f"# {status.project_name} - 软件设计文档\n",
         f"生成时间: {get_timestamp()}\n",
         "\n## 目录\n",
-        "1. [概述说明](#1-概述说明)\n   - 1.1 [术语与缩略词](#11-术语与缩略词)\n",
+        "1. [概述说明](#1-概述说明)\n",
+        "   - 1.1 [术语与缩略词](#11-术语与缩略词)\n",
         "2. [系统设计](#2-系统设计)\n",
         "3. [模块设计](#3-模块设计)\n",
     ]
 
+    # 模块目录使用纯数字锚点，避免中文编码问题
     for i, name in enumerate(topo_order, 1):
-        sections.append(f"   - 3.{i} [{name}](#3{i}-{module_anchors[name]})\n")
+        sections.append(f"   - 3.{i} [{name}](#module-{i})\n")
 
-    sections.append("4. [接口设计](#4-接口设计)\n5. [数据库设计](#5-数据库设计)\n")
+    sections.append("4. [接口设计](#4-接口设计)\n")
+    sections.append("5. [数据库设计](#5-数据库设计)\n")
 
     # 1. 概述
     sections.append("\n---\n# 1 概述说明\n\n## 1.1 术语与缩略词\n")
@@ -672,12 +780,25 @@ def assemble_document_node(state: DocuFlowState) -> dict[str, Any]:
     # 3. 模块设计
     sections.append("\n---\n# 3 模块设计\n")
     for i, name in enumerate(topo_order, 1):
-        sections.append(f"\n## 3.{i} {name}\n")
+        # 使用纯数字锚点
+        anchor_id = f"module-{i}"
+        sections.append(f"\n<a id=\"{anchor_id}\"></a>\n")
+        sections.append(f"\n## 3.{i} {name}\n\n")
         content = safe_read_text(config.modules_dir / module_name_to_filename(name))
         if content:
+            # 需要跳过的头部行
+            skip_prefixes = ('# 模块设计:', '# ', '生成时间:', '批判迭代:', '---')
             for line in content.split('\n'):
-                if not (line.startswith('# 模块设计:') or line.startswith('生成时间:') or line == '---'):
-                    sections.append(line + "\n")
+                # 跳过头部元信息
+                if any(line.startswith(prefix) for prefix in skip_prefixes):
+                    continue
+                # 将模块内的 ## 转换为 ###，### 转换为 ####
+                # 这样模块内部的章节就不会与模块标题同级
+                if line.startswith('## '):
+                    line = '#' + line  # ## -> ###
+                elif line.startswith('### '):
+                    line = '#' + line  # ### -> ####
+                sections.append(line + "\n")
 
     # 4. 接口设计
     sections.append("\n---\n# 4 接口设计\n")
@@ -722,6 +843,30 @@ def backoff_delay_node(state: DocuFlowState) -> dict[str, Any]:
 # 批判节点
 # ============================================================
 
+def _save_critique_log(config: AppConfig, module_name: str, log_entry: CritiqueLogEntry) -> None:
+    """保存批判日志到文件"""
+    import os
+    from docuflow.utils import module_name_to_filename
+
+    # 确保日志目录存在
+    logs_dir = config.critique_logs_dir
+    os.makedirs(logs_dir, exist_ok=True)
+
+    # 模块对应的日志文件
+    log_file = logs_dir / f"{module_name_to_filename(module_name).replace('.md', '')}_critique.md"
+
+    # 如果文件不存在，创建头部
+    if not log_file.exists():
+        header = f"# 批判日志: {module_name}\n\n"
+        safe_write_text(log_file, header)
+
+    # 追加本次批判记录
+    content = safe_read_text(log_file) or ""
+    content += log_entry.to_markdown() + "\n"
+    safe_write_text(log_file, content)
+
+    logger.info(f"批判日志已保存: {log_file}")
+
 def critique_module_node(state: DocuFlowState) -> dict[str, Any]:
     """批判模块设计"""
     config = _get_config(state)
@@ -744,6 +889,20 @@ def critique_module_node(state: DocuFlowState) -> dict[str, Any]:
         result = generator.critique(
             module_name, state["module_design"], context, config.critique_threshold
         )
+
+        # 创建批判日志条目
+        log_entry = CritiqueLogEntry(
+            iteration=iteration + 1,
+            module_name=module_name,
+            score=result.get("score", 0),
+            passed=result.get("passed", False),
+            suggestions=result.get("suggestions"),
+            issues=result.get("issues", []),
+            design_content=state["module_design"]
+        )
+
+        # 保存批判日志到文件
+        _save_critique_log(config, module_name, log_entry)
 
         # 记录历史
         history = state.get("critique_history") or []
@@ -778,7 +937,7 @@ def regenerate_module_node(state: DocuFlowState) -> dict[str, Any]:
 
         new_design = generator.regenerate(
             module_name, state["module_design"],
-            state["critique_result"], context
+            state["critique_result"], context, config.critique_threshold
         )
 
         # 更新文件

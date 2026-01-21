@@ -126,6 +126,36 @@ class Glossary(BaseModel):
         return "\n".join(lines)
 
 
+class CritiqueLogEntry(BaseModel):
+    """单次批判记录"""
+    iteration: int
+    timestamp: datetime = Field(default_factory=datetime.now)
+    module_name: str
+    score: float
+    passed: bool
+    suggestions: Optional[str] = None
+    issues: list[str] = Field(default_factory=list)
+    design_content: Optional[str] = None  # 本次批判的设计内容
+
+    def to_markdown(self) -> str:
+        """转换为 Markdown 格式"""
+        lines = [
+            f"## 批判迭代 #{self.iteration} - {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}\n",
+            f"**模块**: {self.module_name}\n",
+            f"**分数**: {self.score:.2f} / 1.0\n",
+            f"**结果**: {'✅ 通过' if self.passed else '❌ 未通过'}\n",
+        ]
+        if self.issues:
+            lines.append(f"\n### 发现的问题\n")
+            for issue in self.issues:
+                lines.append(f"- {issue}")
+            lines.append("")
+        if self.suggestions:
+            lines.append(f"\n### 改进建议\n{self.suggestions}\n")
+        lines.append("---\n")
+        return "\n".join(lines)
+
+
 class LLMContext(BaseModel):
     """LLM生成的上下文"""
     glossary_content: str = ""
@@ -193,3 +223,8 @@ class AppConfig(BaseModel):
     @property
     def glossary_file(self) -> Path:
         return self.global_dir / "glossary.md"
+
+    @property
+    def critique_logs_dir(self) -> Path:
+        """批判日志目录"""
+        return self.workspace_dir / "04_critique_logs"
