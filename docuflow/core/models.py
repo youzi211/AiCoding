@@ -186,6 +186,8 @@ class AppConfig(BaseModel):
     output_dir: Path = Field(default=Path("output"))
 
     # LLM配置 (仅Azure)
+    # 注意: model_name 仅用于记录，实际 LLM 调用使用环境变量 DOCUFLOW_MODEL_NAME
+    model_name: str = Field(default="gpt-5.2")  # DEPRECATED: 仅用于记录/显示
     llm_temperature: float = Field(default=0.3, ge=0, le=2)
 
     # 处理配置
@@ -203,6 +205,12 @@ class AppConfig(BaseModel):
     critique_threshold: float = Field(default=0.7, ge=0, le=1)
     critique_max_iterations: int = Field(default=2, ge=1)
     critique_model: Optional[str] = Field(default=None)  # 批判使用的模型
+
+    # 图片提取配置
+    extract_images: bool = Field(default=False)  # 是否提取文档中的图片
+    vision_model: Optional[str] = Field(default=None)  # 用于生成图片描述的视觉模型
+    vision_max_tokens: int = Field(default=2000)  # 图片描述的最大 token 数
+    vision_cache_enabled: bool = Field(default=True)  # 是否启用图片描述缓存
 
     @property
     def global_dir(self) -> Path:
@@ -228,3 +236,8 @@ class AppConfig(BaseModel):
     def critique_logs_dir(self) -> Path:
         """批判日志目录"""
         return self.workspace_dir / "04_critique_logs"
+
+    @property
+    def image_cache_dir(self) -> Path:
+        """图片描述缓存目录（位于项目工作空间下）"""
+        return self.workspace_dir / "image_descriptions"

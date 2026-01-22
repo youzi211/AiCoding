@@ -5,6 +5,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Request
 
 from docuflow.api.schemas.task import TaskCreateRequest, TaskResponse, TaskStatus
+from docuflow.core.config import get_settings
 
 router = APIRouter()
 
@@ -47,10 +48,11 @@ async def create_task(
         )
 
     # 提交任务
+    settings = get_settings()
     task = await task_manager.submit_task(
         project_id=project_id,
         task_type=task_request.task_type,
-        model_name=project.model_name,
+        model_name=settings.model_name,
         step_by_step=task_request.step_by_step,
     )
 

@@ -51,14 +51,12 @@ class ProjectService:
         self,
         name: str,
         description: Optional[str],
-        model_name: str,
         files: List[UploadFile],
     ) -> ProjectResponse:
         """创建项目"""
         metadata = ProjectMetadata(
             name=name,
             description=description,
-            model_name=model_name,
         )
         project_id = metadata.id
         project_dir = self._get_project_dir(project_id)
@@ -86,7 +84,6 @@ class ProjectService:
             id=metadata.id,
             name=metadata.name,
             description=metadata.description,
-            model_name=metadata.model_name,
             created_at=metadata.created_at,
             updated_at=metadata.updated_at,
             tags=metadata.tags,
@@ -123,7 +120,6 @@ class ProjectService:
             id=metadata.id,
             name=metadata.name,
             description=metadata.description,
-            model_name=metadata.model_name,
             created_at=metadata.created_at,
             updated_at=metadata.updated_at,
             tags=metadata.tags,

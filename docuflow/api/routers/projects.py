@@ -24,13 +24,12 @@ async def create_project(
     files: List[UploadFile] = File(..., description="上传的文档文件"),
     name: Optional[str] = Form(None, description="项目名称（可选，默认使用第一个文件名）"),
     description: Optional[str] = Form(None, description="项目描述"),
-    model_name: Optional[str] = Form(None, description="使用的模型（可选，默认 gpt-5.2）"),
 ):
     """创建项目并上传文件
 
     只有 files 是必填项，其他字段可选：
     - name: 项目名称，不填则使用第一个上传文件的文件名（不含扩展名）
-    - model_name: 使用的模型，不填则使用默认模型 gpt-5.2
+    - 模型使用全局配置（环境变量 DOCUFLOW_MODEL_NAME）
     """
     project_service = get_project_service(request)
 
@@ -53,7 +52,6 @@ async def create_project(
     project = await project_service.create_project(
         name=project_name or "未命名项目",
         description=description,
-        model_name=model_name or "gpt-5.2",
         files=files,
     )
 

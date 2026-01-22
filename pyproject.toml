@@ -22,6 +22,10 @@ dependencies = [
     # 文档解析
     "pypdf>=3.0",
     "docx2txt>=0.8",
+    # 图片提取和处理（支持 PDF 和 DOCX 图片提取）
+    "pymupdf>=1.23.0",
+    "python-docx>=1.0.0",
+    "pillow>=10.0.0",
     # 向量搜索
     "faiss-cpu>=1.7.4",
     # LangGraph

@@ -6,11 +6,13 @@ from docuflow.llm.generators import (
     ModuleDesignGenerator, ModuleSummaryGenerator, SystemDesignGenerator,
     ModuleCritiqueGenerator
 )
+from docuflow.llm.vision_client import VisionClient, create_vision_description_function
 
 __all__ = [
     "AzureOpenAIClient",
     "LLMGenerationError", "BaseGenerator",
     "GlossaryGenerator", "DAGGenerator",
     "ModuleDesignGenerator", "ModuleSummaryGenerator", "SystemDesignGenerator",
-    "ModuleCritiqueGenerator"
+    "ModuleCritiqueGenerator",
+    "VisionClient", "create_vision_description_function"
 ]

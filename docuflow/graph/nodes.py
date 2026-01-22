@@ -49,6 +49,21 @@ def load_documents_node(state: DocuFlowState) -> dict[str, Any]:
     try:
         config = _get_config(state)
 
+        # 打印当前配置
+        logger.info("=" * 50)
+        logger.info("当前配置:")
+        logger.info(f"  LLM 温度: {config.llm_temperature}")
+        logger.info(f"  批判启用: {config.critique_enabled}")
+        logger.info(f"  批判阈值: {config.critique_threshold}")
+        logger.info(f"  批判模型: {config.critique_model or '使用主模型'}")
+        logger.info(f"  图片提取: {config.extract_images}")
+        if config.extract_images:
+            logger.info(f"    视觉模型: {config.vision_model or '未配置'}")
+            logger.info(f"    最大 tokens: {config.vision_max_tokens}")
+            logger.info(f"    缓存启用: {config.vision_cache_enabled}")
+            logger.info(f"    缓存目录: {config.image_cache_dir}")
+        logger.info("=" * 50)
+
         if not ensure_directory_structure(config):
             return {"error": "无法创建目录结构", "error_type": "permanent"}
 
@@ -56,17 +71,33 @@ def load_documents_node(state: DocuFlowState) -> dict[str, Any]:
         if not input_files:
             return {"error": f"在 {config.input_dir} 中未找到输入文档", "error_type": "permanent"}
 
-        parser_factory = DocumentParserFactory()
+        logger.info(f"找到 {len(input_files)} 个输入文件")
+
+        # 创建支持图片提取的解析器工厂
+        parser_factory = DocumentParserFactory(
+            extract_images=config.extract_images,
+            vision_model=config.vision_model,
+            vision_max_tokens=config.vision_max_tokens,
+            vision_cache_enabled=config.vision_cache_enabled,
+            vision_cache_dir=str(config.image_cache_dir)
+        )
         chunker = DocumentChunker(chunk_size=config.chunk_size, chunk_overlap=config.chunk_overlap)
 
         combined_content = []
         for file_path in input_files:
             logger.info(f"正在解析: {file_path.name}")
-            content = parser_factory.parse(file_path)
+            # 如果启用了图片提取，使用 parse_with_images
+            if config.extract_images:
+                content = parser_factory.parse_with_images(file_path)
+                logger.info(f"已启用图片提取，视觉模型: {config.vision_model or '未配置'}")
+            else:
+                content = parser_factory.parse(file_path)
             combined_content.append(content)
 
         full_document = "\n\n---\n\n".join(combined_content)
         chunks = chunker.chunk_with_metadata(full_document, "requirements")
+
+        logger.info(f"文档解析完成，总长度: {len(full_document)} 字符，分块数: {len(chunks)}")
 
         return {
             "full_document": full_document,

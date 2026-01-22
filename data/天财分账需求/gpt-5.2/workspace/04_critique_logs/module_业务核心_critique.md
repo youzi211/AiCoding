@@ -28,3 +28,80 @@
 
 ---
 
+## 批判迭代 #2 - 2026-01-21 18:11:57
+
+**模块**: 业务核心
+
+**分数**: 0.40 / 1.0
+
+**结果**: ❌ 未通过
+
+
+### 发现的问题
+
+- 接口一致性问题：接口设计写为POST /v1/transfers，但时序图中调用为POST /transfers，需统一路径与版本策略，否则调用方与网关路由会不一致。
+- 记账方向定义存在高风险歧义：文档写付方记'贷'（减少）、收方记'借'（增加），与常见会计借贷含义可能相反；需明确本系统'借/贷'的业务语义（增减规则）并给出示例分录，避免对账与报表错误。
+- 幂等处理策略不完整：仅描述requestId重复且成功直接返回，但未定义重复且处理中时的返回（例如返回同transactionId与当前状态、或阻塞等待），也未定义失败可重试的判定条件与幂等键有效期。
+- 并发与一致性方案缺口：同时使用account_hold预占与account_balance乐观锁，但未说明扣减时的原子条件（例如update balance where version=? and balance>=?），也未说明预占与余额扣减的顺序及失败回滚策略，存在超扣或预占泄漏风险。
+- 手续费计算与事务边界不清：计费中台调用在数据库事务流程中出现，但外部RPC不应置于长事务内；需明确先计费后入账或采用本地事务+Outbox/Saga，避免锁持有过长与死锁/超时。
+- 事件发布可靠性不足：声明至少一次投递，但未给出Outbox表、投递重试、去重键（如transactionId）与发布时机（与本地事务的原子性）设计，容易出现已记账但事件丢失或重复导致下游不一致。
+- 错误码与HTTP语义未定义：仅列出业务错误码，未规定HTTP状态码映射、错误响应结构（是否统一code/message/data为空）、以及可重试错误的标识字段，影响调用方正确重试与告警。
+- 数据模型关键约束缺失：transaction缺少currency字段落库、amount/fee_amount精度与取值约束（decimal位数、非负、最小单位）、journal_entry缺少分录序号/类型（本金/手续费/冲正）与唯一约束，难以保证可审计与防重复插入。
+- 冲正机制描述不落地：提到提供冲正接口，但未定义接口、幂等键、可冲正条件（仅成功交易？部分冲正？）、以及冲正与原交易的关联字段与状态机约束，容易引入账务不平。
+- 账户系统权威性表述矛盾：文档称本模块是余额变更权威来源，但账户状态以账户系统为准；未说明状态变更与余额变更的竞态处理（例如扣款前后状态变更、冻结生效时如何处理），存在合规与风控漏洞。
+
+
+### 改进建议
+先修正接口与时序图的路径版本一致性，并在接口契约中补齐HTTP状态码与错误响应规范（含可重试标识）。明确'借/贷'在本系统的增减规则，给出至少两种场景（全额/净额、付方/收方承担手续费）的分录示例与校验公式。将计费调用移出数据库长事务：建议先计费再入账，或采用预估费率+事后调整；同时明确余额扣减的原子SQL条件（balance>=amount+fee且version匹配）与account_hold的生命周期（创建、超时释放、扣减、幂等）。事件发布采用Outbox模式：在同一事务写transaction、journal、balance与outbox事件记录，异步投递并以transactionId作为去重键，定义重试与死信。补齐数据模型字段与约束（currency、decimal精度、非负、唯一键、分录类型/序号、冲正关联字段），并把冲正接口与状态机规则写成可执行的契约（可冲正条件、幂等键、并发控制）。最后补充账户状态竞态处理策略（查询缓存一致性、冻结/销户在途交易处理、失败重试与补偿）。
+
+---
+
+## 批判迭代 #1 - 2026-01-22 16:10:50
+
+**模块**: 业务核心
+
+**分数**: 0.50 / 1.0
+
+**结果**: ❌ 未通过
+
+
+### 发现的问题
+
+- Missing required section 'Interface Design' (TBD for API endpoints, request/response, events).
+- Missing required section 'Data Model' (TBD for tables, fields, relationships).
+- Hollow content in 'Interface Design' section.
+- Hollow content in 'Data Model' section.
+- Inconsistent terminology: '计费中台' is listed as a separate downstream module but is also conflated with '清结算' in the glossary.
+- Missing key logic consideration for handling asynchronous callbacks and ensuring idempotency.
+- Ambiguous statement: '协调下游系统' is vague; specific coordination logic (e.g., synchronous vs. asynchronous calls, state management) is not defined.
+- Diagram validity issue: Mermaid diagram is present but the sequence shows '清结算' directly calling '账户系统' and '账务核心', which may oversimplify the actual interaction patterns and error paths.
+
+
+### 改进建议
+1. Define concrete REST/GraphQL endpoints, request/response payloads, and domain events. 2. Specify the core data entities (e.g., TransactionOrder, SettlementRecord) with their fields and relationships to other modules. 3. Clarify the distinction and dependency between '计费中台' and '清结算'. 4. Detail the compensation/冲正 mechanism, idempotency handling, and state machine for the core workflow. 5. Elaborate on the coordination logic, including call patterns, timeouts, and retries. 6. Consider enriching the sequence diagram to include error/retry paths and the interaction with a message broker for asynchronous notifications.
+
+---
+
+## 批判迭代 #2 - 2026-01-22 16:11:06
+
+**模块**: 业务核心
+
+**分数**: 0.60 / 1.0
+
+**结果**: ❌ 未通过
+
+
+### 发现的问题
+
+- Missing required section 'Interface Design' content (TBD).
+- Missing required section 'Data Model' content (TBD).
+- Missing key logic consideration: No details on how to handle asynchronous callback timeouts or reconciliation mechanisms.
+- Missing key logic consideration: No details on retry, circuit breaker, or fallback strategies for downstream failures.
+- Diagram validity issue: Sequence diagram shows synchronous flow but design states '结算完成通知（异步）' is asynchronous, creating a contradiction in the diagram's representation.
+
+
+### 改进建议
+1. Define concrete API endpoints, request/response structures, and events. 2. Define core data tables, key fields, and relationships. 3. Elaborate on the compensation/reversal mechanism design for critical fund operations. 4. Specify the strategy for handling asynchronous callback timeouts (e.g., proactive query, reconciliation job). 5. Detail the retry policy, circuit breaker configuration, and fallback logic for downstream service calls. 6. Correct the sequence diagram to clearly distinguish synchronous calls and asynchronous notifications (e.g., using '->>' for async messages).
+
+---
+

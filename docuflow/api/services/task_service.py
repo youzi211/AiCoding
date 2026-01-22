@@ -31,15 +31,35 @@ class TaskManager:
         self.cancel_flags: Dict[str, bool] = {}
         self.logger = get_logger()
 
-    def _create_app_config(self, project_id: str, model_name: str) -> AppConfig:
+    def _create_app_config(self, project_id: str) -> AppConfig:
         """为项目创建 AppConfig"""
+        from docuflow.core.config import get_settings
+
         project_dir = self.project_service._get_project_dir(project_id)
+        settings = get_settings()
 
         return AppConfig(
             project_root=project_dir,
             input_dir=project_dir / "input",
             workspace_dir=project_dir / "workspace",
             output_dir=project_dir / "output",
+            model_name=settings.model_name,  # 使用全局配置
+            # 从环境变量读取的配置
+            llm_temperature=settings.llm_temperature,
+            chunk_size=settings.chunk_size,
+            chunk_overlap=settings.chunk_overlap,
+            max_retries=settings.max_retries,
+            step_by_step_mode=settings.step_by_step,
+            retrieval_method=settings.retrieval_method,
+            top_k_chunks=settings.top_k_chunks,
+            critique_enabled=settings.critique_enabled,
+            critique_threshold=settings.critique_threshold,
+            critique_max_iterations=settings.critique_max_iterations,
+            critique_model=settings.critique_model,
+            extract_images=settings.extract_images,
+            vision_model=settings.vision_model,
+            vision_max_tokens=settings.vision_max_tokens,
+            vision_cache_enabled=settings.vision_cache_enabled,
         )
 
     async def submit_task(
@@ -82,7 +102,7 @@ class TaskManager:
         task.started_at = datetime.now()
 
         try:
-            config = self._create_app_config(task.project_id, model_name)
+            config = self._create_app_config(task.project_id)
             orchestrator = WorkflowOrchestrator(config)
 
             # 设置进度回调

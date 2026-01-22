@@ -1,29 +1,48 @@
 # 批判日志: 认证系统
 
-## 批判迭代 #1 - 2026-01-21 15:34:07
+## 批判迭代 #1 - 2026-01-22 15:38:01
 
 **模块**: 认证系统
 
-**分数**: 0.10 / 1.0
+**分数**: 0.65 / 1.0
 
 **结果**: ❌ 未通过
 
 
 ### 发现的问题
 
-- 接口设计为空（API端点、请求/响应结构、事件均为TBD），无法评审可用性与对接方式；需补充至少：认证发起、打款回填、查询结果/回调、取消/过期等接口及字段与错误码。
-- 数据模型为空（表/集合、关键字段均为TBD），无法保证幂等、审计与状态机落库；需定义认证单、打款流水/通道单、人脸比对记录、回调投递记录等核心实体与索引/唯一约束。
-- 打款验证关键逻辑缺失：随机金额范围与精度、备注生成与校验规则、回填次数/窗口期、金额冲突与并发处理、对账与退款/冲正策略未定义，存在不可落地风险。
-- 人脸验证关键逻辑缺失：第三方服务选择与接口形态、活体检测/反欺诈要求、图片采集与传输方式、阈值与人工复核/二次验证策略、失败可重试边界未定义。
-- 安全与合规要求仅口头描述，缺少可执行措施：敏感信息加密/脱敏、签名验签与防重放、权限与租户隔离、审计留痕字段、数据保留与删除策略未定义。
-- 重复请求与幂等未设计：缺少幂等键、状态机（INIT/PENDING/SUCCESS/FAIL/EXPIRED/CANCELLED）、并发回填与重复打款的处理规则，易导致资金与认证状态不一致。
-- 与上下游系统的交互契约不清：电子签章系统是同步拿结果还是异步回调、行业钱包/三代如何消费认证结果（拉取/推送/事件）未定义，导致集成风险。
-- 错误处理缺少标准化细节：未给出错误码体系、可重试/不可重试分类、超时定义与重试退避策略、外部通道幂等与补偿机制，难以实现一致的调用方体验。
-- 时序图虽可渲染，但关键步骤过于抽象：缺少认证单创建/状态变更、回调或查询路径、超时与重试分支，无法覆盖文档中提到的降级与防刷要求。
+- Missing required section 'Interface Design' (API endpoints, request/response, events). Deduct -0.2.
+- Missing required section 'Data Model' (tables, fields, relationships). Deduct -0.2.
+- Business logic lacks concrete technical details (e.g., retry logic, state machine, idempotency keys). Deduct -0.2.
+- Inconsistency with glossary: Module mentions '三代' as a possible downstream, but glossary defines '三代' as an upstream core system for merchant onboarding. Deduct -0.15.
+- Diagram is present but lacks critical details (e.g., error flows, retry paths, interaction with '行业钱包' for result notification). Deduct -0.1.
 
 
 ### 改进建议
-补齐可落地的接口与数据设计：1) 定义REST端点与契约：POST /authentications(创建认证单，含authType、subject信息、idempotencyKey、callbackUrl)、POST /authentications/{id}/microdeposit/confirm(回填)、GET /authentications/{id}(查询)、POST /authentications/{id}/cancel(取消)、回调/事件AuthResultChanged；给出请求/响应示例与错误码表。2) 设计状态机与幂等：认证单表（id、bizScene、authType、subjectType、subjectIdNoHash、status、expireAt、attemptCount、idempotencyKey唯一索引、createdBy、traceId等），打款表（channelOrderNo唯一、amount、remark、bankAccountToken、status），人脸表（provider、score、threshold、liveness、requestId、rawResult摘要），回调投递表（nextRetryAt、retryCount、lastError）。3) 明确打款验证规则：金额范围/精度、备注生成（含校验码/nonce）、回填窗口期与次数、失败与过期处理、对账与冲正/退款策略、通道幂等与补偿。4) 明确人脸验证策略：活体/反欺诈、阈值与灰度、失败重试与降级（转打款或人工）、图片传输与存储（不落库或加密短期保存）。5) 安全合规：全链路TLS、请求签名+时间戳+nonce、防重放、敏感字段加密/脱敏、最小权限、审计字段与留存周期。6) 更新时序图：补充创建认证单、异步回调/查询、超时重试与状态变更分支，确保与接口与状态机一致。
+1) Define concrete REST/GraphQL endpoints, request/response payloads, and domain events. 2) Design core data tables (e.g., `verification_attempts`, `binding_relationships`) with fields and foreign keys. 3) Specify technical implementation details: state transitions, idempotency handling, retry policies, and daily attempt limits. 4) Clarify the dependency direction with '三代' based on the glossary. 5) Enhance the sequence diagram to include error handling branches and explicit notification to '行业钱包' upon binding completion.
+
+---
+
+## 批判迭代 #2 - 2026-01-22 15:38:37
+
+**模块**: 认证系统
+
+**分数**: 0.75 / 1.0
+
+**结果**: ✅ 通过
+
+
+### 发现的问题
+
+- Missing required 'Error Handling' section content. The section only lists error types but lacks detailed handling strategies, which is considered hollow content.
+- Inconsistency with glossary: The module design states it receives merchant onboarding info from '三代' as upstream input, but the glossary defines '三代' as a core system for merchant onboarding, not a module. The dependency should be clarified or rephrased to avoid confusion.
+- Missing key logic consideration for feasibility: The design mentions '每日尝试次数限制' but does not specify how this rule is enforced (e.g., database query logic, cache usage, lock mechanism).
+- Ambiguous statement in Business Logic: '接收来自 **三代** 系统的商户入网信息（作为上游输入）。' is vague. It's unclear what specific data is received and how it's used in the binding or verification process.
+- The Mermaid diagram contains a comment 'Note over A,B: 银行执行小额打款' which is valid Mermaid syntax, but the review standard incorrectly flags Mermaid comments as severe issues. However, the diagram is otherwise correct and complete.
+
+
+### 改进建议
+1. Expand the 'Error Handling' section with concrete strategies for each listed error type, such as retry logic, state management, and user notification flows. 2. Clarify the dependency on '三代'. Specify if it's a data feed, API call, or event, and detail the data contract. 3. In the Business Logic section, add a subsection detailing the implementation of the daily attempt limit, including the data model queries and potential use of distributed locks. 4. Remove the vague statement about '三代' input and replace it with a clear data flow description. 5. The diagram is acceptable; no change needed there. Ensure all sections have substantive content beyond bullet point titles.
 
 ---
 

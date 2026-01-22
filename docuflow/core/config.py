@@ -73,6 +73,12 @@ class Settings(BaseSettings):
     critique_max_iterations: int = 2       # 最大迭代次数
     critique_model: Optional[str] = None   # 批判使用的模型（None 表示使用主模型）
 
+    # 图片提取配置
+    extract_images: bool = False           # 是否提取文档中的图片
+    vision_model: Optional[str] = None     # 用于生成图片描述的视觉模型
+    vision_max_tokens: int = 2000          # 图片描述的最大 token 数
+    vision_cache_enabled: bool = True      # 是否启用图片描述缓存
+
 
 @lru_cache()
 def get_settings() -> Settings:
@@ -159,6 +165,7 @@ def create_app_config(
         input_dir=input_dir,
         workspace_dir=project_model_dir / "workspace",
         output_dir=project_model_dir / "output",
+        model_name=model,  # 传入模型名称
         llm_temperature=settings.llm_temperature,
         chunk_size=settings.chunk_size,
         chunk_overlap=settings.chunk_overlap,
@@ -170,6 +177,10 @@ def create_app_config(
         critique_threshold=settings.critique_threshold,
         critique_max_iterations=settings.critique_max_iterations,
         critique_model=settings.critique_model,
+        extract_images=settings.extract_images,
+        vision_model=settings.vision_model,
+        vision_max_tokens=settings.vision_max_tokens,
+        vision_cache_enabled=settings.vision_cache_enabled,
     )
 
 

@@ -12,7 +12,6 @@ class ProjectMetadata(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     name: str
     description: Optional[str] = None
-    model_name: str = "gpt-5.2"
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     tags: list[str] = Field(default_factory=list)
@@ -22,7 +21,6 @@ class ProjectCreateRequest(BaseModel):
     """创建项目请求（用于文档，实际使用 Form）"""
     name: str
     description: Optional[str] = None
-    model_name: str = "gpt-5.2"
 
 
 class ProjectResponse(BaseModel):
@@ -30,7 +28,6 @@ class ProjectResponse(BaseModel):
     id: str
     name: str
     description: Optional[str]
-    model_name: str
     created_at: datetime
     updated_at: datetime
     tags: list[str] = Field(default_factory=list)
