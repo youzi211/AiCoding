@@ -48,6 +48,7 @@ class TaskResponse(BaseModel):
     """任务响应"""
     id: str
     project_id: str
+    user_id: str
     task_type: TaskType
     status: TaskStatus
     created_at: datetime
@@ -61,6 +62,7 @@ class Task(BaseModel):
     """内部任务模型"""
     id: str = Field(default_factory=lambda: str(uuid4()))
     project_id: str
+    user_id: str
     task_type: TaskType
     status: TaskStatus = TaskStatus.PENDING
     created_at: datetime = Field(default_factory=datetime.now)
@@ -74,6 +76,7 @@ class Task(BaseModel):
         return TaskResponse(
             id=self.id,
             project_id=self.project_id,
+            user_id=self.user_id,
             task_type=self.task_type,
             status=self.status,
             created_at=self.created_at,

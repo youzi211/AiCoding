@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 class ProjectMetadata(BaseModel):
     """项目元数据"""
     id: str = Field(default_factory=lambda: str(uuid4()))
+    owner_id: str  # 项目所有者
     name: str
     description: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.now)
@@ -26,6 +27,7 @@ class ProjectCreateRequest(BaseModel):
 class ProjectResponse(BaseModel):
     """项目响应"""
     id: str
+    owner_id: str  # 项目所有者
     name: str
     description: Optional[str]
     created_at: datetime

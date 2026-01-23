@@ -29,26 +29,31 @@ class ProjectService:
 
     def __init__(self, data_dir: Path):
         self.data_dir = data_dir
-        self.projects_dir = data_dir / "projects"
-        self.projects_dir.mkdir(parents=True, exist_ok=True)
+        self.users_dir = data_dir / "users"
+        self.users_dir.mkdir(parents=True, exist_ok=True)
 
-    def _get_project_dir(self, project_id: str) -> Path:
-        return self.projects_dir / project_id
+    def _get_user_projects_dir(self, user_id: str) -> Path:
+        """获取用户的项目目录"""
+        return self.users_dir / user_id / "projects"
 
-    def _get_metadata_file(self, project_id: str) -> Path:
-        return self._get_project_dir(project_id) / "project.json"
+    def _get_project_dir(self, user_id: str, project_id: str) -> Path:
+        return self._get_user_projects_dir(user_id) / project_id
 
-    def _get_status_file(self, project_id: str) -> Path:
-        return self._get_project_dir(project_id) / "workspace" / "status.yaml"
+    def _get_metadata_file(self, user_id: str, project_id: str) -> Path:
+        return self._get_project_dir(user_id, project_id) / "project.json"
 
-    def _get_global_dir(self, project_id: str) -> Path:
-        return self._get_project_dir(project_id) / "workspace" / "01_global"
+    def _get_status_file(self, user_id: str, project_id: str) -> Path:
+        return self._get_project_dir(user_id, project_id) / "workspace" / "status.yaml"
 
-    def _get_modules_dir(self, project_id: str) -> Path:
-        return self._get_project_dir(project_id) / "workspace" / "02_modules"
+    def _get_global_dir(self, user_id: str, project_id: str) -> Path:
+        return self._get_project_dir(user_id, project_id) / "workspace" / "01_global"
+
+    def _get_modules_dir(self, user_id: str, project_id: str) -> Path:
+        return self._get_project_dir(user_id, project_id) / "workspace" / "02_modules"
 
     async def create_project(
         self,
+        user_id: str,
         name: str,
         description: Optional[str],
         files: List[UploadFile],
@@ -57,9 +62,10 @@ class ProjectService:
         metadata = ProjectMetadata(
             name=name,
             description=description,
+            owner_id=user_id,
         )
         project_id = metadata.id
-        project_dir = self._get_project_dir(project_id)
+        project_dir = self._get_project_dir(user_id, project_id)
         input_dir = project_dir / "input"
 
         # 创建目录结构
@@ -76,12 +82,13 @@ class ProjectService:
                 f.write(content)
 
         # 保存元数据
-        metadata_file = self._get_metadata_file(project_id)
+        metadata_file = self._get_metadata_file(user_id, project_id)
         with open(metadata_file, "w", encoding="utf-8") as f:
             json.dump(metadata.model_dump(mode="json"), f, ensure_ascii=False, indent=2)
 
         return ProjectResponse(
             id=metadata.id,
+            owner_id=metadata.owner_id,
             name=metadata.name,
             description=metadata.description,
             created_at=metadata.created_at,
@@ -90,23 +97,25 @@ class ProjectService:
             has_status=False,
         )
 
-    async def list_projects(self) -> List[ProjectResponse]:
-        """获取项目列表"""
+    async def list_projects(self, user_id: str) -> List[ProjectResponse]:
+        """获取用户的项目列表"""
         projects = []
-        if not self.projects_dir.exists():
+        user_projects_dir = self._get_user_projects_dir(user_id)
+
+        if not user_projects_dir.exists():
             return projects
 
-        for project_dir in self.projects_dir.iterdir():
+        for project_dir in user_projects_dir.iterdir():
             if project_dir.is_dir():
-                project = await self.get_project(project_dir.name)
+                project = await self.get_project(user_id, project_dir.name)
                 if project:
                     projects.append(project)
 
         return sorted(projects, key=lambda p: p.created_at, reverse=True)
 
-    async def get_project(self, project_id: str) -> Optional[ProjectResponse]:
+    async def get_project(self, user_id: str, project_id: str) -> Optional[ProjectResponse]:
         """获取项目详情"""
-        metadata_file = self._get_metadata_file(project_id)
+        metadata_file = self._get_metadata_file(user_id, project_id)
         if not metadata_file.exists():
             return None
 
@@ -114,10 +123,11 @@ class ProjectService:
             data = json.load(f)
 
         metadata = ProjectMetadata.model_validate(data)
-        has_status = self._get_status_file(project_id).exists()
+        has_status = self._get_status_file(user_id, project_id).exists()
 
         return ProjectResponse(
             id=metadata.id,
+            owner_id=metadata.owner_id,
             name=metadata.name,
             description=metadata.description,
             created_at=metadata.created_at,
@@ -126,18 +136,18 @@ class ProjectService:
             has_status=has_status,
         )
 
-    async def delete_project(self, project_id: str) -> bool:
+    async def delete_project(self, user_id: str, project_id: str) -> bool:
         """删除项目"""
-        project_dir = self._get_project_dir(project_id)
+        project_dir = self._get_project_dir(user_id, project_id)
         if not project_dir.exists():
             return False
 
         shutil.rmtree(project_dir)
         return True
 
-    async def get_project_status(self, project_id: str) -> Optional[ProjectStatusResponse]:
+    async def get_project_status(self, user_id: str, project_id: str) -> Optional[ProjectStatusResponse]:
         """获取项目工作流状态"""
-        status_file = self._get_status_file(project_id)
+        status_file = self._get_status_file(user_id, project_id)
 
         if not status_file.exists():
             return None
@@ -176,13 +186,13 @@ class ProjectService:
             ],
         )
 
-    async def get_modules(self, project_id: str) -> Optional[ModuleListResponse]:
+    async def get_modules(self, user_id: str, project_id: str) -> Optional[ModuleListResponse]:
         """获取模块列表"""
-        status = await self.get_project_status(project_id)
+        status = await self.get_project_status(user_id, project_id)
         if not status:
             return None
 
-        dag_file = self._get_global_dir(project_id) / "architecture_dag.json"
+        dag_file = self._get_global_dir(user_id, project_id) / "architecture_dag.json"
         dag = safe_read_json(dag_file, ArchitectureDAG)
 
         # 构建依赖映射
@@ -204,14 +214,14 @@ class ProjectService:
 
         return ModuleListResponse(modules=modules, total=len(modules))
 
-    async def get_module_content(self, project_id: str, module_name: str) -> Optional[ModuleResponse]:
+    async def get_module_content(self, user_id: str, project_id: str, module_name: str) -> Optional[ModuleResponse]:
         """获取模块内容"""
-        modules_dir = self._get_modules_dir(project_id)
+        modules_dir = self._get_modules_dir(user_id, project_id)
         module_file = modules_dir / f"module_{module_name}.md"
 
         if not module_file.exists():
             # 尝试查找状态
-            status = await self.get_project_status(project_id)
+            status = await self.get_project_status(user_id, project_id)
             if status:
                 for m in status.modules:
                     if m.name == module_name:
@@ -226,7 +236,7 @@ class ProjectService:
         content = module_file.read_text(encoding="utf-8")
 
         # 获取状态信息
-        status = await self.get_project_status(project_id)
+        status = await self.get_project_status(user_id, project_id)
         module_status = "unknown"
         if status:
             for m in status.modules:
@@ -241,9 +251,9 @@ class ProjectService:
             file_path=str(module_file),
         )
 
-    async def get_glossary(self, project_id: str) -> Optional[GlossaryResponse]:
+    async def get_glossary(self, user_id: str, project_id: str) -> Optional[GlossaryResponse]:
         """获取术语表"""
-        glossary_file = self._get_global_dir(project_id) / "glossary.md"
+        glossary_file = self._get_global_dir(user_id, project_id) / "glossary.md"
         if not glossary_file.exists():
             return None
 
@@ -253,9 +263,9 @@ class ProjectService:
 
         return GlossaryResponse(content=content)
 
-    async def get_dag(self, project_id: str) -> Optional[DAGResponse]:
+    async def get_dag(self, user_id: str, project_id: str) -> Optional[DAGResponse]:
         """获取架构 DAG"""
-        dag_file = self._get_global_dir(project_id) / "architecture_dag.json"
+        dag_file = self._get_global_dir(user_id, project_id) / "architecture_dag.json"
         dag = safe_read_json(dag_file, ArchitectureDAG)
         if not dag:
             return None
@@ -265,21 +275,21 @@ class ProjectService:
             total=len(dag.modules),
         )
 
-    async def get_output_file(self, project_id: str) -> Optional[Path]:
+    async def get_output_file(self, user_id: str, project_id: str) -> Optional[Path]:
         """获取最终输出文件路径"""
-        output_file = self._get_project_dir(project_id) / "output" / "final_design_document.md"
+        output_file = self._get_project_dir(user_id, project_id) / "output" / "final_design_document.md"
         if not output_file.exists():
             return None
         return output_file
 
-    def get_input_dir(self, project_id: str) -> Path:
+    def get_input_dir(self, user_id: str, project_id: str) -> Path:
         """获取输入目录"""
-        return self._get_project_dir(project_id) / "input"
+        return self._get_project_dir(user_id, project_id) / "input"
 
-    def get_workspace_dir(self, project_id: str) -> Path:
+    def get_workspace_dir(self, user_id: str, project_id: str) -> Path:
         """获取工作空间目录"""
-        return self._get_project_dir(project_id) / "workspace"
+        return self._get_project_dir(user_id, project_id) / "workspace"
 
-    def get_output_dir(self, project_id: str) -> Path:
+    def get_output_dir(self, user_id: str, project_id: str) -> Path:
         """获取输出目录"""
-        return self._get_project_dir(project_id) / "output"
+        return self._get_project_dir(user_id, project_id) / "output"

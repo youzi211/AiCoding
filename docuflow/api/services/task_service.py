@@ -1,7 +1,9 @@
 """任务执行服务"""
 
 import asyncio
+import threading
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Callable
@@ -29,13 +31,14 @@ class TaskManager:
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.tasks: Dict[str, Task] = {}
         self.cancel_flags: Dict[str, bool] = {}
+        self.lock = threading.RLock()  # 可重入锁，保护并发访问
         self.logger = get_logger()
 
-    def _create_app_config(self, project_id: str) -> AppConfig:
+    def _create_app_config(self, user_id: str, project_id: str) -> AppConfig:
         """为项目创建 AppConfig"""
         from docuflow.core.config import get_settings
 
-        project_dir = self.project_service._get_project_dir(project_id)
+        project_dir = self.project_service._get_project_dir(user_id, project_id)
         settings = get_settings()
 
         return AppConfig(
@@ -64,18 +67,22 @@ class TaskManager:
 
     async def submit_task(
         self,
+        user_id: str,
         project_id: str,
         task_type: TaskType,
         model_name: str,
         step_by_step: bool = False,
     ) -> Task:
-        """提交后台任务"""
+        """提交后台任务（线程安全）"""
         task = Task(
             project_id=project_id,
+            user_id=user_id,  # 直接在构造函数中传入
             task_type=task_type,
         )
-        self.tasks[task.id] = task
-        self.cancel_flags[task.id] = False
+
+        with self.lock:  # 加锁保护字典操作
+            self.tasks[task.id] = task
+            self.cancel_flags[task.id] = False
 
         # 在线程池中执行
         loop = asyncio.get_event_loop()
@@ -98,11 +105,13 @@ class TaskManager:
         loop: asyncio.AbstractEventLoop,
     ):
         """在线程中执行任务"""
-        task.status = TaskStatus.RUNNING
-        task.started_at = datetime.now()
+        # 更新状态时加锁
+        with self.lock:
+            task.status = TaskStatus.RUNNING
+            task.started_at = datetime.now()
 
         try:
-            config = self._create_app_config(task.project_id)
+            config = self._create_app_config(task.user_id, task.project_id)
             orchestrator = WorkflowOrchestrator(config)
 
             # 设置进度回调
@@ -123,19 +132,20 @@ class TaskManager:
             elif task.task_type == TaskType.ASSEMBLY:
                 orchestrator.run_assembly()
 
-            # 检查是否被取消
-            if self.cancel_flags.get(task.id):
-                task.status = TaskStatus.CANCELLED
-            else:
-                task.status = TaskStatus.COMPLETED
-
-            task.completed_at = datetime.now()
+            # 完成时加锁
+            with self.lock:
+                if self.cancel_flags.get(task.id):
+                    task.status = TaskStatus.CANCELLED
+                else:
+                    task.status = TaskStatus.COMPLETED
+                task.completed_at = datetime.now()
 
         except Exception as e:
             self.logger.error(f"任务执行失败: {e}")
-            task.status = TaskStatus.FAILED
-            task.error_message = str(e)
-            task.completed_at = datetime.now()
+            with self.lock:
+                task.status = TaskStatus.FAILED
+                task.error_message = str(e)
+                task.completed_at = datetime.now()
 
         finally:
             # 发送完成通知
@@ -185,31 +195,32 @@ class TaskManager:
         task.progress.message = "处理完成"
 
     def _handle_progress(self, task: Task, event: dict, loop: asyncio.AbstractEventLoop):
-        """处理进度事件"""
+        """处理进度事件（线程安全）"""
         event_type = event.get("type")
         data = event.get("data", {})
 
-        # 更新任务进度
-        if event_type == "phase_change":
-            task.progress.current_phase = data.get("phase")
-        elif event_type == "module_start":
-            task.progress.current_module = data.get("module")
-        elif event_type == "module_complete":
-            task.progress.completed_modules += 1
-            task.progress.current_module = None
-        elif event_type == "total_modules":
-            task.progress.total_modules = data.get("count", 0)
-        # 批判相关事件
-        elif event_type == "critique_start":
-            task.progress.critique_iteration = data.get("iteration", 0)
-        elif event_type == "critique_result":
-            task.progress.critique_iteration = data.get("iteration", 0)
-            if not data.get("passed", True):
-                task.progress.critique_total_iterations += 1
-        elif event_type == "regenerate_start":
-            pass  # 仅转发给前端
+        # 更新任务进度时加锁
+        with self.lock:
+            if event_type == "phase_change":
+                task.progress.current_phase = data.get("phase")
+            elif event_type == "module_start":
+                task.progress.current_module = data.get("module")
+            elif event_type == "module_complete":
+                task.progress.completed_modules += 1
+                task.progress.current_module = None
+            elif event_type == "total_modules":
+                task.progress.total_modules = data.get("count", 0)
+            # 批判相关事件
+            elif event_type == "critique_start":
+                task.progress.critique_iteration = data.get("iteration", 0)
+            elif event_type == "critique_result":
+                task.progress.critique_iteration = data.get("iteration", 0)
+                if not data.get("passed", True):
+                    task.progress.critique_total_iterations += 1
+            elif event_type == "regenerate_start":
+                pass  # 仅转发给前端
 
-        task.progress.message = data.get("message", task.progress.message)
+            task.progress.message = data.get("message", task.progress.message)
 
         # 广播到 WebSocket
         asyncio.run_coroutine_threadsafe(
@@ -244,25 +255,41 @@ class TaskManager:
         )
 
     def get_task(self, task_id: str) -> Optional[Task]:
-        """获取任务"""
-        return self.tasks.get(task_id)
+        """获取任务（线程安全，返回快照）"""
+        with self.lock:
+            task = self.tasks.get(task_id)
+            if task:
+                return deepcopy(task)  # 返回深拷贝，避免并发修改
+            return None
 
-    def get_project_tasks(self, project_id: str) -> list[Task]:
-        """获取项目的所有任务"""
-        return [t for t in self.tasks.values() if t.project_id == project_id]
+    def get_project_tasks(self, project_id: str, user_id: Optional[str] = None) -> list[Task]:
+        """获取项目任务列表（线程安全，支持 user_id 过滤）"""
+        with self.lock:
+            tasks = [
+                deepcopy(t) for t in self.tasks.values()
+                if t.project_id == project_id and (user_id is None or t.user_id == user_id)
+            ]
+        return tasks
 
     def cancel_task(self, task_id: str) -> bool:
-        """取消任务"""
-        if task_id not in self.tasks:
-            return False
+        """取消任务（线程安全）"""
+        with self.lock:
+            if task_id not in self.tasks:
+                return False
 
-        task = self.tasks[task_id]
-        if task.status not in [TaskStatus.PENDING, TaskStatus.RUNNING]:
-            return False
+            task = self.tasks[task_id]
+            if task.status not in [TaskStatus.PENDING, TaskStatus.RUNNING]:
+                return False
 
-        self.cancel_flags[task_id] = True
+            self.cancel_flags[task_id] = True
         return True
 
     def shutdown(self):
         """关闭任务管理器"""
+        with self.lock:
+            # 取消所有运行中的任务
+            for task_id in list(self.tasks.keys()):
+                self.cancel_flags[task_id] = True
+
+        # 等待线程池关闭
         self.executor.shutdown(wait=True)

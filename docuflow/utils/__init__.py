@@ -1,4 +1,4 @@
-"""工具模块: 日志、文件操作"""
+"""工具模块: 日志、文件操作、验证"""
 from docuflow.utils.logging import setup_logging, get_logger
 from docuflow.utils.file_io import (
     safe_read_text, safe_write_text,
@@ -7,6 +7,7 @@ from docuflow.utils.file_io import (
     ensure_directory_structure, get_input_files,
     sanitize_module_name, module_name_to_filename, get_timestamp
 )
+from docuflow.utils.validation import validate_user_id
 
 __all__ = [
     "setup_logging", "get_logger",
@@ -14,5 +15,6 @@ __all__ = [
     "safe_read_yaml", "safe_write_yaml",
     "safe_read_json", "safe_write_json",
     "ensure_directory_structure", "get_input_files",
-    "sanitize_module_name", "module_name_to_filename", "get_timestamp"
+    "sanitize_module_name", "module_name_to_filename", "get_timestamp",
+    "validate_user_id"
 ]

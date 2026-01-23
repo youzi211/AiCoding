@@ -7,7 +7,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from docuflow.api.routers import projects, tasks, modules, websocket
+from docuflow.api.routers import projects, tasks, modules  # , websocket
 from docuflow.api.services.project_service import ProjectService
 from docuflow.api.services.task_service import TaskManager
 from docuflow.api.services.notification_service import NotificationService
@@ -67,7 +67,7 @@ app.add_middleware(
 app.include_router(projects.router, prefix="/api/v1", tags=["项目管理"])
 app.include_router(tasks.router, prefix="/api/v1", tags=["任务管理"])
 app.include_router(modules.router, prefix="/api/v1", tags=["模块内容"])
-app.include_router(websocket.router, prefix="/api/v1", tags=["WebSocket"])
+# app.include_router(websocket.router, prefix="/api/v1", tags=["WebSocket"])  # 暂时不需要
 
 
 @app.get("/api/v1/health", tags=["系统"])
