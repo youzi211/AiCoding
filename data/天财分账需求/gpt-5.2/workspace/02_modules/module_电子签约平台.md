@@ -1,6 +1,6 @@
 # 模块设计: 电子签约平台
 
-生成时间: 2026-01-22 16:13:42
+生成时间: 2026-01-22 17:47:45
 批判迭代: 2
 
 ---
@@ -8,138 +8,111 @@
 # 电子签约平台 模块设计文档
 
 ## 1. 概述
-- **目的与范围**: 本模块负责提供协议模板、短信推送、H5页面，并集成打款/人脸验证以完成电子协议签署。核心职责是为关系绑定、开通付款等业务流程提供电子签约能力，确保签约过程的合法性与可追溯性。其边界止于协议生成、签署流程引导、验证集成与签署结果记录，不涉及具体的资金操作或账户管理。
+- **目的与范围**: 本模块负责协议模板管理、短信H5封装、调用认证系统、完成电子协议签署并留存证据链。其核心职责是为“关系绑定”、“开通付款”等业务流程提供电子签约能力，确保协议签署的合法性、真实性与可追溯性。
+- **系统角色澄清**: 根据术语表，本模块是“系统角色/参与者”之一。其上游依赖是提供身份核验能力的“认证系统”（同为系统角色）。其下游调用方是“三代”和“行业钱包”这两个系统角色，它们在执行业务流程（如“关系绑定”、“开通付款”）时需要调用本模块的服务。
 
 ## 2. 接口设计
-- **API端点 (REST/GraphQL)**:
-    - `POST /api/v1/sign/initiate`: 发起签约流程。
-    - `GET /api/v1/sign/status/{signing_id}`: 查询签约状态。
-    - `GET /api/v1/sign/contract/{signing_id}`: 获取已签署协议内容。
+- **API端点 (REST)**:
+    - `POST /v1/agreements/initiate`: 发起签约流程。接收业务参数，生成签约会话。
+    - `GET /v1/agreements/sessions/{sessionId}`: 查询签约会话状态及详情。
+    - `POST /v1/agreements/sessions/{sessionId}/resend-sms`: 重新发送签约短信。
+    - `POST /v1/agreements/callback/authentication`: 认证系统完成验证后的回调接口。
+    - `GET /v1/agreements/{agreementId}`: 查询已签署的协议及证据链信息。
 - **请求/响应结构**:
-    - 发起签约 (`POST /api/v1/sign/initiate`)
-        - 请求体: `{"business_scene": "string", "parties": [{"user_id": "string", "party_type": "HEADQUARTERS/STORE/INDIVIDUAL"}], "template_id": "string"}`
-        - 响应体: `{"signing_id": "string", "h5_link": "string", "expires_at": "timestamp"}`
-    - 查询状态 (`GET /api/v1/sign/status/{signing_id}`)
-        - 响应体: `{"signing_id": "string", "status": "PENDING/SIGNED/EXPIRED/FAILED", "signed_at": "timestamp", "verification_status": "string"}`
+    - 发起签约请求 (`POST /v1/agreements/initiate`):
+        - 请求体: `{“bizScene”: “RELATION_BINDING” | “PAYMENT_ENABLEMENT”, “bizId”: “string”, “templateId”: “string”, “parties”: [{“name”: “string”, “idCard”: “string”, “mobile”: “string”, “bankCardNo”: “string”}]}`
+        - 响应体: `{“sessionId”: “string”, “expireAt”: “timestamp”}`
+    - 认证回调请求 (`POST /v1/agreements/callback/authentication`):
+        - 请求体: `{“sessionId”: “string”, “authToken”: “string”, “authResult”: “SUCCESS” | “FAILED”, “authMethod”: “PAYMENT” | “FACE”, “authTime”: “timestamp”, “metadata”: “object”}`
 - **发布/消费的事件**:
-    - 发布事件: `SigningCompletedEvent` (事件内容: `signing_id`, `business_scene`, `parties`, `status`, `signed_at`)。
+    - 发布事件: `AgreementSignedEvent` (协议签署完成事件)，包含协议ID、签署方、签署时间、业务场景和业务ID。
     - 消费事件: TBD。
 
 ## 3. 数据模型
 - **表/集合**:
-    - `signing_contracts` (签约记录表)
-    - `protocol_templates` (协议模板表)
-- **关键字段**:
-    - `signing_contracts` 表:
-        - `signing_id` (主键): 签约流程唯一标识。
-        - `template_id`: 使用的协议模板ID。
-        - `template_version`: 协议模板版本号。
-        - `parties`: 签约参与方信息 (JSON格式)。
-        - `business_scene`: 业务场景 (如 RELATION_BINDING, PAYMENT_ENABLE)。
-        - `status`: 状态 (PENDING, SIGNED, EXPIRED, FAILED)。
-        - `h5_link`: 签约H5页面链接。
-        - `link_expires_at`: 链接过期时间。
-        - `verification_request_id`: 关联的认证系统请求ID。
-        - `signed_at`: 签署完成时间。
-        - `signed_content`: 签署时的协议内容快照 (JSON/文本)。
-        - `created_at`: 创建时间。
-        - `updated_at`: 更新时间。
-    - `protocol_templates` 表:
-        - `template_id` (主键): 模板唯一标识。
-        - `template_name`: 模板名称。
-        - `version`: 当前版本号。
-        - `content`: 协议模板内容。
-        - `business_scene`: 适用的业务场景。
-        - `party_type`: 适用的签约方主体类型 (HEADQUARTERS, STORE, INDIVIDUAL)。
-        - `is_active`: 是否启用。
-        - `created_at`: 创建时间。
-        - `updated_at`: 更新时间。
-- **与其他模块的关系**: 本模块在签约流程中需要调用**认证系统**的人脸验证服务。生成的签约记录可能被**行业钱包**、**业务核心**等模块查询，用于判断关系绑定或开通付款的授权状态。
+    - `agreement_template`: 协议模板表。
+        - 关键字段: `id`, `name`, `biz_scene`, `content`, `version`, `is_active`, `created_at`。
+    - `signing_session`: 签约会话表，记录一次签约流程的完整状态。
+        - 关键字段: `session_id`, `biz_scene`, `biz_id`, `template_id`, `parties_info` (JSON), `status` (`INIT`, `SMS_SENT`, `AUTH_SUCCESS`, `SIGNED`, `EXPIRED`, `CANCELLED`), `sms_h5_url`, `auth_token`, `expire_at`, `created_at`。
+    - `signed_agreement`: 已签署协议表。
+        - 关键字段: `agreement_id`, `session_id`, `final_content`, `signed_at`, `parties_signature` (JSON)，存储各方签署确认信息。
+    - `evidence_record`: 证据链记录表，与 `signed_agreement` 一对一关联。
+        - 关键字段: `agreement_id`, `auth_evidence` (JSON，包含认证方式、结果、时间、流水号等), `signing_evidence` (JSON，包含用户IP、User-Agent、时间戳、操作序列), `raw_protocol_data` (JSON，原始协议数据), `created_at`。
+- **与其他模块的关系**: 本模块通过API调用“认证系统”。`signing_session.biz_id` 可能与“三代”或“行业钱包”模块的业务记录关联。
 
 ## 4. 业务逻辑
 - **核心工作流/算法**:
-    1.  **签约流程**：根据业务场景（如关系绑定、开通付款）选择协议模板，生成签约H5页面链接，通过短信推送给签约方。签约方在H5页面完成身份信息填写，并根据要求完成打款验证或人脸验证，最终完成协议签署。
-    2.  **验证集成**：在签约流程中，根据参与方类型（如个人、企业）和业务规则，嵌入并调用**认证系统**的打款验证或人脸验证流程，验证通过后方可完成签署。
-    3.  **模板管理**：协议模板按业务场景和签约方主体类型进行管理。模板内容变更时，需创建新版本并更新`version`字段，确保已发起的签约流程使用发起时的模板版本，新签约流程使用最新生效版本。
-    4.  **签约ID与H5链接生成**：发起签约时，系统生成全局唯一的`signing_id`，并基于此ID生成带有签名的H5页面链接。链接需设置有效期（如24小时），过期后无法访问。
+    1.  **发起签约**: 接收调用方请求，根据`bizScene`和`templateId`获取协议模板，填充变量生成最终协议内容。创建`signing_session`记录，状态为`INIT`。
+    2.  **生成并发送签约链接**: 为会话生成唯一、有时效性的H5链接。链接需包含防篡改签名（如HMAC）和防重放攻击的随机数（nonce）。通过短信发送给签约方。会话状态转为`SMS_SENT`。
+    3.  **身份核验**: 用户点击链接访问H5页面。页面引导用户选择/进行认证。本模块将用户重定向至“认证系统”的认证页面，并携带`sessionId`和回调地址。用户在该系统完成打款验证或人脸验证。
+    4.  **认证回调与确认签署**: “认证系统”验证完成后，重定向用户回本模块H5页面，并携带认证结果令牌(`authToken`)。本模块通过后端回调接口验证该令牌的有效性。验证成功后，会话状态转为`AUTH_SUCCESS`，并向用户展示协议内容供确认签署。
+    5.  **完成签署与存证**: 用户确认签署后，更新会话状态为`SIGNED`。生成唯一的`agreement_id`，将最终协议内容存入`signed_agreement`。同时，将整个流程中产生的数据（协议文本、认证证据、用户操作日志、环境信息）结构化后存入`evidence_record`，形成证据链。
+    6.  **通知调用方**: 签署完成后，发布`AgreementSignedEvent`事件，通知下游系统角色（如“三代”、“行业钱包”）。
 - **业务规则与验证**:
-    - 根据业务场景和签约方主体类型（总部、门店、个人）匹配并渲染对应的协议模板。
-    - 在签约流程中强制集成身份验证环节，验证不通过则无法完成签署。
-    - 记录完整的签约过程，包括协议内容、签署方信息、验证结果和时间戳。
-    - 协议模板版本更新时，不影响已生成但未签署的签约流程，这些流程继续使用旧版本模板内容。
+    - 签约方必须通过“认证系统”完成指定方式的身份核验。
+    - 签约链接具有时效性（如30分钟），过期后会话状态转为`EXPIRED`。
+    - 同一`bizId`和签约方，在已有`INIT`或`SMS_SENT`状态的会话时，新的发起请求应返回现有会话ID，防止重复签约流程。
 - **关键边界情况处理**:
-    - 签约链接过期或失效的处理：设置链接有效期，过期后需上游模块重新发起签约。
-    - 签约过程中验证失败的处理：引导用户重新进行验证，或根据业务规则终止流程。
-    - 协议内容发生变更的处理：在`protocol_templates`表中创建新版本协议，并更新`is_active`状态。确保已签署的旧协议版本不被覆盖。
+    - **并发控制**: 对`signing_session`表的创建和状态更新操作使用乐观锁或分布式锁，防止同一会话被重复处理。
+    - **认证失败**: 认证失败后，H5页面提供重新发起认证的入口，后端会话状态保持`SMS_SENT`。
+    - **中途放弃**: 会话状态机支持超时(`EXPIRED`)和手动取消(`CANCELLED`)状态。
+    - **安全措施**: H5链接使用HTTPS；链接参数签名防止篡改；`authToken`为一次性使用，验证后立即失效；敏感信息（如身份证号、银行卡号）在传输和存储时进行加密。
+    - **证据链规范**: 证据链数据包含时间戳、操作动作、操作结果、系统环境（IP、UA）、业务数据快照，满足法律取证要求。存储策略为长期持久化，保留期限遵循相关法规（TBD）。
 
 ## 5. 时序图
-
-### 集成人脸验证的签约流程
 ```mermaid
 sequenceDiagram
-    participant W as 行业钱包
-    participant B as 业务核心
-    participant E as 电子签约平台
-    participant U as 签约用户
-    participant A as 认证系统
-    participant S as 短信通道
+    participant 调用方 as 三代/行业钱包
+    participant 签约平台 as 电子签约平台
+    participant 认证系统
+    participant 用户 as 签约用户
+    participant 浏览器 as 用户浏览器
 
-    W->>E: 发起签约请求(场景， 参与方信息)
-    B->>E: 发起签约请求(场景， 参与方信息)
-    E->>E: 1. 根据场景与参与方类型选择模板
-    E->>E: 2. 生成唯一signing_id与H5链接(含有效期)
-    E->>S: 发送签约短信(H5链接)
-    alt 短信发送失败
-        S--xE: 返回发送失败
-        E->>E: 记录错误，更新签约状态为FAILED
-        E-->>W/B: 返回错误 ERR_SMS_SEND_FAILED
-    else 短信发送成功
-        S-->>U: 用户收到短信
-        U->>E: 访问H5签约页面
-        E->>E: 校验链接有效性
-        alt 链接已过期
-            E->>U: 提示链接过期
-            E->>E: 更新签约状态为EXPIRED
-        else 链接有效
-            E->>U: 展示协议并引导填写身份信息
-            U->>E: 提交身份信息(姓名， 身份证号， 人脸图像)
-            E->>A: 发起人脸验证请求
-            A->>A: 执行人脸比对
-            A-->>E: 返回验证结果
-            alt 验证通过
-                E->>U: 展示协议签署确认页
-                U->>E: 确认签署
-                E->>E: 记录签署完成，保存内容快照
-                E-->>W/B: 发布 SigningCompletedEvent (SIGNED)
-            else 验证失败
-                E->>U: 提示验证失败， 引导重试
-                Note over U, E: 用户可重试验证(最多3次)
-                alt 超过最大重试次数
-                    E->>E: 更新签约状态为FAILED
-                    E-->>W/B: 发布 SigningCompletedEvent (FAILED)
-                end
-            end
-        end
-    end
+    调用方->>签约平台: POST /agreements/initiate
+    签约平台->>签约平台: 创建会话，生成签名链接
+    签约平台->>用户: 发送含H5链接的短信
+    用户->>浏览器: 点击链接
+    浏览器->>签约平台: 访问H5页面 (GET /h5/sign?sessionId=xx&nonce=yy&sig=zz)
+    签约平台->>签约平台: 验证链接签名
+    签约平台->>浏览器: 返回页面，引导认证
+    浏览器->>认证系统: 重定向至认证页(携带sessionId, callbackUrl)
+    用户->>认证系统: 在认证页面完成验证
+    认证系统->>浏览器: 重定向回签约平台回调地址(携带authToken)
+    浏览器->>签约平台: 访问回调页面 (GET /h5/callback?authToken=tt)
+    签约平台->>认证系统: 后端校验authToken (内部API调用)
+    认证系统-->>签约平台: 返回认证结果详情
+    签约平台->>签约平台: 更新会话状态为AUTH_SUCCESS
+    签约平台->>浏览器: 展示协议内容供确认
+    用户->>浏览器: 确认签署
+    浏览器->>签约平台: POST /h5/confirm-sign
+    签约平台->>签约平台: 完成签署，生成存证
+    签约平台->>调用方: 发布AgreementSignedEvent
+    签约平台->>浏览器: 显示签署成功
 ```
 
 ## 6. 错误处理
 - **预期错误情况**:
-    - `ERR_TEMPLATE_NOT_FOUND`: 协议模板不存在。
-    - `ERR_SMS_SEND_FAILED`: 签约短信发送失败。
-    - `ERR_VERIFICATION_FAILED`: 集成的人脸或打款验证失败。
-    - `ERR_SIGN_EXPIRED`: 签约链接或会话已过期。
-    - `ERR_NETWORK_TIMEOUT`: 与认证系统或短信通道交互超时。
+    - 认证系统调用失败或超时。
+    - 用户认证不通过。
+    - 协议模板不存在或版本失效。
+    - 短信服务发送失败。
+    - 签约链接被篡改或重复使用。
+    - 会话已过期或已被签署。
+    - 数据存储异常。
 - **处理策略**:
-    - 对第三方服务（短信、认证）的调用失败进行有限次重试（如3次）。
-    - 向发起签约的上游模块（行业钱包或业务核心）返回明确的错误信息，便于其进行流程控制（如重发签约）。
-    - 记录详细的错误日志，包含签约ID、参与方信息等上下文。
-    - 对于用户操作超时，提供重新进入或重新发起的入口。
+    - 对“认证系统”等外部依赖调用配置重试机制和熔断器。
+    - 链接签名验证失败则直接拒绝访问，返回错误页面。
+    - 会话状态不合法时，向用户展示明确的错误提示（如“链接已失效”）。
+    - 所有错误记录详细日志，包含`sessionId`、`bizId`和错误上下文。
+    - 向调用方返回明确的业务错误码和提示信息。
 
 ## 7. 依赖关系
-- **上游模块**:
-    - **行业钱包**: 在关系绑定等场景下发起签约流程。
-    - **业务核心**: 在开通付款等场景下发起签约流程。
-- **下游模块**:
-    - **认证系统**: 依赖其提供人脸验证和打款验证服务。
-    - **短信通道**: 依赖其发送签约通知短信（外部服务）。
+- **上游依赖**:
+    - **认证系统** (系统角色): 提供打款验证和人脸验证的身份核验能力，并通过回调通知结果。依赖其认证页面重定向及Token验证API。
+- **下游服务对象**:
+    - **三代** (系统角色): 在“关系绑定”等流程中调用本模块发起签约。
+    - **行业钱包** (系统角色): 在“开通付款”等流程中调用本模块发起签约。
+- **基础设施依赖**:
+    - 短信发送服务。
+    - 数据库。
+    - 消息队列（用于发布事件）。

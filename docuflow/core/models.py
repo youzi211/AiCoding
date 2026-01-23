@@ -178,6 +178,24 @@ class LLMContext(BaseModel):
         return "\n\n".join(parts)
 
 
+class ModuleSummaryResponse(BaseModel):
+    """模块摘要响应（用于结构化输出）"""
+    module_name: str = Field(..., description="模块名称")
+    purpose: str = Field(..., description="模块功能描述")
+    interfaces: list[dict] = Field(default_factory=list, description="接口列表")
+    database_tables: list[dict] = Field(default_factory=list, description="数据库表列表")
+    dependencies: list[str] = Field(default_factory=list, description="依赖的其他模块")
+    key_features: list[str] = Field(default_factory=list, description="关键功能列表")
+
+
+class CritiqueResult(BaseModel):
+    """批判评估结果（用于结构化输出）"""
+    passed: bool = Field(..., description="是否通过评估")
+    score: float = Field(..., ge=0, le=1, description="评分 0-1")
+    issues: list[str] = Field(default_factory=list, description="发现的问题列表")
+    suggestions: Optional[str] = Field(None, description="改进建议")
+
+
 class AppConfig(BaseModel):
     """应用配置"""
     project_root: Path = Field(default=Path("."))

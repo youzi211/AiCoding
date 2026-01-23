@@ -2,214 +2,309 @@
 
 ```mermaid
 erDiagram
-    account {
-        string account_no PK
-        string account_type
-        string institution_no FK
-        string user_id FK
-        string status
+    biz_instruction {
+        bigint id PK
+        varchar instruction_type
+        varchar status
+        jsonb content
+        datetime created_at
+        datetime updated_at
     }
-    account_balance {
-        string account_no PK, FK
-        decimal available_balance
-        decimal frozen_balance
+
+    merchant_status {
+        bigint id PK
+        varchar merchant_id
+        varchar freeze_status
+        datetime synced_at
     }
-    account_flow {
-        string flow_no PK
-        string account_no FK
-        string biz_order_no
+
+    relationship_record {
+        bigint id PK
+        varchar payer_userid
+        varchar payee_userid
+        varchar relation_type
+        varchar agreement_id
+        datetime bound_at
+    }
+
+    settlement_orders {
+        bigint id PK
+        varchar order_no
+        varchar order_type
+        varchar status
         decimal amount
-        string flow_type
+        varchar payer_account_id
+        varchar payee_account_id
+        datetime created_at
     }
-    account_freeze {
-        string freeze_no PK
-        string account_no FK
-        decimal freeze_amount
-        string status
+
+    fee_records {
+        bigint id PK
+        varchar fee_no
+        bigint order_id FK
+        decimal fee_amount
+        varchar fee_bearer
+        datetime created_at
     }
-    accounting_ledger {
-        string ledger_no PK
-        string biz_order_no
-        string account_no FK
+
+    settlement_batch_details {
+        bigint id PK
+        bigint batch_order_id FK
+        varchar detail_no
+        varchar payee_account_id
+        decimal amount
+        varchar status
+    }
+
+    retry_logs {
+        bigint id PK
+        varchar biz_id
+        varchar biz_type
+        varchar status
+        text error_msg
+        datetime created_at
+    }
+
+    account {
+        bigint id PK
+        varchar account_no
+        varchar userid
+        varchar account_type
+        decimal balance
+        varchar status
+        datetime created_at
+    }
+
+    journal_entries {
+        bigint id PK
+        varchar request_id
+        varchar biz_type
+        varchar status
+        datetime accounting_date
+    }
+
+    journal_entry_items {
+        bigint id PK
+        bigint journal_entry_id FK
+        varchar account_no
         decimal debit_amount
         decimal credit_amount
     }
-    wallet_user {
-        string user_id PK
-        string institution_no FK
-        string user_type
-    }
-    account_relation {
-        string relation_id PK
-        string payer_user_id FK
-        string payee_user_id FK
-        string relation_type
-        string auth_status
-    }
-    settlement_config {
-        string config_id PK
-        string institution_no FK
-        string settlement_mode
-    }
-    fee_rule {
-        string rule_id PK
-        string rule_name
-        string condition
-        decimal fee_rate
-    }
-    fee_calculation_record {
-        string record_id PK
-        string biz_order_no
-        string rule_id FK
-        decimal fee_amount
-    }
-    verification_records {
-        string request_id PK
-        string user_id FK
-        string verification_type
-        string status
-    }
-    signing_contracts {
-        string signing_id PK
-        string relation_id FK
-        string protocol_template_id FK
-        string sign_status
-    }
-    protocol_templates {
-        string template_id PK
-        string template_name
-        string content
-    }
-    settlement_order {
-        string settlement_order_no PK
-        string biz_order_no
-        string status
-        decimal settlement_amount
-    }
-    settlement_detail {
-        string detail_id PK
-        string settlement_order_no FK
-        string account_no FK
-        decimal amount
-    }
-    freeze_application {
-        string application_no PK
-        string account_no FK
-        string freeze_type
-        string status
-    }
-    risk_rule {
-        string rule_id PK
-        string rule_name
-        string condition
-        string action
-    }
-    risk_judgment_record {
-        string judgment_id PK
-        string biz_order_no
-        string rule_id FK
-        string result
-    }
-    freeze_order {
-        string freeze_order_no PK
-        string account_no FK
-        string risk_judgment_id FK
-        string status
-    }
-    merchant_account_mapping {
-        string mapping_id PK
-        string merchant_id
-        string account_no FK
-    }
-    merchant_audit {
-        string audit_id PK
-        string institution_no FK
-        string audit_status
-    }
-    institution_settlement_config {
-        string config_id PK
-        string institution_no FK
-        string settlement_mode
-    }
-    audit_operation_log {
-        string log_id PK
-        string institution_no FK
-        string operation_type
-    }
-    statement_index {
-        string statement_id PK
-        string institution_no FK
-        date statement_date
-        string statement_type
-    }
-    statement_detail {
-        string detail_id PK
-        string statement_id FK
-        string biz_order_no
-        decimal amount
-    }
-    statement_file {
-        string file_id PK
-        string statement_id FK
-        string file_path
-    }
-    data_source_checkpoint {
-        string checkpoint_id PK
-        string data_source
-        date last_sync_date
+
+    idempotency_control {
+        bigint id PK
+        varchar request_id
+        varchar biz_key
+        varchar status
+        datetime created_at
     }
 
-    account ||--o{ account_balance : "has"
-    account ||--o{ account_flow : "generates"
-    account ||--o{ account_freeze : "has"
-    account ||--o{ accounting_ledger : "records"
-    wallet_user ||--o{ account : "owns"
-    wallet_user ||--o{ account_relation : "payer_in"
-    wallet_user ||--o{ account_relation : "payee_in"
-    account_relation ||--o{ signing_contracts : "bound_by"
-    signing_contracts }o--|| protocol_templates : "uses"
-    settlement_order ||--o{ settlement_detail : "contains"
-    settlement_detail }o--|| account : "involves"
-    freeze_application }o--|| account : "applies_to"
-    risk_rule ||--o{ risk_judgment_record : "triggers"
-    risk_judgment_record ||--o{ freeze_order : "results_in"
-    freeze_order }o--|| account : "freezes"
-    merchant_account_mapping }o--|| account : "maps_to"
-    merchant_audit }o--|| wallet_user : "audits"
-    institution_settlement_config }o--|| settlement_config : "configures"
-    statement_index ||--o{ statement_detail : "includes"
-    statement_index ||--o{ statement_file : "has"
-    fee_rule ||--o{ fee_calculation_record : "used_in"
+    agreement_template {
+        bigint id PK
+        varchar template_code
+        varchar template_name
+        text template_content
+        varchar status
+    }
+
+    signing_session {
+        bigint id PK
+        varchar session_id
+        varchar template_code
+        jsonb parties_info
+        varchar status
+        datetime expires_at
+    }
+
+    signed_agreement {
+        bigint id PK
+        varchar agreement_id
+        bigint session_id FK
+        text signed_content
+        datetime signed_at
+    }
+
+    evidence_record {
+        bigint id PK
+        bigint agreement_id FK
+        jsonb evidence_data
+        datetime created_at
+    }
+
+    verification_requests {
+        bigint id PK
+        varchar verification_id
+        varchar verification_type
+        varchar status
+        datetime created_at
+    }
+
+    payment_verification_details {
+        bigint id PK
+        bigint verification_id FK
+        varchar bank_card_no
+        decimal verification_amount
+        varchar confirm_status
+    }
+
+    face_verification_details {
+        bigint id PK
+        bigint verification_id FK
+        varchar id_card_no
+        varchar name
+        varchar face_compare_result
+    }
+
+    fee_rule {
+        bigint id PK
+        varchar rule_code
+        varchar biz_scene
+        decimal fee_rate
+        varchar fee_bearer
+        varchar status
+    }
+
+    fee_record {
+        bigint id PK
+        varchar fee_record_no
+        varchar rule_code
+        decimal calculated_fee
+        varchar status
+    }
+
+    statement_metadata {
+        bigint id PK
+        varchar statement_no
+        varchar statement_type
+        date statement_date
+        varchar status
+        datetime generated_at
+    }
+
+    statement_line_item {
+        bigint id PK
+        bigint statement_id FK
+        varchar item_type
+        decimal amount
+        varchar account_no
+        datetime biz_time
+    }
+
+    reconciliation_log {
+        bigint id PK
+        date recon_date
+        varchar source_system
+        varchar recon_result
+        text discrepancy_detail
+        datetime executed_at
+    }
+
+    risk_rules {
+        bigint id PK
+        varchar rule_code
+        text rule_condition
+        varchar action
+        varchar status
+    }
+
+    risk_events {
+        bigint id PK
+        varchar event_id
+        varchar target_type
+        varchar target_id
+        varchar risk_level
+        datetime triggered_at
+    }
+
+    freeze_instructions {
+        bigint id PK
+        varchar instruction_id
+        varchar target_type
+        varchar target_id
+        varchar freeze_type
+        varchar status
+    }
+
+    merchant_risk_profiles {
+        bigint id PK
+        varchar merchant_id
+        jsonb risk_tags
+        datetime updated_at
+    }
+
+    user_identifiers {
+        bigint id PK
+        bigint userid
+        varchar source_system
+        varchar external_id
+        datetime created_at
+    }
+
+    payout_instruction {
+        bigint id PK
+        varchar instruction_id
+        varchar account_no
+        decimal amount
+        varchar status
+        datetime received_at
+    }
+
+    payout_record {
+        bigint id PK
+        bigint instruction_id FK
+        varchar channel_order_no
+        varchar channel
+        varchar final_status
+        datetime completed_at
+    }
+
+    biz_instruction ||--o{ settlement_orders : "生成"
+    settlement_orders ||--o{ fee_records : "关联计费"
+    settlement_orders ||--o{ settlement_batch_details : "包含明细"
+    account ||--o{ journal_entry_items : "记录分录"
+    journal_entries ||--o{ journal_entry_items : "包含明细"
+    signing_session ||--o{ signed_agreement : "生成协议"
+    signed_agreement ||--o|| evidence_record : "关联证据"
+    verification_requests ||--o{ payment_verification_details : "包含打款详情"
+    verification_requests ||--o{ face_verification_details : "包含人脸详情"
+    statement_metadata ||--o{ statement_line_item : "包含明细"
+    risk_events ||--o{ freeze_instructions : "触发冻结"
+    payout_instruction ||--o{ payout_record : "生成出款记录"
+    relationship_record }o--o| user_identifiers : "关联付款方/收款方"
+    account }o--o| user_identifiers : "属于用户"
 ```
 
 ## 5.2 表结构
 
-| 表名 | 所属模块 | 主要字段 | 关系说明 |
+| 表名 | 所属模块 | 主要字段（简述） | 关联关系（简述） |
 | :--- | :--- | :--- | :--- |
-| account | 账户系统 | account_no (PK), account_type, institution_no, user_id, status | 账户主表，与 wallet_user 关联，被多个流水/冻结表引用。 |
-| account_balance | 账户系统 | account_no (PK, FK), available_balance, frozen_balance | 账户余额表，与 account 一对一关联。 |
-| account_flow | 账户系统 | flow_no (PK), account_no (FK), biz_order_no, amount, flow_type | 账户流水表，记录资金变动，与 account 多对一关联。 |
-| account_freeze | 账户系统 | freeze_no (PK), account_no (FK), freeze_amount, status | 账户冻结记录表，与 account 多对一关联。 |
-| accounting_ledger | 账务核心 | ledger_no (PK), biz_order_no, account_no (FK), debit_amount, credit_amount | 核心账务流水表，记录会计分录，与 account 多对一关联。 |
-| wallet_user | 行业钱包 | user_id (PK), institution_no, user_type | 钱包用户表，是账户的拥有者。 |
-| account_relation | 行业钱包 | relation_id (PK), payer_user_id (FK), payee_user_id (FK), relation_type, auth_status | 账户关系表，关联两个 wallet_user，用于授权绑定。 |
-| settlement_config | 行业钱包 | config_id (PK), institution_no, settlement_mode | 结算配置表，记录商户的结算模式。 |
-| fee_rule | 计费中台 | rule_id (PK), rule_name, condition, fee_rate | 计费规则表，存储可配置的费率规则。 |
-| fee_calculation_record | 计费中台 | record_id (PK), biz_order_no, rule_id (FK), fee_amount | 计费记录表，记录每次计费请求和结果，与 fee_rule 关联。 |
-| verification_records | 认证系统 | request_id (PK), user_id, verification_type, status | 认证记录表，记录打款/人脸验证结果。 |
-| signing_contracts | 电子签约平台 | signing_id (PK), relation_id (FK), protocol_template_id (FK), sign_status | 签约记录表，与 account_relation 和 protocol_templates 关联。 |
-| protocol_templates | 电子签约平台 | template_id (PK), template_name, content | 协议模板表，存储签约协议模板。 |
-| settlement_order | 清结算 | settlement_order_no (PK), biz_order_no, status, settlement_amount | 结算订单表，记录结算批次。 |
-| settlement_detail | 清结算 | detail_id (PK), settlement_order_no (FK), account_no (FK), amount | 结算明细表，记录每笔结算涉及的账户和金额，与 settlement_order 和 account 关联。 |
-| freeze_application | 清结算 | application_no (PK), account_no (FK), freeze_type, status | 冻结申请记录表，与 account 关联。 |
-| risk_rule | 风控 | rule_id (PK), rule_name, condition, action | 风险规则表，存储风险判定规则。 |
-| risk_judgment_record | 风控 | judgment_id (PK), biz_order_no, rule_id (FK), result | 风险判定记录表，记录每次判定结果，与 risk_rule 关联。 |
-| freeze_order | 风控 | freeze_order_no (PK), account_no (FK), risk_judgment_id (FK), status | 冻结指令表，记录发起的冻结操作，与 account 和 risk_judgment_record 关联。 |
-| merchant_account_mapping | 风控 | mapping_id (PK), merchant_id, account_no (FK) | 商户-账户映射表，关联外部商户ID与内部账户，与 account 关联。 |
-| merchant_audit | 三代 | audit_id (PK), institution_no, audit_status | 商户审核表，记录开户申请审核状态。 |
-| institution_settlement_config | 三代 | config_id (PK), institution_no, settlement_mode | 机构结算配置表，记录商户的结算模式配置。 |
-| audit_operation_log | 三代 | log_id (PK), institution_no, operation_type | 审核操作日志表，记录所有业务操作日志。 |
-| statement_index | 对账单系统 | statement_id (PK), institution_no, statement_date, statement_type | 对账单索引表，记录对账单元信息。 |
-| statement_detail | 对账单系统 | detail_id (PK), statement_id (FK), biz_order_no, amount | 对账单明细表，记录对账单的每笔明细，与 statement_index 关联。 |
-| statement_file | 对账单系统 | file_id (PK), statement_id (FK), file_path | 文件存储表，存储对账单文件信息，与 statement_index 关联。 |
-| data_source_checkpoint | 对账单系统 | checkpoint_id (PK), data_source, last_sync_date | 数据源检查点表，记录各数据源同步进度。 |
+| biz_instruction | 三代 | id, instruction_type, status, content, created_at | 生成清结算订单(settlement_orders) |
+| merchant_status | 三代 | id, merchant_id, freeze_status, synced_at | TBD |
+| relationship_record | 三代 | id, payer_userid, payee_userid, relation_type, agreement_id, bound_at | 关联用户标识(user_identifiers) |
+| settlement_orders | 清结算 | id, order_no, order_type, status, amount, payer_account_id, payee_account_id, created_at | 被biz_instruction生成，关联fee_records |
+| fee_records | 清结算 | id, fee_no, order_id, fee_amount, fee_bearer, created_at | 关联settlement_orders |
+| settlement_batch_details | 清结算 | id, batch_order_id, detail_no, payee_account_id, amount, status | 关联settlement_orders |
+| retry_logs | 清结算 | id, biz_id, biz_type, status, error_msg, created_at | TBD |
+| account | 账户系统 | id, account_no, userid, account_type, balance, status, created_at | 属于用户(user_identifiers)，记录分录(journal_entry_items) |
+| journal_entries | 账务核心 | id, request_id, biz_type, status, accounting_date | 包含明细(journal_entry_items) |
+| journal_entry_items | 账务核心 | id, journal_entry_id, account_no, debit_amount, credit_amount | 关联journal_entries和account |
+| idempotency_control | 账务核心 | id, request_id, biz_key, status, created_at | TBD |
+| agreement_template | 电子签约平台 | id, template_code, template_name, template_content, status | TBD |
+| signing_session | 电子签约平台 | id, session_id, template_code, parties_info, status, expires_at | 生成协议(signed_agreement) |
+| signed_agreement | 电子签约平台 | id, agreement_id, session_id, signed_content, signed_at | 关联signing_session和evidence_record |
+| evidence_record | 电子签约平台 | id, agreement_id, evidence_data, created_at | 关联signed_agreement |
+| verification_requests | 认证系统 | id, verification_id, verification_type, status, created_at | 包含payment_verification_details和face_verification_details |
+| payment_verification_details | 认证系统 | id, verification_id, bank_card_no, verification_amount, confirm_status | 关联verification_requests |
+| face_verification_details | 认证系统 | id, verification_id, id_card_no, name, face_compare_result | 关联verification_requests |
+| fee_rule | 计费中台 | id, rule_code, biz_scene, fee_rate, fee_bearer, status | TBD |
+| fee_record | 计费中台 | id, fee_record_no, rule_code, calculated_fee, status | TBD |
+| statement_metadata | 对账单系统 | id, statement_no, statement_type, statement_date, status, generated_at | 包含明细(statement_line_item) |
+| statement_line_item | 对账单系统 | id, statement_id, item_type, amount, account_no, biz_time | 关联statement_metadata |
+| reconciliation_log | 对账单系统 | id, recon_date, source_system, recon_result, discrepancy_detail, executed_at | TBD |
+| risk_rules | 风控 | id, rule_code, rule_condition, action, status | TBD |
+| risk_events | 风控 | id, event_id, target_type, target_id, risk_level, triggered_at | 触发冻结(freeze_instructions) |
+| freeze_instructions | 风控 | id, instruction_id, target_type, target_id, freeze_type, status | 被risk_events触发 |
+| merchant_risk_profiles | 风控 | id, merchant_id, risk_tags, updated_at | TBD |
+| user_identifiers | 用户中心 | id, userid, source_system, external_id, created_at | 被relationship_record和account关联 |
+| payout_instruction | 代付系统 | id, instruction_id, account_no, amount, status, received_at | 生成出款记录(payout_record) |
+| payout_record | 代付系统 | id, instruction_id, channel_order_no, channel, final_status, completed_at | 关联payout_instruction |

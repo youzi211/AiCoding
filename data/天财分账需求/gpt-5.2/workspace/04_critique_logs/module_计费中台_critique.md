@@ -98,3 +98,51 @@
 
 ---
 
+## 批判迭代 #1 - 2026-01-22 17:46:49
+
+**模块**: 计费中台
+
+**分数**: 0.55 / 1.0
+
+**结果**: ❌ 未通过
+
+
+### 发现的问题
+
+- Section 'Interface Design' is hollow (TBD).
+- Section 'Data Model' is hollow (TBD).
+- Section 'Business Logic' is missing key logic considerations: no details on how to determine fee bearer (payer/payee), no specifics on fee calculation algorithms, rounding rules, or default strategies.
+- Diagram is missing critical components: it does not show interaction with 'Industry Wallet' as an upstream module, and does not show downstream consumption by 'Accounting Core'.
+- The module's role in the glossary is defined as calculating fees for 'transfer/分账', but the design overview limits it to '分账/转账'. This is a minor inconsistency with the broader glossary definition.
+- The diagram uses '三代' as the sole requester, but the overview lists 'Industry Wallet' as an upstream module. The design does not clarify the request flow or differentiation between these two upstream callers.
+- Error handling section mentions 'may trigger default billing process' but the business logic section does not define what this default process is, creating ambiguity.
+
+
+### 改进建议
+1. Populate the Interface Design section with concrete API endpoints (REST/GraphQL), request/response payloads, and event definitions. 2. Define the Data Model with specific tables/collections, key fields (e.g., fee_rule_id, transaction_id, calculated_fee, bearer_party), and relationships. 3. Elaborate Business Logic: detail the algorithm for fee calculation (e.g., percentage, fixed, tiered), rules for determining the fee bearer, precision/rounding standards, and explicit default strategies for missing rules or edge cases like zero/minimum fees. 4. Update the sequence diagram to include 'Industry Wallet' as a requester and 'Accounting Core' as a consumer of the billing records, showing the complete flow. 5. Clarify the interaction model between '三代' and 'Industry Wallet': which module calls the Billing Center under which scenarios? 6. Define the 'default billing process' mentioned in error handling within the business logic section.
+
+---
+
+## 批判迭代 #2 - 2026-01-22 17:47:41
+
+**模块**: 计费中台
+
+**分数**: 0.75 / 1.0
+
+**结果**: ✅ 通过
+
+
+### 发现的问题
+
+- Data Model: The `fee_rule` table includes `fee_type` (percentage, fixed, tiered) but the business logic for calculating tiered fees is not defined. The `fee_bearer_logic` field mentions a 'CALCULATED' option, but the specific business rules for this calculation are marked 'TBD', leaving a critical logic gap.
+- Interface Design: The `POST /api/v1/fee/calculate` request lacks a `currency` field, but the response includes one. The fee calculation logic depends on currency for rounding and min/max fee application, making this a critical inconsistency.
+- Business Logic: The default fee strategy for missing/invalid rules is defined as zero fee with payer bearing it. This may not be a safe or business-viable default and lacks a mechanism to alert operations for configuration gaps.
+- Diagram Validity: The Mermaid sequence diagram shows upstream modules ('三代', '行业钱包') directly calling the '清结算' module after receiving a fee response. This implies a synchronous, linear flow, which may oversimplify the actual asynchronous, event-driven interactions suggested by the published `FeeCalculatedEvent`.
+- Consistency: The module states its core responsibility is to 'decide' the fee bearer, but the logic for the 'CALCULATED' option is undefined. This creates an inconsistency between the stated purpose and the provided specification.
+
+
+### 改进建议
+1. Define the detailed algorithm for 'tiered fee' calculation in the Business Logic section. 2. Add a `currency` field to the `POST /api/v1/fee/calculate` request body to ensure consistency. 3. Specify the concrete business rules for the `fee_bearer_logic` of 'CALCULATED', or remove it if not needed. 4. Re-evaluate the default fee strategy; consider making it configurable or requiring a mandatory rule for critical transaction types. 5. Clarify the system's runtime flow: is it purely synchronous API-driven, or does it rely on events? Update the sequence diagram to accurately reflect the chosen architecture, potentially showing event consumption.
+
+---
+

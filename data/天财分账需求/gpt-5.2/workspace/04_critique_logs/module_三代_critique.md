@@ -53,3 +53,57 @@
 
 ---
 
+## 批判迭代 #1 - 2026-01-22 17:46:39
+
+**模块**: 三代
+
+**分数**: 0.55 / 1.0
+
+**结果**: ❌ 未通过
+
+
+### 发现的问题
+
+- Missing required section 'Interface Design' (TBD is not content).
+- Missing required section 'Data Model' (TBD is not content).
+- Hollow content in 'Interface Design' section.
+- Hollow content in 'Data Model' section.
+- Inconsistency: The module is described as '三代' (a system role) in the glossary but as a module '三代模块' in the design. This creates ambiguity about its nature.
+- Inconsistency: The design states it 'coordinate[s]... account system', but the glossary lists 'account system' as a separate role; the design does not clarify the interaction boundary (e.g., does it call account system, or is it part of it?).
+- Missing key logic consideration: No details on how the module handles retries, idempotency, or compensation for downstream failures (e.g., industry wallet succeeds but billing fails).
+- Missing key logic consideration: No description of data persistence for audit trails, state management of instructions, or reconciliation needs.
+- Ambiguous statement: '其边界在于处理业务指令的接收、校验、路由与状态管理' is too high-level; does not specify what 'state management' entails (e.g., storing instruction status, retry counters).
+- Diagram validity issue: The sequence diagram is present but only covers one flow (relationship binding). Missing critical diagrams for account opening, split/transfer, and fee configuration workflows.
+
+
+### 改进建议
+1. Fully define the Interface Design (API endpoints, request/response schemas, events) and Data Model (tables, fields, relationships). 2. Clarify the module's architectural role: is it a service, a gateway, or a coordinator? Align with glossary terminology. 3. Specify concrete error handling: retry policies, idempotency keys, compensation/rollback mechanisms for partial failures. 4. Expand business logic with detailed steps, state transitions, and data validation rules. 5. Add sequence diagrams for all core workflows listed in section 4. 6. Define data retention, audit logging, and reconciliation strategies.
+
+---
+
+## 批判迭代 #2 - 2026-01-22 17:47:32
+
+**模块**: 三代
+
+**分数**: 0.60 / 1.0
+
+**结果**: ❌ 未通过
+
+
+### 发现的问题
+
+- Section 'Interface Design' is hollow. It lists 'API端点 (REST): TBD' and '请求/响应结构: TBD' with no concrete details.
+- Data model 'merchant_status' table is described as a cache from risk control, but the glossary states '风控' initiates freeze instructions via events. The design lacks a clear mechanism for how this cache is initially populated and kept in sync (only mentions '状态同步' vaguely).
+- Business logic for '分账/转账指令处理' states '调用计费中台计算手续费' but does not specify how the fee amount is applied in the subsequent call to '行业钱包'. The workflow is incomplete.
+- Business logic mentions '部分成功（补偿）' for scenarios like fee calculation failure after wallet transfer. The described '人工或定时任务触发补偿流程' is vague and lacks concrete design for idempotency and rollback coordination with downstream systems.
+- The glossary defines '清结算' as handling '计费处理', but the design's '计费配置流程' and '分账指令处理' both call '计费中台'. This is an inconsistency in system role responsibilities.
+- The glossary defines '账务核心' for recording accounting entries, but the design's data model and workflows (e.g.,分账) only mention notifying '业务核心' to record transaction data. The role of '账务核心' is ignored, creating a potential gap in financial bookkeeping.
+- Diagram 5.2 (分账指令处理时序图) shows step '8. 通知记录交易数据' to '业务核心', but step '9. 确认' implies a synchronous response. This is a potential performance bottleneck and single point of failure; an asynchronous event-driven pattern would be more robust.
+- The '错误处理' section mentions '下游暂时性失败' retry for core downstream calls but does not define what constitutes a 'core' call or specify the retry configuration parameters (max attempts, backoff).
+
+
+### 改进建议
+1. Populate the Interface Design section with concrete REST endpoints (e.g., POST /v1/instructions), request/response DTO examples, and event schemas. 2. Define the initialization and synchronization mechanism for the `merchant_status` cache (e.g., consume `merchant.frozen` event, initial full sync API). 3. Detail the fee application in the transfer workflow: after getting the fee from 计费中台, specify if the net amount is sent to the wallet or if the wallet call includes fee details for separate deduction. 4. Design a concrete compensation/rollback saga pattern for partial failures, including idempotent compensating transactions and a clear state machine in `biz_instruction`. 5. Clarify the system boundaries: align with the glossary by ensuring 计费中台 is the sole component for fee calculation, and define how 账务核心 is invoked (likely by 行业钱包 or 清结算) for accounting entries. 6. Revise the sequence diagram for 分账 to use an asynchronous event (e.g., `transaction.record.requested`) for notifying 业务核心, removing the synchronous '确认' step. 7. Specify retry configuration parameters (e.g., `maxRetries=3`, `backoffDelay=1s, 2s, 4s`) for each downstream service call in the error handling section.
+
+---
+

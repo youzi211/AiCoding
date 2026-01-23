@@ -112,3 +112,54 @@
 
 ---
 
+## 批判迭代 #1 - 2026-01-22 17:46:45
+
+**模块**: 清结算
+
+**分数**: 0.60 / 1.0
+
+**结果**: ❌ 未通过
+
+
+### 发现的问题
+
+- Section 'Interface Design' is hollow (TBD).
+- Section 'Data Model' is hollow (TBD).
+- Section 'Business Logic' lacks detail on key workflows like '会员结算' and '批量付款' mentioned in glossary.
+- Section 'Error Handling' lacks concrete retry policies, compensation mechanisms, and idempotency handling.
+- Diagram is missing critical upstream (风控, 业务核心) and downstream (对账单系统) interactions.
+- Diagram sequence is incomplete; it does not show failure paths or compensation flows.
+- Business logic description is inconsistent with glossary; '退货处理' mentions '天财收款账户' but glossary defines 04退货账户 for this purpose.
+
+
+### 改进建议
+1. Define concrete API endpoints, request/response structures, and events in Interface Design. 2. Specify core tables (e.g., settlement_orders, fee_records), key fields, and relationships in Data Model. 3. Expand Business Logic to detail workflows for 会员结算, 批量付款, and 归集, including state transitions and concurrency control. 4. Specify retry counts, backoff strategies, idempotency keys, and compensation (e.g., sagas) in Error Handling. 5. Update the sequence diagram to include interactions with 风控 (for freeze), 业务核心 (for transaction data), and 对账单系统, and add alternative failure flows. 6. Align '退货处理' logic with glossary by clarifying the use of 04退货账户.
+
+---
+
+## 批判迭代 #2 - 2026-01-22 17:47:32
+
+**模块**: 清结算
+
+**分数**: 0.70 / 1.0
+
+**结果**: ✅ 通过
+
+
+### 发现的问题
+
+- Missing required section: No explicit 'Performance & Scalability' or 'Security' considerations are included in the design, which are crucial for a core financial module.
+- Inconsistency with glossary: The design mentions '天财收款账户' and '天财接收方账户', but the glossary defines '天财收款账户' as also known as '天财专用账户'. The design uses '天财专用账户' in a different context (as a type of account for payers/receivers), which is ambiguous and not fully aligned.
+- Inconsistency with glossary: The design states '资金首先结算至品牌总部的天财收款账户（主动结算模式）'. The glossary defines '主动结算' as funds settling to a merchant-specified settlement account. The design does not clarify how this mode is triggered or configured, creating a potential gap.
+- Feasibility issue: The '会员结算' workflow mentions '根据预设的分账规则，触发从总部账户向各门店账户的分账流程' but lacks detail on how these rules are stored, retrieved, and executed. It also does not address concurrent rule updates or versioning.
+- Feasibility issue: The error handling mentions a '降级逻辑' (fallback) using a local cached minimum fee if the计费中台 is unavailable. This is risky for a financial system as it could lead to revenue loss or incorrect settlements. The design lacks details on cache invalidation and post-fallback reconciliation.
+- Clarity issue: The data model section lists 'retry_logs' but does not define its structure or how it integrates with the retry mechanism described in error handling.
+- Clarity issue: The term '三代' is used in the sequence diagram and context but its role as an upstream module is not clearly defined in the 'Dependencies' section of the design. It's listed but the interaction is vague.
+- Diagram validity issue: The Mermaid sequence diagram uses Chinese participant names (e.g., '三代', '业务核心'). While it will render, the use of non-alphanumeric characters in participant identifiers can sometimes cause parsing issues in some Mermaid versions. Best practice is to use simple English aliases.
+
+
+### 改进建议
+1. Add sections for 'Performance & Scalability' (e.g., handling peak loads for batch payments) and 'Security' (e.g., data encryption, audit trails). 2. Align all account type references precisely with the glossary definitions to avoid ambiguity. 3. Elaborate on the '会员结算' rule engine: where rules are stored, how they are applied, and concurrency handling. 4. Re-evaluate the fee calculation fallback strategy; consider a 'fail-fast' approach with manual intervention instead of automatic settlement with cached rates, or design a robust reconciliation process. 5. Define the schema for the `retry_logs` table. 6. Clarify the role and interaction pattern of '三代' in the module dependencies. 7. In the sequence diagram, consider using English aliases for participants (e.g., 'Client' for '三代') and use the `participant` keyword with the alias first for clarity (e.g., `participant C as 三代`).
+
+---
+

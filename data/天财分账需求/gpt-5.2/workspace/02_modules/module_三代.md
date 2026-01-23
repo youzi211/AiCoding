@@ -1,150 +1,168 @@
 # 模块设计: 三代
 
-生成时间: 2026-01-22 16:17:56
+生成时间: 2026-01-22 17:47:32
 批判迭代: 2
-
----
-
-# 模块设计: 三代
-
-生成时间: TBD
-批判迭代: TBD
 
 ---
 
 # 三代模块设计文档
 
 ## 1. 概述
-- **目的与范围**: 本模块是支付系统中负责商户机构管理与审核的网关。其核心职责是作为业务平台（天财）与内部执行系统（如行业钱包）之间的桥梁，接收并审核来自天财的业务指令（如开户、结算模式配置），并将审核通过的指令同步至下游系统执行。本模块是商户机构信息（如机构号、商户类型、角色）的权威来源，并负责审核决策的记录。其边界在于处理管理指令的审核与分发，不直接执行账户开户、资金操作或关系绑定等具体业务逻辑。
+- **目的与范围**: 三代模块是天财平台业务指令的处理入口与协调服务。它负责接收并处理来自天财的开户、关系绑定、分账、计费配置等业务请求，执行核心的业务逻辑校验、审核与流程编排，并协调行业钱包、清结算、账户系统、电子签约平台等下游系统角色完成具体操作。其核心职责是业务指令的生命周期管理，包括接收、校验、路由、状态持久化与最终结果反馈，不直接执行底层的账户操作、资金变动或用户ID生成。
 
 ## 2. 接口设计
-- **API端点 (REST)**:
-    - `POST /api/v1/third-generation/merchants/audit`: 接收并处理开户申请。
-    - `PUT /api/v1/third-generation/merchants/{institution_no}/settlement-config`: 接收并处理商户结算模式配置申请。
-    - `GET /api/v1/third-generation/merchants/{institution_no}`: 查询商户审核状态与基本信息。
-- **请求/响应结构**:
-    - 开户申请 (`POST /api/v1/third-generation/merchants/audit`):
-        - 请求体: `{"institution_no": "string", "merchant_name": "string", "merchant_type": "ACQUIRING/NON_ACQUIRING", "role": "HEADQUARTERS/STORE", "contact_info": "TBD"}`
-        - 响应体: `{"audit_id": "string", "institution_no": "string", "audit_status": "PENDING/APPROVED/REJECTED"}`
-    - 结算模式配置 (`PUT /api/v1/third-generation/merchants/{institution_no}/settlement-config`):
-        - 请求体: `{"settlement_mode": "ACTIVE/PASSIVE", "settlement_account_info": "TBD", "effective_date": "string"}`
-        - 响应体: `{"config_id": "string", "institution_no": "string", "status": "SUCCESS/FAILED"}`
+- **API端点 (REST)**: TBD
+- **请求/响应结构**: TBD
 - **发布/消费的事件**:
-    - **消费**来自**天财**的开户申请指令、结算模式配置申请指令。
-    - **发布** `MerchantAuditResultEvent` (事件内容: `audit_id`, `institution_no`, `merchant_type`, `role`, `audit_result`, `audit_time`)，供**行业钱包**消费以驱动开户流程。
-    - **发布** `SettlementConfigSyncEvent` (事件内容: `institution_no`, `user_id`, `settlement_mode`, `settlement_account_info`, `effective_date`)，供**行业钱包**消费以更新结算配置。
-    - **发布** `MerchantStatusSyncEvent` (事件内容: `institution_no`, `user_id`, `old_status`, `new_status`, `update_time`)，供**业务核心**等下游系统感知商户状态变化。
+    - **消费事件**:
+        - `merchant.frozen` (来自风控): 接收商户冻结/解冻指令，更新本地商户状态并拦截后续业务。
+    - **发布事件**:
+        - `instruction.created` (指令已创建): 当成功接收并校验天财指令后发布。
+        - `instruction.status.updated` (指令状态已更新): 当指令状态（如审核中、处理中、成功、失败）变更时发布。
+        - `relationship.bound` (关系绑定完成): 当关系绑定流程最终完成时发布。
 
 ## 3. 数据模型
 - **表/集合**:
-    - `merchant_audit` (商户审核表)
-    - `institution_settlement_config` (机构结算配置表)
-    - `audit_operation_log` (审核操作日志表)
+    - **业务指令表 (`biz_instruction`)**:
+        - 用于持久化所有来自天财的业务请求，记录指令内容、状态、执行历史，用于状态管理、审计与对账。
+    - **商户状态表 (`merchant_status`)**:
+        - 缓存从风控同步的商户冻结状态，用于业务逻辑中的快速校验。
+    - **关系绑定记录表 (`relationship_record`)**:
+        - 记录已成功建立的关系绑定详情，作为分账等业务的前置校验依据。
 - **关键字段**:
-    - `merchant_audit` 表:
-        - `audit_id` (主键): 审核记录唯一标识。
-        - `institution_no`: 机构号，由三代运营分配给天财或其下属商户的唯一标识。
-        - `merchant_name`: 商户名称。
-        - `merchant_type`: 商户类型（ACQUIRING: 收单商户 / NON_ACQUIRING: 非收单商户）。
-        - `role`: 角色（HEADQUARTERS: 总部 / STORE: 门店）。
-        - `audit_status`: 审核状态（PENDING: 审核中 / APPROVED: 已通过 / REJECTED: 已拒绝）。
-        - `audit_comment`: 审核意见。
-        - `created_at`: 创建时间。
-        - `updated_at`: 更新时间。
-    - `institution_settlement_config` 表:
-        - `config_id` (主键): 配置ID。
-        - `institution_no`: 机构号，外键关联`merchant_audit.institution_no`。
-        - `user_id`: 钱包用户ID，开户成功后由行业钱包回填。
-        - `settlement_mode`: 结算模式（ACTIVE: 主动结算 / PASSIVE: 被动结算）。
-        - `settlement_account_info`: 指定的结算账户信息（JSON格式）。
-        - `effective_date`: 生效日期。
-        - `config_status`: 配置状态（ACTIVE: 生效 / INACTIVE: 失效）。
-        - `created_at`: 创建时间。
-        - `updated_at`: 更新时间。
-    - `audit_operation_log` 表:
-        - `log_id` (主键): 日志ID。
-        - `institution_no`: 机构号。
-        - `operation_type`: 操作类型（MERCHANT_AUDIT: 商户审核 / SETTLEMENT_CONFIG: 结算配置）。
-        - `request_data`: 请求数据（JSON格式）。
-        - `response_data`: 响应数据（JSON格式）。
-        - `operator`: 操作者（系统或人工）。
-        - `created_at`: 操作时间。
-- **与其他模块的关系**: 本模块的 `institution_no` 是核心业务标识，与**行业钱包**的 `wallet_user` 表通过 `institution_no` 关联。`user_id` 字段在开户成功后由行业钱包回填，用于关联钱包用户。
+    - `biz_instruction` 表: `instruction_id` (指令唯一ID), `biz_type` (业务类型: 开户/绑定/分账等), `org_code` (机构号), `app_id` (APPID), `request_data` (原始请求), `status` (状态), `retry_count` (重试次数), `result_data` (最终结果), `created_at`, `updated_at`。
+    - `merchant_status` 表: `merchant_id` (商户ID), `frozen` (是否冻结), `frozen_reason`, `synced_at`。
+    - `relationship_record` 表: `relationship_id` (关系ID), `payer_id` (付款方ID), `receiver_id` (接收方ID), `bind_status` (绑定状态), `protocol_id` (协议ID), `verified_at` (认证完成时间)。
+- **与其他模块的关系**: 业务指令表与业务核心的交易数据通过`instruction_id`关联。关系绑定记录表与行业钱包中的绑定关系数据保持一致。商户状态表的数据源来自风控系统。
 
 ## 4. 业务逻辑
 - **核心工作流/算法**:
-    1.  **开户审核流程**:
-        - 接收天财提交的开户申请（包含机构号、商户类型、角色等信息）。
-        - 执行审核逻辑（如校验机构号唯一性、信息完整性、资质合规性）。
-        - 审核通过后，在 `merchant_audit` 表中记录商户信息，状态置为"APPROVED"。
-        - 发布 `MerchantAuditResultEvent`（审核结果为通过），事件中包含机构号、商户类型、角色等信息，供**行业钱包**消费并执行开户。
-        - 审核不通过，则更新 `merchant_audit` 表状态为"REJECTED"并记录原因。
-        - 所有操作记录日志至 `audit_operation_log`。
-    2.  **结算模式配置流程**:
-        - 接收天财提交的商户结算模式配置申请。
-        - 校验目标商户是否存在且审核状态为"APPROVED"。
-        - 更新或插入 `institution_settlement_config` 表中的结算配置，状态为"ACTIVE"。
-        - 发布 `SettlementConfigSyncEvent`，事件中包含机构号、结算模式、生效日期等信息，供**行业钱包**消费并更新其 `settlement_config` 表。
-        - 记录操作日志。
-    3.  **商户状态同步流程**:
-        - **触发**: 当商户状态因审核、风控等原因发生变化时（源自身或接收行业钱包/风控通知）。
-        - **动作**: 更新 `merchant_audit` 表中的 `audit_status`。
-        - **发布**: 发布 `MerchantStatusSyncEvent`，将状态变更（如从"APPROVED"变为"FROZEN"）广播给**业务核心**等需要感知的系统。
+    1.  **通用指令处理流程**:
+        - **接收与校验**: 接收天财请求，校验机构号、APPID合法性、请求参数格式与必填项。
+        - **状态检查**: 根据请求涉及的商户ID，查询本地`merchant_status`表，校验商户是否被风控冻结。
+        - **指令持久化**: 创建`biz_instruction`记录，初始状态为“待处理”。
+        - **业务路由与执行**: 根据`biz_type`路由到具体的子流程（开户、绑定、分账等）。
+        - **结果处理与响应**: 更新指令状态，记录结果，向天财返回响应。
+    2.  **开户审核流程**:
+        - 校验机构信息与商户资质。
+        - 调用行业钱包创建账户（天财收款账户或天财接收方账户）。
+        - 如需电子签约，则调用电子签约平台完成协议签署。
+        - 更新指令状态为“成功”或“失败”。
+    3.  **关系绑定流程**:
+        - 校验付款方与接收方身份及状态。
+        - 调用电子签约平台完成协议签署，获取协议ID。
+        - 调用认证系统完成打款验证或人脸验证。
+        - 调用行业钱包建立绑定关系。
+        - 在本地`relationship_record`表中创建记录。
+    4.  **分账/转账指令处理**:
+        - 校验付款方与接收方关系是否在`relationship_record`表中存在且有效。
+        - 校验双方账户状态（通过行业钱包）。
+        - 调用计费中台计算手续费。
+        - 调用行业钱包执行分账请求。
+        - 通知业务核心记录交易数据。
+    5.  **计费配置流程**:
+        - 接收计费规则配置请求。
+        - 调用计费中台完成规则配置。
 - **业务规则与验证**:
-    - 开户审核必须确保 `institution_no` 在系统内唯一。
-    - 结算模式配置仅可对已审核通过（`audit_status` 为 `APPROVED`）的商户进行操作。
-    - 所有来自天财的指令需通过 `APPID` 等机制进行身份鉴权。
+    - 机构号与APPID需在白名单内且状态有效。
+    - 同一笔业务请求需支持幂等性处理（基于天财提供的唯一请求ID）。
+    - 关系绑定是执行分账的必要前置条件。
+    - 被风控冻结的商户，所有出款类指令（如分账、提现）将被拦截。
 - **关键边界情况处理**:
-    - **重复开户申请**: 基于 `institution_no` 实现幂等。若已存在审核通过记录，则直接返回成功并忽略；若处于审核中，返回处理中状态。
-    - **下游事件发布失败**: 采用消息队列的持久化与重试机制，确保事件至少投递一次。在消费者端（如行业钱包）通过业务唯一键（如 `institution_no` + `operation_type`）实现幂等消费。
-    - **配置生效日期冲突**: 新配置的 `effective_date` 晚于当前生效配置时，正常覆盖；若早于，则拒绝或启动配置版本管理流程（TBD）。
+    - **下游调用失败**: 对行业钱包、清结算等关键下游调用设置重试机制（如最多3次，指数退避）。记录重试次数于`biz_instruction.retry_count`。
+    - **部分成功（补偿）**: 若分账流程中行业钱包调用成功但计费中台调用失败，需记录异常状态，支持人工或定时任务触发补偿流程（如冲正交易或补计费）。
+    - **状态同步**: 定时或监听事件，从风控同步最新商户冻结状态至`merchant_status`表。
 
 ## 5. 时序图
 
+### 5.1 关系绑定流程时序图
 ```mermaid
 sequenceDiagram
-    participant 天财 as 天财
-    participant 三代 as 三代
-    participant 行业钱包 as 行业钱包
-    participant 业务核心 as 业务核心
+    participant 天财
+    participant 三代
+    participant 电子签约平台
+    participant 认证系统
+    participant 行业钱包
 
-    天财->>三代: 1. 提交开户申请
-    三代->>三代: 2. 执行审核逻辑
-    alt 审核通过
-        三代->>三代: 3. 记录商户信息(状态APPROVED)
-        三代->>行业钱包: 4. 发布MerchantAuditResultEvent
-        行业钱包->>行业钱包: 5. 消费事件，执行开户
-        行业钱包-->>三代: 6. 回填user_id至institution_settlement_config
-        三代->>业务核心: 7. 发布MerchantStatusSyncEvent(新商户)
-    else 审核不通过
-        三代->>天财: 8. 返回审核失败及原因
-    end
+    天财->>三代: 1. 发起关系绑定请求
+    三代->>三代: 2. 校验机构号、APPID、参数
+    三代->>三代: 3. 检查商户风控状态
+    三代->>三代: 4. 创建指令记录(状态:处理中)
+    三代->>电子签约平台: 5. 发起电子协议签署
+    电子签约平台-->>三代: 6. 返回签署链接/结果
+    三代->>认证系统: 7. 发起打款/人脸验证
+    认证系统-->>三代: 8. 返回认证结果
+    三代->>行业钱包: 9. 建立绑定关系
+    行业钱包-->>三代: 10. 返回绑定结果
+    三代->>三代: 11. 记录绑定关系，更新指令状态为成功
+    三代-->>天财: 12. 返回绑定最终结果
+```
 
-    rect rgb(220, 255, 220)
-        天财->>三代: A. 提交结算模式配置
-        三代->>三代: B. 校验商户状态，更新配置表
-        三代->>行业钱包: C. 发布SettlementConfigSyncEvent
-        行业钱包->>行业钱包: D. 消费事件，更新settlement_config
+### 5.2 分账指令处理时序图
+```mermaid
+sequenceDiagram
+    participant 天财
+    participant 三代
+    participant 计费中台
+    participant 行业钱包
+    participant 业务核心
+
+    天财->>三代: 1. 发起分账请求
+    三代->>三代: 2. 基础校验与风控检查
+    三代->>三代: 3. 查询绑定关系是否有效
+    三代->>计费中台: 4. 计算手续费
+    计费中台-->>三代: 5. 返回手续费结果
+    三代->>行业钱包: 6. 执行分账(含手续费)
+    行业钱包-->>三代: 7. 返回分账结果
+    三代->>业务核心: 8. 通知记录交易数据
+    业务核心-->>三代: 9. 确认
+    三代->>三代: 10. 更新指令状态为成功
+    三代-->>天财: 11. 返回分账最终结果
+```
+
+### 5.3 开户审核流程时序图
+```mermaid
+sequenceDiagram
+    participant 天财
+    participant 三代
+    participant 行业钱包
+    participant 电子签约平台
+
+    天财->>三代: 1. 发起开户请求
+    三代->>三代: 2. 校验机构、商户资质
+    三代->>行业钱包: 3. 创建账户(天财收款/接收方账户)
+    行业钱包-->>三代: 4. 返回开户结果
+    alt 需要签约
+        三代->>电子签约平台: 5. 发起协议签署
+        电子签约平台-->>三代: 6. 返回签署结果
     end
+    三代->>三代: 7. 更新指令状态
+    三代-->>天财: 8. 返回开户最终结果
 ```
 
 ## 6. 错误处理
 - **预期错误情况**:
-    - `ERR_INVALID_PARAM`: 请求参数不合法、不完整。
-    - `ERR_DUPLICATE_INSTITUTION_NO`: 开户申请中的机构号已存在。
-    - `ERR_MERCHANT_NOT_FOUND`: 配置操作时指定的商户不存在。
-    - `ERR_MERCHANT_STATUS_INVALID`: 商户状态非"APPROVED"，无法进行配置。
-    - `ERR_AUDIT_LOGIC_FAILED`: 审核流程内部逻辑错误（如规则引擎异常）。
-    - `ERR_EVENT_PUBLISH_FAILED`: 事件发布到消息中间件失败。
+    - **输入错误**: 参数缺失、格式错误、机构号/APPID无效。
+    - **业务规则错误**: 商户已冻结、关系绑定不存在、账户状态异常、余额不足。
+    - **下游依赖错误**: 电子签约平台、认证系统、行业钱包、计费中台等服务调用超时、网络异常或返回业务失败。
+    - **系统内部错误**: 数据库异常、内部逻辑错误。
 - **处理策略**:
-    - 参数与业务规则校验失败，立即向天财返回明确的错误码和描述。
-    - 依赖下游消息队列的发布-订阅能力保证事件可靠投递。针对 `ERR_EVENT_PUBLISH_FAILED`，由消息中间件客户端进行重试，并监控死信队列进行告警。
-    - 所有业务操作（无论成功失败）均记录到 `audit_operation_log` 表。
-    - 关键接口（开户、配置）通过业务唯一标识（如 `institution_no`）实现幂等，防止重复处理。
+    - **输入与业务错误**: 立即失败，返回明确的错误码与信息，不重试。
+    - **下游暂时性失败**: 对行业钱包、清结算等核心下游调用实施重试。重试策略可配置（如最大次数、退避间隔），重试后仍失败则更新指令状态为“失败”，记录详细错误日志。
+    - **幂等性**: 所有关键业务接口需支持基于请求唯一ID的幂等调用，防止重复处理。
+    - **补偿与对账**: 对于涉及资金的状态不一致风险（如分账成功但计费失败），记录异常状态，提供管理界面供运营人工处理，并依赖日终对账单进行财务核对。
+    - **监控与告警**: 对失败率、超时率设置监控阈值，及时告警。
 
 ## 7. 依赖关系
-- **上游模块**:
-    - **天财**: 业务平台方，向本模块发起开户、结算模式配置等业务指令。
-- **下游模块**:
-    - **行业钱包**: 消费本模块发布的 `MerchantAuditResultEvent` 和 `SettlementConfigSyncEvent`，以执行具体的钱包用户创建和结算配置更新。同时，行业钱包会回填 `user_id` 信息。
-    - **业务核心**: 消费本模块发布的 `MerchantStatusSyncEvent`，以感知商户状态变化。
+- **上游模块/角色**:
+    - **天财**: 业务指令的发起方。
+    - **风控**: 提供商户冻结/解冻指令（通过事件）。
+- **下游模块/角色**:
+    - **行业钱包**: 被调用以执行账户开户、关系绑定校验与建立、分账资金划转。
+    - **清结算**: 被调用以处理结算、计费处理（部分计费可能通过计费中台）及资金冻结。
+    - **账户系统**: 被行业钱包或清结算底层调用，三代不直接调用。
+    - **电子签约平台**: 被调用以完成协议签署流程。
+    - **认证系统**: 被调用以完成打款验证或人脸验证。
+    - **计费中台**: 被调用以计算分账/转账手续费。
+    - **业务核心**: 被调用以存储分账等交易数据。
+    - **用户中心**: 被行业钱包底层调用以生成用户ID，三代不直接调用。

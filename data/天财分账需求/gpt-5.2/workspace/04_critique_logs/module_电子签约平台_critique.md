@@ -106,3 +106,56 @@
 
 ---
 
+## 批判迭代 #1 - 2026-01-22 17:46:43
+
+**模块**: 电子签约平台
+
+**分数**: 0.45 / 1.0
+
+**结果**: ❌ 未通过
+
+
+### 发现的问题
+
+- Section 'Interface Design' is hollow (TBD for API endpoints, request/response, events). Deduct -0.1.
+- Section 'Data Model' is hollow (TBD for tables, fields). Deduct -0.1.
+- Inconsistency with glossary: The design mentions '三代' and '行业钱包' as downstream modules, but the glossary defines them as '系统角色', not modules. This creates ambiguity about system boundaries. Deduct -0.15.
+- Inconsistency with glossary: The design mentions '认证系统' as an upstream module, but the glossary defines it as a '系统角色'. Deduct -0.15.
+- Missing key logic consideration: The design does not specify how to handle concurrency (e.g., multiple sign requests for the same user/agreement). Deduct -0.2.
+- Missing key logic consideration: The design does not define the data schema for the 'evidence chain' or its storage strategy. Deduct -0.2.
+- Missing key logic consideration: The design does not address security aspects like link tampering, replay attacks, or data encryption for sensitive information in the H5 link. Deduct -0.2.
+- Ambiguous statement: '调用认证系统' is vague. It does not specify the API contract, payload, or how the user is redirected between systems. Deduct -0.1.
+- Ambiguous statement: '完整留存协议文本、认证过程及结果等全证据链数据' is vague. It does not specify what constitutes the evidence, its format, or retention period. Deduct -0.1.
+- Diagram validity issue: The Mermaid sequence diagram is missing a critical component. It shows '认证系统' interacting directly with '签约用户' but does not show how the user is redirected back to the '电子签约平台' after authentication. This breaks the flow. Deduct -0.2.
+
+
+### 改进建议
+1. Define concrete REST/GraphQL endpoints (e.g., POST /v1/agreements/initiate), request/response models, and domain events (e.g., AgreementSignedEvent). 2. Design the core data tables (e.g., agreement_template, signing_session, signed_agreement, evidence_record) with key fields and relationships. 3. Clarify the system architecture: Are '三代' and '行业钱包' separate services or roles within a service? Update the design or glossary for consistency. 4. Add detailed business logic for concurrency control, evidence chain data model (include timestamps, user actions, authentication results, IP, user agent), and security measures (link signing, nonce, HTTPS). 5. Redraw the sequence diagram to correctly show the user authentication flow: '电子签约平台' should redirect the user to '认证系统', and '认证系统' should redirect the user back to '电子签约平台' with a token, which is then verified by the platform.
+
+---
+
+## 批判迭代 #2 - 2026-01-22 17:47:45
+
+**模块**: 电子签约平台
+
+**分数**: 0.80 / 1.0
+
+**结果**: ✅ 通过
+
+
+### 发现的问题
+
+- Data model `signing_session.parties_info` is a JSON field but lacks a clear schema definition for its structure, which is critical for processing and evidence chain integrity.
+- The `evidence_record` table's `raw_protocol_data` field is ambiguous. It's unclear if it's a duplicate of `signed_agreement.final_content` or contains different raw data, leading to potential data redundancy or inconsistency.
+- The business logic mentions 'filling variables' to generate final agreement content, but the `agreement_template.content` field structure and variable substitution mechanism are not defined, making the process vague.
+- The `AgreementSignedEvent` is mentioned but its full payload is not specified in the interface design section, leaving downstream consumers unclear on what data to expect.
+- The error handling section lists 'TBD' for evidence retention period, which is a critical compliance requirement and should be specified.
+- The sequence diagram shows a GET request to `/h5/callback?authToken=tt`. Exposing an authentication token in a URL query parameter is a security risk (potential leakage in logs, referrer headers). A POST request with the token in the body is safer.
+- The module's dependency on '短信发送服务' and '消息队列' is listed but their specific interfaces or integration points (e.g., what data is sent via SMS, what queue is used for events) are not detailed, affecting feasibility assessment.
+
+
+### 改进建议
+1. Define the exact JSON schema for `signing_session.parties_info` and `evidence_record` fields (e.g., `auth_evidence`, `signing_evidence`). 2. Clarify the relationship between `raw_protocol_data` and `final_content` to avoid ambiguity. 3. Specify the template content format (e.g., HTML with placeholders) and the variable substitution logic. 4. Define the complete structure of the `AgreementSignedEvent` in the 'Interface Design' or 'Business Logic' section. 5. Replace the 'TBD' for evidence retention with a concrete policy (e.g., 'retained for 5 years post-termination'). 6. In the sequence diagram and logic, change the authToken callback to use a POST request or a secure method that doesn't expose the token in the URL. 7. Briefly describe the integration contracts with the SMS service and message queue (e.g., event topic name, SMS content template).
+
+---
+

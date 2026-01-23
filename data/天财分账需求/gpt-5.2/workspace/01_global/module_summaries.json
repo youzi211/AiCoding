@@ -1,93 +1,275 @@
 [
   {
-    "module_name": "业务核心",
-    "purpose": "接收并处理来自天财平台的分账等交易数据，作为业务处理的入口和协调中心。",
+    "module_name": "三代",
+    "purpose": "天财平台业务指令的处理入口与协调服务，负责业务指令的生命周期管理，协调下游系统完成具体操作。",
+    "interfaces": [],
+    "database_tables": [
+      {
+        "name": "biz_instruction",
+        "description": "用于持久化所有来自天财的业务请求，记录指令内容、状态、执行历史，用于状态管理、审计与对账。"
+      },
+      {
+        "name": "merchant_status",
+        "description": "缓存从风控同步的商户冻结状态，用于业务逻辑中的快速校验。"
+      },
+      {
+        "name": "relationship_record",
+        "description": "记录已成功建立的关系绑定详情，作为分账等业务的前置校验依据。"
+      }
+    ],
+    "dependencies": [
+      "风控",
+      "行业钱包",
+      "清结算",
+      "电子签约平台",
+      "认证系统",
+      "计费中台",
+      "业务核心"
+    ],
+    "key_features": [
+      "业务指令接收与生命周期管理",
+      "业务逻辑校验与审核",
+      "流程编排与下游系统协调",
+      "商户状态检查与拦截",
+      "关系绑定前置校验"
+    ]
+  },
+  {
+    "module_name": "行业钱包",
+    "purpose": "处理钱包业务逻辑的核心服务层，执行业务指令并确保资金操作在正确的账户关系和授权下执行。",
     "interfaces": [],
     "database_tables": [],
     "dependencies": [
-      "天财",
+      "三代",
+      "用户中心",
+      "账户系统",
+      "电子签约平台",
+      "业务核心",
+      "认证系统"
+    ],
+    "key_features": [
+      "用户ID生成",
+      "账户开户",
+      "关系绑定校验",
+      "分账/转账请求处理"
+    ]
+  },
+  {
+    "module_name": "清结算",
+    "purpose": "处理交易清分、资金结算、计费处理、账户冻结以及退货流程中的资金清算与结算业务，是连接交易、账户与账务的核心资金处理中枢。",
+    "interfaces": [
+      {
+        "method": "POST",
+        "path": "/api/v1/settlement/transfer",
+        "description": "处理分账/转账请求。"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/settlement/batch-payment",
+        "description": "处理批量付款请求。"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/settlement/member-settlement",
+        "description": "处理会员结算请求。"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/settlement/refund",
+        "description": "处理退货资金扣减请求。"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/settlement/freeze",
+        "description": "处理风控发起的账户/交易冻结请求。"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/settlement/orders/{orderId}",
+        "description": "查询清结算订单状态。"
+      }
+    ],
+    "database_tables": [
+      {
+        "name": "settlement_orders",
+        "description": "清结算主订单表，记录所有清结算请求。"
+      },
+      {
+        "name": "fee_records",
+        "description": "计费流水记录表，关联计费中台返回的计费结果。"
+      },
+      {
+        "name": "settlement_batch_details",
+        "description": "批量付款明细表。"
+      },
+      {
+        "name": "retry_logs",
+        "description": "失败重试记录表。"
+      }
+    ],
+    "dependencies": [
+      "三代",
+      "风控",
+      "业务核心",
+      "账户系统",
+      "账务核心",
+      "计费中台",
+      "对账单系统"
+    ],
+    "key_features": [
+      "分账/转账",
+      "会员结算",
+      "批量付款",
+      "资金归集",
+      "退货处理",
+      "账户冻结"
+    ]
+  },
+  {
+    "module_name": "账户系统",
+    "purpose": "负责底层账户的创建、升级、余额管理、资金扣减/增加、冻结等账户核心操作，为上游模块提供原子化的账户操作能力。",
+    "interfaces": [
+      {
+        "method": "POST",
+        "path": "/api/v1/accounts",
+        "description": "创建账户"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/accounts/{accountId}",
+        "description": "查询账户信息"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounts/{accountId}/debit",
+        "description": "执行资金扣减"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounts/{accountId}/credit",
+        "description": "执行资金增加"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounts/{accountId}/freeze",
+        "description": "冻结账户"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounts/{accountId}/unfreeze",
+        "description": "解冻账户"
+      }
+    ],
+    "database_tables": [
+      {
+        "name": "account",
+        "description": "账户主表"
+      }
+    ],
+    "dependencies": [
       "行业钱包",
       "清结算",
-      "计费中台",
-      "账户系统",
+      "风控",
       "账务核心"
     ],
     "key_features": [
-      "处理天财分账请求",
-      "协调下游系统完成资金处理",
-      "维护核心业务订单状态机",
-      "处理异步回调与异常",
-      "保证接口幂等性"
+      "账户创建与管理",
+      "资金扣减与增加（含幂等控制与并发控制）",
+      "账户冻结与解冻",
+      "通过事件与账务核心保持最终一致性"
     ]
   },
   {
     "module_name": "账务核心",
-    "purpose": "负责记录所有资金变动的会计分录和记账，是资金流转的最终记录层。",
-    "interfaces": [
-      {
-        "method": "POST",
-        "path": "/api/v1/accounting/entries",
-        "description": "用于接收记账指令。"
-      }
-    ],
+    "purpose": "记录所有资金变动相关的会计分录，是资金流水的核心记账中心。",
+    "interfaces": [],
     "database_tables": [
       {
-        "name": "accounting_ledger",
-        "description": "核心账务流水表"
+        "name": "journal_entries",
+        "description": "会计分录主表"
+      },
+      {
+        "name": "journal_entry_items",
+        "description": "会计分录明细表"
+      },
+      {
+        "name": "idempotency_control",
+        "description": "幂等控制表"
       }
     ],
     "dependencies": [
-      "账户系统",
       "清结算",
-      "业务核心",
+      "账户系统",
       "对账单系统"
     ],
     "key_features": [
-      "接收记账请求生成会计分录",
-      "确保借贷平衡",
-      "通过幂等键保证重复请求的幂等性",
-      "持久化账务流水"
+      "执行复式记账法确保借贷平衡",
+      "基于request_id实现幂等性控制",
+      "记录账务数据确保准确性、完整性和可追溯性"
     ]
   },
   {
-    "module_name": "计费中台",
-    "purpose": "负责计算并生成转账、分账等业务手续费，为清结算流程提供计费结果。",
+    "module_name": "电子签约平台",
+    "purpose": "为“关系绑定”、“开通付款”等业务流程提供电子签约能力，确保协议签署的合法性、真实性与可追溯性。",
     "interfaces": [
       {
         "method": "POST",
-        "path": "/api/v1/fee/calculate",
-        "description": "核心计费接口，接收计费请求，返回计费结果。"
+        "path": "/v1/agreements/initiate",
+        "description": "发起签约流程。接收业务参数，生成签约会话。"
       },
       {
         "method": "GET",
-        "path": "/api/v1/fee/rules/{ruleId}",
-        "description": "查询特定费率规则详情（供管理或调试用）。"
+        "path": "/v1/agreements/sessions/{sessionId}",
+        "description": "查询签约会话状态及详情。"
+      },
+      {
+        "method": "POST",
+        "path": "/v1/agreements/sessions/{sessionId}/resend-sms",
+        "description": "重新发送签约短信。"
+      },
+      {
+        "method": "POST",
+        "path": "/v1/agreements/callback/authentication",
+        "description": "认证系统完成验证后的回调接口。"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/agreements/{agreementId}",
+        "description": "查询已签署的协议及证据链信息。"
       }
     ],
     "database_tables": [
       {
-        "name": "fee_rule",
-        "description": "存储可动态配置的计费规则。"
+        "name": "agreement_template",
+        "description": "协议模板表。"
       },
       {
-        "name": "fee_calculation_record",
-        "description": "记录每一次计费请求和结果，用于对账、审计和幂等。"
+        "name": "signing_session",
+        "description": "签约会话表，记录一次签约流程的完整状态。"
+      },
+      {
+        "name": "signed_agreement",
+        "description": "已签署协议表。"
+      },
+      {
+        "name": "evidence_record",
+        "description": "证据链记录表，与 signed_agreement 一对一关联。"
       }
     ],
     "dependencies": [
-      "业务核心",
-      "清结算",
-      "对账单系统"
+      "认证系统"
     ],
     "key_features": [
-      "接收业务请求计算应收手续费",
-      "基于多维度的精细化费率规则匹配",
-      "提供计费结果并发布事件通知下游"
+      "协议模板管理与签约流程发起",
+      "短信H5链接生成与发送",
+      "集成认证系统完成身份核验",
+      "协议签署确认与证据链留存",
+      "发布协议签署完成事件"
     ]
   },
   {
     "module_name": "认证系统",
-    "purpose": "在关系绑定、开通付款等业务流程中，对参与方进行身份与授权验证，管理打款验证、人脸验证等认证流程，并记录认证结果。",
+    "purpose": "提供统一的身份核验能力，用于确认用户身份的真实性和银行卡的有效性。",
     "interfaces": [
       {
         "method": "POST",
@@ -96,377 +278,371 @@
       },
       {
         "method": "POST",
-        "path": "/api/v1/verification/payment/confirm",
-        "description": "提交并验证回填金额"
-      },
-      {
-        "method": "POST",
         "path": "/api/v1/verification/face",
         "description": "发起人脸验证请求"
       },
       {
+        "method": "POST",
+        "path": "/api/v1/verification/{verification_id}/confirm",
+        "description": "确认打款验证（回填金额）"
+      },
+      {
         "method": "GET",
-        "path": "/api/v1/verification/{request_id}",
-        "description": "查询认证结果"
+        "path": "/api/v1/verification/{verification_id}",
+        "description": "查询验证状态与结果"
       }
     ],
     "database_tables": [
       {
-        "name": "verification_records",
-        "description": "认证记录表"
+        "name": "verification_requests",
+        "description": "存储所有验证请求的主表"
+      },
+      {
+        "name": "payment_verification_details",
+        "description": "存储打款验证的详细信息"
+      },
+      {
+        "name": "face_verification_details",
+        "description": "存储人脸验证的详细信息"
       }
     ],
     "dependencies": [
-      "业务核心",
-      "行业钱包",
       "电子签约平台"
     ],
     "key_features": [
-      "打款验证流程",
-      "人脸验证流程"
+      "处理打款验证流程",
+      "处理人脸验证流程"
     ]
   },
   {
-    "module_name": "账户系统",
-    "purpose": "负责账户的开户、余额管理、资金扣减/增加、冻结等核心账户操作，为上层业务提供原子化的资金操作能力。",
+    "module_name": "计费中台",
+    "purpose": "提供统一的计费能力，负责根据业务配置生成计费流水，并计算分账/转账交易的手续费。",
     "interfaces": [
       {
         "method": "POST",
-        "path": "/api/v1/accounts",
-        "description": "用于开户"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/accounts/{accountNo}/balance/operate",
-        "description": "用于资金操作"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/accounts/{accountNo}/freeze",
-        "description": "用于冻结/解冻"
-      }
-    ],
-    "database_tables": [
-      {
-        "name": "account",
-        "description": "账户主表"
-      },
-      {
-        "name": "account_balance",
-        "description": "账户余额表"
-      },
-      {
-        "name": "account_flow",
-        "description": "账户流水表"
-      },
-      {
-        "name": "account_freeze",
-        "description": "账户冻结记录表"
-      }
-    ],
-    "dependencies": [
-      "行业钱包",
-      "清结算",
-      "风控",
-      "账务核心"
-    ],
-    "key_features": [
-      "开户流程",
-      "资金操作流程（增加/扣减）",
-      "冻结/解冻流程",
-      "余额充足性校验",
-      "操作幂等性保证"
-    ]
-  },
-  {
-    "module_name": "电子签约平台",
-    "purpose": "为关系绑定、开通付款等业务流程提供协议模板、短信推送、H5页面及验证集成的电子签约能力。",
-    "interfaces": [
-      {
-        "method": "POST",
-        "path": "/api/v1/sign/initiate",
-        "description": "发起签约流程"
+        "path": "/api/v1/fee/calculate",
+        "description": "计算手续费接口"
       },
       {
         "method": "GET",
-        "path": "/api/v1/sign/status/{signing_id}",
-        "description": "查询签约状态"
-      },
-      {
-        "method": "GET",
-        "path": "/api/v1/sign/contract/{signing_id}",
-        "description": "获取已签署协议内容"
+        "path": "/api/v1/fee/record/{recordId}",
+        "description": "查询计费流水详情接口"
       }
     ],
     "database_tables": [
       {
-        "name": "signing_contracts",
-        "description": "签约记录表"
+        "name": "fee_rule",
+        "description": "存储计费规则配置"
       },
       {
-        "name": "protocol_templates",
-        "description": "协议模板表"
-      }
-    ],
-    "dependencies": [
-      "认证系统"
-    ],
-    "key_features": [
-      "协议模板管理",
-      "签约流程与H5页面生成",
-      "短信推送通知",
-      "集成人脸/打款验证"
-    ]
-  },
-  {
-    "module_name": "清结算",
-    "purpose": "负责资金清算、结算、计费、冻结申请处理及推送结算结果。",
-    "interfaces": [
-      {
-        "method": "POST",
-        "path": "/api/v1/settlement/process",
-        "description": "用于触发结算处理。"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/settlement/freeze/apply",
-        "description": "用于处理冻结申请。"
-      }
-    ],
-    "database_tables": [
-      {
-        "name": "settlement_order",
-        "description": "结算订单表"
-      },
-      {
-        "name": "settlement_detail",
-        "description": "结算明细表"
-      },
-      {
-        "name": "freeze_application",
-        "description": "冻结申请记录表"
-      }
-    ],
-    "dependencies": [
-      "业务核心",
-      "计费中台",
-      "风控",
-      "账户系统",
-      "账务核心"
-    ],
-    "key_features": [
-      "结算流程处理",
-      "冻结申请处理",
-      "手续费计算协调",
-      "资金划转驱动",
-      "结算结果通知"
-    ]
-  },
-  {
-    "module_name": "行业钱包",
-    "purpose": "处理用户ID生成、账户开户、关系绑定、分账请求校验等核心钱包业务的系统。",
-    "interfaces": [
-      {
-        "method": "POST",
-        "path": "/api/v1/wallet/users",
-        "description": "创建钱包用户（开户）。"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/wallet/relations",
-        "description": "发起关系绑定。"
-      },
-      {
-        "method": "GET",
-        "path": "/api/v1/wallet/relations/{relation_id}",
-        "description": "查询关系绑定状态。"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/wallet/validations/split",
-        "description": "校验分账请求。"
-      },
-      {
-        "method": "PUT",
-        "path": "/api/v1/wallet/settlement-configs",
-        "description": "更新结算配置。"
-      }
-    ],
-    "database_tables": [
-      {
-        "name": "wallet_user",
-        "description": "钱包用户表"
-      },
-      {
-        "name": "account_relation",
-        "description": "账户关系表"
-      },
-      {
-        "name": "settlement_config",
-        "description": "结算配置表"
+        "name": "fee_record",
+        "description": "记录每次计费的结果"
       }
     ],
     "dependencies": [
       "三代",
-      "账户系统",
-      "业务核心",
-      "电子签约平台"
-    ],
-    "key_features": [
-      "开户流程管理",
-      "关系绑定与授权管理",
-      "分账请求业务校验",
-      "结算模式管理"
-    ]
-  },
-  {
-    "module_name": "风控",
-    "purpose": "负责判定交易或商户风险，并发起对天财收款账户的冻结指令。",
-    "interfaces": [
-      {
-        "method": "POST",
-        "path": "/api/v1/risk/transaction/check",
-        "description": "用于交易风险判定。"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/risk/merchant/freeze/apply",
-        "description": "用于商户冻结申请。"
-      },
-      {
-        "method": "GET",
-        "path": "/api/v1/risk/rules",
-        "description": "查询生效的风险规则列表。"
-      },
-      {
-        "method": "POST",
-        "path": "/api/v1/risk/rules/reload",
-        "description": "触发风险规则热重载。"
-      }
-    ],
-    "database_tables": [
-      {
-        "name": "risk_rule",
-        "description": "风险规则表。"
-      },
-      {
-        "name": "risk_judgment_record",
-        "description": "风险判定记录表。"
-      },
-      {
-        "name": "freeze_order",
-        "description": "冻结指令表。"
-      },
-      {
-        "name": "merchant_account_mapping",
-        "description": "商户-账户映射表。"
-      }
-    ],
-    "dependencies": [
-      "业务核心",
-      "清结算",
-      "账户系统"
-    ],
-    "key_features": [
-      "交易风险判定与冻结流程",
-      "商户风险冻结流程",
-      "风险规则管理与热重载"
-    ]
-  },
-  {
-    "module_name": "三代",
-    "purpose": "作为支付系统中负责商户机构管理与审核的网关，是商户机构信息的权威来源，处理来自业务平台的管理指令审核与分发。",
-    "interfaces": [
-      {
-        "method": "POST",
-        "path": "/api/v1/third-generation/merchants/audit",
-        "description": "接收并处理开户申请"
-      },
-      {
-        "method": "PUT",
-        "path": "/api/v1/third-generation/merchants/{institution_no}/settlement-config",
-        "description": "接收并处理商户结算模式配置申请"
-      },
-      {
-        "method": "GET",
-        "path": "/api/v1/third-generation/merchants/{institution_no}",
-        "description": "查询商户审核状态与基本信息"
-      }
-    ],
-    "database_tables": [
-      {
-        "name": "merchant_audit",
-        "description": "商户审核表，记录开户申请及审核状态"
-      },
-      {
-        "name": "institution_settlement_config",
-        "description": "机构结算配置表，记录商户的结算模式配置"
-      },
-      {
-        "name": "audit_operation_log",
-        "description": "审核操作日志表，记录所有业务操作日志"
-      }
-    ],
-    "dependencies": [
-      "天财",
       "行业钱包",
-      "业务核心"
+      "清结算",
+      "账务核心"
     ],
     "key_features": [
-      "商户开户申请审核",
-      "商户结算模式配置管理",
-      "商户状态变更同步"
+      "手续费计算与承担方判定",
+      "计费流水生成与记录",
+      "计费规则查询与验证"
+    ]
+  },
+  {
+    "module_name": "业务核心",
+    "purpose": "接收并存储天财发起的各类交易数据，为下游提供数据支撑。",
+    "interfaces": [],
+    "database_tables": [],
+    "dependencies": [
+      "三代",
+      "对账单系统"
+    ],
+    "key_features": [
+      "接收并持久化上游交易数据",
+      "进行数据基础校验与幂等处理"
     ]
   },
   {
     "module_name": "对账单系统",
-    "purpose": "负责按日（或按需）为各类机构生成、存储和分发标准化的对账单文件，记录资金变动、交易流水、结算结果等信息。",
+    "purpose": "负责生成和提供各类对账单，用于支持天财、商户及内部系统进行资金核对。",
     "interfaces": [
+      {
+        "method": "POST",
+        "path": "/api/v1/statements/generate",
+        "description": "触发账单生成任务"
+      },
       {
         "method": "GET",
         "path": "/api/v1/statements",
-        "description": "查询对账单列表"
+        "description": "查询账单列表"
       },
       {
         "method": "GET",
-        "path": "/api/v1/statements/{statement_id}/download",
-        "description": "获取对账单文件下载链接"
+        "path": "/api/v1/statements/{statementId}/download",
+        "description": "获取指定账单的下载链接"
       },
       {
-        "method": "POST",
-        "path": "/api/v1/statements/regenerate",
-        "description": "手动触发对账单重新生成（补单）"
+        "method": "GET",
+        "path": "/api/v1/statements/reconciliation/{date}",
+        "description": "触发指定日期的对账核对，并返回核对结果摘要"
       }
     ],
     "database_tables": [
       {
-        "name": "statement_index",
-        "description": "对账单索引表"
+        "name": "statement_metadata",
+        "description": "账单元数据表：存储账单生成任务的基本信息、状态和结果"
       },
       {
-        "name": "statement_detail",
-        "description": "对账单明细表"
+        "name": "statement_line_item",
+        "description": "账单明细表：存储构成账单的每一行明细数据，关联到元数据"
       },
       {
-        "name": "statement_file",
-        "description": "文件存储表"
-      },
-      {
-        "name": "data_source_checkpoint",
-        "description": "数据源检查点表"
+        "name": "reconciliation_log",
+        "description": "对账日志表：记录与上游系统数据核对的详细结果"
       }
     ],
     "dependencies": [
-      "账务核心",
+      "业务核心",
       "清结算",
-      "业务核心"
+      "账户系统",
+      "计费中台"
     ],
     "key_features": [
-      "定时生成对账单",
-      "对账单查询与下载",
-      "手动补单机制",
-      "文件生命周期管理",
-      "数据完整性校验"
+      "按计划批量生成账单文件",
+      "提供账单查询与下载接口",
+      "执行账单数据与源系统的一致性核对"
+    ]
+  },
+  {
+    "module_name": "风控",
+    "purpose": "对交易、商户及账户进行实时与离线的风险监控、判定，并基于判定结果发起冻结指令。",
+    "interfaces": [
+      {
+        "method": "POST",
+        "path": "/api/v1/risk/assessment/manual",
+        "description": "手动触发对指定商户或交易的风险评估。"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/risk/rules",
+        "description": "查询当前生效的风险规则列表。"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/risk/rules",
+        "description": "创建新的风险规则（需授权）。"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/risk/rules/{ruleId}",
+        "description": "更新指定风险规则（需授权）。"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/freeze/manual",
+        "description": "人工发起冻结指令（覆盖自动风控）。"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/unfreeze/request",
+        "description": "发起解冻申请（需审核）。"
+      }
+    ],
+    "database_tables": [
+      {
+        "name": "risk_rules",
+        "description": "风险规则定义表。"
+      },
+      {
+        "name": "risk_events",
+        "description": "风险事件记录表。"
+      },
+      {
+        "name": "freeze_instructions",
+        "description": "冻结指令表。"
+      },
+      {
+        "name": "merchant_risk_profiles",
+        "description": "商户风险画像表。"
+      }
+    ],
+    "dependencies": [
+      "业务核心",
+      "清结算",
+      "对账单系统",
+      "账户系统"
+    ],
+    "key_features": [
+      "风险规则与模型的管理",
+      "风险事件的评估",
+      "冻结/解冻指令的生成与发布"
+    ]
+  },
+  {
+    "module_name": "用户中心",
+    "purpose": "生成和管理系统内所有业务实体的全局唯一用户标识（userid），作为关联业务数据的核心索引。",
+    "interfaces": [
+      {
+        "method": "POST",
+        "path": "/v1/users",
+        "description": "创建用户标识。请求方需提供来源系统标识和外部业务唯一标识。"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/users/{userid}",
+        "description": "根据用户标识查询用户信息。"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/users",
+        "description": "根据来源系统标识和外部业务唯一标识查询用户标识（幂等性查询）。"
+      }
+    ],
+    "database_tables": [
+      {
+        "name": "user_identifiers",
+        "description": "存储用户标识信息，包含userid、来源系统、外部业务唯一标识等。"
+      }
+    ],
+    "dependencies": [],
+    "key_features": [
+      "采用雪花算法生成分布式唯一ID",
+      "通过来源系统与外部标识保证幂等性创建"
+    ]
+  },
+  {
+    "module_name": "代付系统",
+    "purpose": "调用外部代付通道，执行从天财收款账户或天财接收方账户到用户绑定银行卡的实时提款出款指令，并同步出款结果。",
+    "interfaces": [
+      {
+        "method": "POST",
+        "path": "/api/v1/payout/execute",
+        "description": "接收提现出款指令"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/payout/callback/{channel}",
+        "description": "接收代付通道的异步回调"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/payout/records/{payout_id}",
+        "description": "查询出款记录状态"
+      }
+    ],
+    "database_tables": [
+      {
+        "name": "payout_instruction",
+        "description": "存储接收到的原始出款指令"
+      },
+      {
+        "name": "payout_record",
+        "description": "存储每笔出款的核心执行记录与状态"
+      }
+    ],
+    "dependencies": [
+      "账户系统",
+      "行业钱包"
+    ],
+    "key_features": [
+      "指令校验与通道调用",
+      "状态管理与结果同步",
+      "异步回调与轮询处理",
+      "重试与错误处理机制"
+    ]
+  },
+  {
+    "module_name": "交易系统",
+    "purpose": "接收并存储由天财平台发起的各类交易数据，为下游的对账、查询等业务提供数据支撑。",
+    "interfaces": [],
+    "database_tables": [],
+    "dependencies": [
+      "三代",
+      "行业钱包",
+      "对账单系统"
+    ],
+    "key_features": [
+      "接收并持久化分账、批量付款、会员结算等交易结果",
+      "进行数据完整性校验、重复记录检测和业务状态验证"
+    ]
+  },
+  {
+    "module_name": "钱包APP/商服平台",
+    "purpose": "面向商户和一般接收方的用户交互平台，提供账户管理、关系绑定、资金操作发起、交易查询、对账单下载及提现申请等功能，是业务指令的发起端和结果展示端。",
+    "interfaces": [
+      {
+        "method": "POST",
+        "path": "/api/v3/account/open",
+        "description": "发起开户申请"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v3/relation/bind",
+        "description": "发起关系绑定请求"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v3/split/apply",
+        "description": "发起分账/归集/批量付款请求"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v3/withdraw/apply",
+        "description": "发起提现申请"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v3/account/balance",
+        "description": "查询账户余额"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v3/transactions",
+        "description": "查询交易流水"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v3/operation/status",
+        "description": "查询异步操作状态"
+      },
+      {
+        "method": "GET",
+        "path": "/esign/h5/url",
+        "description": "获取协议签署H5页面地址"
+      },
+      {
+        "method": "GET",
+        "path": "/auth/h5/url",
+        "description": "获取打款验证或人脸验证H5页面地址"
+      },
+      {
+        "method": "GET",
+        "path": "/statement/download/url",
+        "description": "获取对账单文件下载链接"
+      },
+      {
+        "method": "GET",
+        "path": "/user/profile",
+        "description": "获取当前用户身份信息"
+      }
+    ],
+    "database_tables": [],
+    "dependencies": [
+      "用户中心",
+      "三代",
+      "电子签约平台",
+      "认证系统",
+      "对账单系统"
+    ],
+    "key_features": [
+      "开户申请",
+      "关系绑定与协议签署",
+      "分账/归集/批量付款发起",
+      "提现申请",
+      "交易记录与对账单查询"
     ]
   }
 ]

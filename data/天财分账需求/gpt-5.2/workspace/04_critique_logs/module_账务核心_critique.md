@@ -47,3 +47,56 @@
 
 ---
 
+## 批判迭代 #1 - 2026-01-22 17:46:38
+
+**模块**: 账务核心
+
+**分数**: 0.50 / 1.0
+
+**结果**: ❌ 未通过
+
+
+### 发现的问题
+
+- Missing required section: Interface Design content is hollow (TBD).
+- Missing required section: Data Model content is hollow (TBD).
+- Inconsistency with glossary: Module claims to receive instructions from '账户系统', but glossary defines '账户系统' as a peer system for core account operations, not a typical upstream for accounting entries. The primary upstream should be '清结算'.
+- Inconsistency with glossary: Module claims to provide data to '对账单系统', which is correct, but the glossary also mentions '业务核心' storing transaction data. The relationship and data flow with '业务核心' is not defined.
+- Missing key logic consideration: No discussion on how to ensure idempotency for duplicate requests from upstream, only mentions 'prevent duplicate accounting' as a rule.
+- Missing key logic consideration: No design for handling concurrent accounting requests for the same account, which is critical for data integrity.
+- Missing key logic consideration: Error handling section lacks concrete retry strategy, compensation mechanism, or dead-letter queue design for system-level failures.
+- Ambiguous statement: '模块边界止于会计分录的生成与存储，不涉及具体的账户余额计算、资金操作或业务逻辑判断.' This is contradictory as the module must apply business rules (e.g., double-entry validation) which is a form of business logic judgment.
+- Diagram validity issue: Sequence diagram is overly simplistic. It lacks critical components like idempotency check, interaction with '账户系统' for account validation (implied by glossary inconsistency), and error flow paths.
+
+
+### 改进建议
+1. Define concrete API endpoints (REST/GraphQL), request/response payloads (e.g., journal entry request with idempotency key), and events published/consumed. 2. Design the core data model: tables for journal entries, ledger accounts, idempotency control; define key fields like entry_id, transaction_ref, account_id, debit/credit amount, status, timestamps. 3. Clarify dependencies: '账户系统' should be used for account validation (read-only) before posting, not as a primary instruction source. Define interaction with '业务核心' if needed for transaction context. 4. Detail the business logic: Algorithm for generating double-entry pairs based on business type; idempotency check using a unique request ID; concurrency control (e.g., optimistic locking or database constraints). 5. Enhance error handling: Define retry policies for transient failures; design compensation transactions for failed postings; specify error logging and alerting. 6. Redraw the sequence diagram to include: idempotency check, account validation, error response flows, and potential async processing steps.
+
+---
+
+## 批判迭代 #2 - 2026-01-22 17:47:51
+
+**模块**: 账务核心
+
+**分数**: 0.55 / 1.0
+
+**结果**: ❌ 未通过
+
+
+### 发现的问题
+
+- Section 'Interface Design' is incomplete: API endpoints are marked as 'TBD'.
+- Section 'Interface Design' is incomplete: Consumed events are marked as 'TBD'.
+- Section 'Data Model' has an inconsistency: Relationship with '业务核心' is marked as 'TBD', indicating missing upstream/downstream alignment.
+- Section 'Business Logic' has a feasibility issue: The description of the transaction (steps 5a-5d) is flawed. Inserting a record with status 'PENDING' and later updating it to 'POSTED' within the same transaction is redundant and does not provide rollback protection for the 'POSTED' state. The status should be set to 'POSTED' directly upon insertion.
+- Section 'Business Logic' has a feasibility issue: The design mentions using database transactions and locks for concurrency control but does not specify how to handle the race condition for the same `request_id` during concurrent requests. The 'idempotency_control' table insert must be part of the transaction and protected by a unique constraint to prevent duplicate processing.
+- Section 'Error Handling' has a feasibility issue: The description of a 'compensation mechanism' for failures after posting is vague. It mentions scanning for 'status异常的分录', but the design does not define a clear 'FAILED' state for such scenarios or a process for retrying event publishing.
+- Section 'Error Handling' has a feasibility issue: The 'dead letter queue' strategy is mentioned but not integrated into the workflow or data model. There is no specification for how a failed request is moved to a DLQ or how it relates to the `idempotency_control` or `journal_entries` status.
+- The diagram is missing a critical component: It does not show the 'idempotency_control' table interaction within the '新请求' branch. The sequence shows querying it but not inserting into it as part of the transaction.
+
+
+### 改进建议
+1. Complete the 'Interface Design' section by defining concrete API endpoints (e.g., POST /v1/journal-entries) and specifying the consumed events (e.g., 'SettlementInstructionCreated'). 2. Clarify the relationship with '业务核心' in the data model and business logic sections. 3. Revise the transaction logic: Insert `journal_entries` with status 'POSTED' directly upon success, and ensure the `idempotency_control` record insertion is part of the same atomic transaction, protected by a unique constraint on `request_id`. 4. Enhance error handling: Define a clear status lifecycle (e.g., 'PROCESSING', 'POSTED', 'EVENT_PUBLISH_FAILED') and a concrete compensation job that retries event publishing or moves records to a manual review queue. Integrate the DLQ concept with the request flow. 5. Update the sequence diagram to include the insertion into the `idempotency_control` table within the database transaction block for new requests.
+
+---
+

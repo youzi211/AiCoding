@@ -107,3 +107,57 @@
 
 ---
 
+## 批判迭代 #1 - 2026-01-22 17:46:42
+
+**模块**: 对账单系统
+
+**分数**: 0.50 / 1.0
+
+**结果**: ❌ 未通过
+
+
+### 发现的问题
+
+- Missing required section 'Interface Design' (TBD is not acceptable).
+- Missing required section 'Data Model' (TBD is not acceptable).
+- Hollow content in 'Interface Design' section.
+- Hollow content in 'Data Model' section.
+- Inconsistent upstream dependency: '业务核心' is listed as a dependency, but the glossary defines it as the system that *receives and stores* data from 天财. The design states it will *pull data* from 业务核心, but 业务核心's role as a source of truth for transaction data is not established in the glossary, creating ambiguity.
+- Inconsistent upstream dependency: '计费中台' is listed as a dependency for '计费流水', but the design's core workflow does not mention incorporating fee data into statements.
+- Missing key logic consideration: No details on how '按日或按需' triggering works, scheduling mechanism, or idempotency for retries.
+- Missing key logic consideration: No specification of '预设的账单格式'. The design lacks concrete output formats (e.g., CSV, Excel schema, fields).
+- Missing key logic consideration: No details on data reconciliation logic ('账单数据需与上游系统源数据核对'). How is consistency verified? What happens on mismatch?
+- Ambiguous statement: '按照预设的账单格式...进行汇总、计算和格式化'. The terms '汇总' and '计算' are not defined. What calculations are performed beyond summing amounts?
+- Diagram missing critical component: The diagram does not show interactions with '账户系统' or '计费中台', which are listed as dependencies in the data model section.
+- Diagram shows incorrect flow: The sequence implies synchronous, on-demand queries to upstream systems for every download request, which is not feasible for performance and would not align with a '按日' batch generation model described in the business logic.
+
+
+### 改进建议
+1. Define concrete REST/GraphQL endpoints (e.g., POST /statements/generate, GET /statements/{type}/{date}). 2. Define core data tables (e.g., statement_metadata, statement_line_item) with key fields. 3. Clarify the role of '业务核心' as the authoritative source for transaction data in the glossary or design. 4. Detail the batch generation scheduler (e.g., daily cron job) and the retry/backfill mechanism. 5. Specify the exact bill formats and the data mapping/transformation logic from source systems. 6. Redesign the sequence diagram to show two flows: a) Batch generation triggered by scheduler, pulling from upstream and storing results. b) Download request fetching a pre-generated file from storage. 7. Explicitly describe the reconciliation process and alerting criteria for data mismatches.
+
+---
+
+## 批判迭代 #2 - 2026-01-22 17:47:20
+
+**模块**: 对账单系统
+
+**分数**: 0.80 / 1.0
+
+**结果**: ✅ 通过
+
+
+### 发现的问题
+
+- Section 'Interface Design' has hollow content: 'Request/Response structure: TBD'.
+- Data model field 'statement_line_item.line_data' is a generic JSON blob, lacking a defined schema for different statement types, which is critical for downstream consumption.
+- Business logic describes data aggregation but lacks specific rules for handling partial data failures (e.g., one upstream service succeeds while another fails).
+- The 'reconciliation_log' table logs differences but the design does not specify how to store or link to the specific discrepant line items for investigation.
+- The 'checksum' field in 'statement_metadata' is mentioned but its calculation method (e.g., over the file, over the data) and purpose in the workflow are not defined.
+- The glossary defines '对账单系统' as generating statements for '分账、提款' but the module design's 'Overview' and 'Business Logic' do not explicitly mention processing these specific business types, creating a minor inconsistency.
+
+
+### 改进建议
+1. Define concrete request/response schemas for all APIs, including error codes. 2. Specify the JSON schema for 'line_data' per statement type (e.g., transaction, settlement). 3. Detail the failure handling strategy for partial upstream data retrieval, including whether to proceed with available data or fail the entire job. 4. Enhance the reconciliation design to log or reference the IDs of mismatched records. 5. Clarify the purpose and generation logic of the 'checksum' field. 6. Explicitly map the listed statement types (分账、提款) to the data sourcing and processing steps in the business logic section.
+
+---
+

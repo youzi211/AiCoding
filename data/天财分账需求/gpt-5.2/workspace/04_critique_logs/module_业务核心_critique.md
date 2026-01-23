@@ -105,3 +105,57 @@
 
 ---
 
+## 批判迭代 #1 - 2026-01-22 17:46:35
+
+**模块**: 业务核心
+
+**分数**: 0.65 / 1.0
+
+**结果**: ❌ 未通过
+
+
+### 发现的问题
+
+- Section 'Interface Design' is hollow (title only, no substance).
+- Section 'Data Model' is hollow (title only, no substance).
+- The module's role is described as a 'persistent layer' but also includes 'format validation' and 'business logic' like uniqueness checks, which creates a contradiction in responsibility definition.
+- The diagram shows '天财' directly interacting with '三代', but the glossary defines '三代' as a system role that processes instructions from '天财'. This is not an inconsistency but the diagram oversimplifies the flow by omitting the implied system boundary.
+- The error handling strategy mentions 'retry mechanism' but does not specify retry count, backoff strategy, or what constitutes a retryable vs. non-retryable error, which is a key logic consideration.
+- The diagram is technically valid Mermaid but lacks critical detail. It does not show the data flow for error responses back to '三代', which is a key part of the interaction.
+
+
+### 改进建议
+1. Populate the 'Interface Design' section with concrete API endpoints (e.g., POST /api/v1/transactions), request/response payload examples, and event definitions. 2. Define the 'Data Model' with specific table names (e.g., `t_core_transaction`), key fields (id, biz_no, institution_id, amount, status, created_at), and relationships. 3. Clarify the module's responsibility: either it is a simple persistence service (only stores validated data from upstream) or it includes validation logic. If it includes validation, detail the rules. 4. Enhance the error handling section by defining retry policies (max attempts, backoff), idempotency key handling for duplicate requests, and differentiation between client and server errors. 5. Update the sequence diagram to include an alternative error flow (e.g., alt block) showing the response path when validation or storage fails.
+
+---
+
+## 批判迭代 #2 - 2026-01-22 17:46:54
+
+**模块**: 业务核心
+
+**分数**: 0.50 / 1.0
+
+**结果**: ❌ 未通过
+
+
+### 发现的问题
+
+- Missing required section 'Interface Design' content (TBD).
+- Missing required section 'Data Model' content (TBD).
+- Hollow content in 'Interface Design' section.
+- Hollow content in 'Data Model' section.
+- Inconsistent terminology: Module name '业务核心' is not listed as a system role in the glossary.
+- Inconsistent upstream dependency: Module design lists '三代' as the only upstream, but glossary indicates '行业钱包' also processes core wallet logic and may be a source of data.
+- Missing key logic consideration: No details on data storage strategy (e.g., database type, sharding, indexing, retention policy).
+- Missing key logic consideration: No details on the 'necessary format validation' logic or rules.
+- Missing key logic consideration: No details on the retry mechanism for storage failures.
+- Missing key logic consideration: No details on the idempotency handling for duplicate business serial numbers.
+- Ambiguous statement: '不涉及资金处理、账户操作或复杂的业务逻辑计算' contradicts the responsibility of '进行必要的格式校验' and '业务流水号唯一性' which are business logic.
+- Diagram validity issue: Sequence diagram shows '对账单系统' pulling data from '业务核心', but the module design states it provides data '为下游的对账单生成、数据查询等提供数据支撑', which is vague. The diagram should clarify if it's a pull or push model.
+
+
+### 改进建议
+1. Define concrete API endpoints, request/response structures, and events in the Interface Design section. 2. Define the core data tables, key fields (e.g., transaction_id, institution_id, amount, status, timestamp, participants), and relationships in the Data Model section. 3. Align module naming with the glossary; consider if this module is part of '业务核心' as defined in the glossary or a separate entity. 4. Clarify all upstream data sources (e.g., 三代, 行业钱包). 5. Detail the technical implementation of data validation, storage, retry, and idempotency mechanisms. 6. Refine the overview to accurately reflect the module's logical responsibilities without contradiction. 7. Update the sequence diagram to precisely reflect the data provisioning interface (e.g., REST API call, event consumption).
+
+---
+

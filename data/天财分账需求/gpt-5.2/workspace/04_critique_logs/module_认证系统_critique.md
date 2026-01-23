@@ -106,3 +106,53 @@
 
 ---
 
+## 批判迭代 #1 - 2026-01-22 17:46:47
+
+**模块**: 认证系统
+
+**分数**: 0.35 / 1.0
+
+**结果**: ❌ 未通过
+
+
+### 发现的问题
+
+- Missing required section: Interface Design (API endpoints, request/response structures, events). Deduct 0.2.
+- Missing required section: Data Model (tables, key fields, relationships). Deduct 0.2.
+- Business Logic section lacks concrete algorithms, state management (e.g., pending verification status), and specific retry/fallback details. Deduct 0.2.
+- Inconsistent with glossary: Module states it's called by '电子签约平台', but glossary defines '电子签约平台' as a system that calls '认证系统'. This is a minor alignment but the design lacks details on how this interaction is structured (e.g., API contracts). Deduct 0.15.
+- Feasibility issue: No consideration for data persistence of verification attempts, audit trails, or idempotency for retries. Deduct 0.2.
+- Clarity issue: 'TBD' (To Be Determined) is used extensively, making the design hollow and non-actionable. Deduct 0.1 for each of Interface and Data Model sections (total 0.2).
+- Diagram validity: Sequence diagram is present and correctly formatted, but it's overly simplistic and omits critical steps like request validation, result persistence, and error flows. Deduct 0.1.
+
+
+### 改进建议
+1. Define concrete REST/GraphQL endpoints (e.g., POST /api/v1/verification/payment, POST /api/v1/verification/face). 2. Specify request/response payloads with example fields and data types. 3. Design data models for storing verification requests, results, and evidence (e.g., verification_id, user_info, status, amount, transaction_id, facial_match_score, created_at). 4. Elaborate business logic: detail the steps for generating/validating random amounts, integrating with third-party services, handling user lockouts after failed attempts. 5. Expand the sequence diagram to include validation, async callbacks from bank services, and database interactions.
+
+---
+
+## 批判迭代 #2 - 2026-01-22 17:47:45
+
+**模块**: 认证系统
+
+**分数**: 0.75 / 1.0
+
+**结果**: ✅ 通过
+
+
+### 发现的问题
+
+- Missing required section: 'Dependencies' is not explicitly listed as a section in the document structure, though content exists. Deduct for completeness.
+- Inconsistency with glossary: The document states the module is called by '电子签约平台', but the glossary defines '电子签约平台' as the system responsible for calling the authentication system. This is not an inconsistency but a correct dependency. However, the module's role is defined as a 'system' in the glossary, but the design doc refers to it as a 'module'. This is a minor terminology inconsistency.
+- Feasibility issue: The business logic for '人脸验证' returns a result immediately in the response, but the status is set to 'PROCESSING'. This is contradictory; a synchronous call returning a result should have a final status (SUCCESS/FAILED). The asynchronous flow implied by 'PROCESSING' is not aligned with the described API response.
+- Feasibility issue: The data model for 'face_verification_details' includes 'id_card_no' which is redundant as it should be linkable via 'verification_id' to the main request or user info. This is a design smell but not a critical flaw.
+- Clarity issue: The '业务规则与验证' mentions locking a user after N failures, but does not define what constitutes '短时间内' or specify the lock duration ('如1小时') as a configurable parameter, leaving ambiguity.
+- Clarity issue: The '发布/消费的事件' section lists '消费事件: TBD.' This is an incomplete placeholder, reducing clarity.
+- Diagram validity: The Mermaid sequence diagram is present and correctly formatted. No issues.
+
+
+### 改进建议
+1. Add an explicit 'Dependencies' section header to the document structure for completeness. 2. Clarify the '人脸验证' API flow: either make it truly asynchronous (return a PROCESSING status and provide results via event/polling) or make it synchronous (return final result and status in the initial response). Update the data model and sequence diagram accordingly. 3. Define concrete time windows and configurable parameters for user lockout rules. 4. Replace 'TBD' in the events section with concrete events this module would consume, if any. 5. Consider removing redundant fields (e.g., id_card_no) from detail tables to normalize the data model.
+
+---
+

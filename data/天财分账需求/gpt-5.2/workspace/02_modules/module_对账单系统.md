@@ -1,177 +1,107 @@
 # 模块设计: 对账单系统
 
-生成时间: 2026-01-22 16:17:18
+生成时间: 2026-01-22 17:47:20
 批判迭代: 2
-
----
-
-# 模块设计: 对账单系统
-
-生成时间: TBD
-批判迭代: TBD
 
 ---
 
 # 对账单系统模块设计文档
 
 ## 1. 概述
-- **目的与范围**: 本模块负责生成和提供各类账户动账明细、交易明细等对账文件。其核心职责是按日（或按需）为天财、收单商户、非收单商户等机构生成标准化的对账单，记录资金变动、交易流水、结算结果等信息，并提供安全、可靠的查询与下载服务。其边界在于对账单的生成、存储和分发，不涉及原始交易数据的处理或资金结算逻辑。
+- **目的与范围**: 本模块负责生成和提供各类对账单，包括交易明细、结算明细、账户动账明细以及分账、提款等特定业务账单，用于支持天财、商户及内部系统进行资金核对。核心职责包括按计划批量生成账单文件、提供账单查询与下载接口、确保账单数据与源系统的一致性。
 
 ## 2. 接口设计
-- **API端点 (REST)**:
-    - `GET /api/v1/statements`: 查询对账单列表。
-    - `GET /api/v1/statements/{statement_id}/download`: 获取对账单文件下载链接。
-    - `POST /api/v1/statements/regenerate`: 手动触发对账单重新生成（补单）。
-- **请求/响应结构**:
-    - 查询对账单列表 (`GET /api/v1/statements`):
-        - 请求参数: `institution_no` (机构号，必填), `account_no` (账户号，可选), `statement_date` (对账日期，格式：YYYY-MM-DD，必填), `statement_type` (对账单类型，可选，枚举：ACCOUNT_FLOW/TRANSACTION/SETTLEMENT)。
-        - 响应体: `{"code": "string", "message": "string", "data": [{"statement_id": "string", "institution_no": "string", "account_no": "string", "statement_date": "string", "statement_type": "string", "file_name": "string", "file_size": number, "status": "GENERATING/GENERATED/DELIVERED", "generated_at": "string", "download_url": "string (预签名URL，可选)"}]}`
-    - 下载对账单 (`GET /api/v1/statements/{statement_id}/download`):
-        - 请求参数: 路径参数 `statement_id`。
-        - 响应体: `{"code": "string", "message": "string", "data": {"download_url": "string (预签名URL，有效期5分钟)"}}`
-    - 手动触发重新生成 (`POST /api/v1/statements/regenerate`):
-        - 请求体: `{"institution_no": "string", "account_no": "string", "statement_date": "string", "statement_type": "string"}`
-        - 响应体: `{"code": "string", "message": "string", "data": {"task_id": "string"}}`
-- **发布/消费的事件**:
-    - 消费来自**账务核心**的会计分录完成事件 (`AccountingEntryCompletedEvent`)，作为动账明细的源数据。
-    - 消费来自**清结算**的结算完成事件 (`SettlementCompletedEvent`)，作为结算明细的源数据。
-    - 消费来自**业务核心**的交易数据事件 (`TransactionDataEvent`)，作为交易明细的源数据。 (注：需与业务核心模块确认该事件定义)
-    - 发布对账单生成完成事件 (`StatementGeneratedEvent`)，事件内容包含：`statement_id`, `institution_no`, `statement_date`, `statement_type`, `file_url`。
+- **API端点 (REST)**: 
+  - `POST /api/v1/statements/generate`: 触发账单生成任务。请求体需包含账单类型、账单日期、机构号等参数。
+  - `GET /api/v1/statements`: 查询账单列表。支持按机构号、账单类型、账单日期范围、状态等条件筛选。
+  - `GET /api/v1/statements/{statementId}/download`: 获取指定账单的下载链接。
+  - `GET /api/v1/statements/reconciliation/{date}`: 触发指定日期的对账核对，并返回核对结果摘要。
+- **请求/响应结构**: TBD
+- **发布/消费的事件**: 
+  - 消费事件：`DailySettlementCompletedEvent`（来自清结算，触发日终账单生成）、`TransactionBatchImportedEvent`（来自业务核心，触发交易明细账单生成）。
+  - 发布事件：`StatementGeneratedEvent`（账单生成完成事件，包含账单ID、类型、存储路径）。
 
 ## 3. 数据模型
 - **表/集合**:
-    - `statement_index` (对账单索引表)
-    - `statement_detail` (对账单明细表)
-    - `statement_file` (文件存储表)
-    - `data_source_checkpoint` (数据源检查点表)
+  - `statement_metadata`（账单元数据表）：存储账单生成任务的基本信息、状态和结果。
+  - `statement_line_item`（账单明细表）：存储构成账单的每一行明细数据，关联到元数据。
+  - `reconciliation_log`（对账日志表）：记录与上游系统数据核对的详细结果。
 - **关键字段**:
-    - `statement_index` 表:
-        - `statement_id` (主键): 对账单唯一标识。
-        - `institution_no`: 机构号。
-        - `account_no`: 账户号。
-        - `statement_date`: 对账日期。
-        - `statement_type`: 对账单类型 (ACCOUNT_FLOW/TRANSACTION/SETTLEMENT)。
-        - `status`: 状态 (GENERATING/GENERATED/DELIVERED)。
-        - `file_id`: 外键，关联 `statement_file.file_id`。
-        - `total_records`: 总记录数。
-        - `file_hash`: 文件哈希值 (SHA-256)。
-        - `created_at`: 创建时间。
-        - `updated_at`: 更新时间。
-    - `statement_detail` 表:
-        - `detail_id` (主键): 明细记录ID。
-        - `statement_id`: 外键，关联 `statement_index.statement_id`。
-        - `business_flow_no`: 业务流水号。
-        - `transaction_time`: 交易/动账时间。
-        - `account_no`: 账户号。
-        - `counterparty_account_no`: 对方账户号。
-        - `transaction_type`: 交易类型 (SPLIT/COLLECTION/WITHDRAWAL/FREEZE/UNFREEZE)。
-        - `amount`: 金额。
-        - `balance`: 动账后余额。
-        - `summary`: 摘要。
-        - `created_at`: 创建时间。
-    - `statement_file` 表:
-        - `file_id` (主键): 文件唯一标识。
-        - `storage_path`: 对象存储路径 (如OSS key)。
-        - `file_hash`: 文件哈希值 (SHA-256)。
-        - `file_size`: 文件大小 (字节)。
-        - `generated_at`: 文件生成时间。
-    - `data_source_checkpoint` 表:
-        - `checkpoint_id` (主键): 检查点ID。
-        - `data_source`: 数据源标识 (ACCOUNTING/SETTLEMENT/TRANSACTION)。
-        - `institution_no`: 机构号。
-        - `account_no`: 账户号。
-        - `last_processed_id`: 最后处理的记录ID或时间戳。
-        - `checkpoint_date`: 检查点日期。
-        - `created_at`: 创建时间。
-        - `updated_at`: 更新时间。
-- **与其他模块的关系**: 本模块的明细数据源自账务核心、清结算、业务核心等模块的事件；对账单服务于天财等业务平台。
+  - `statement_metadata`: `statement_id`（主键）， `statement_type`（枚举：交易、结算、动账、分账、提款）， `statement_date`， `institution_id`（机构号）， `status`（生成中、成功、失败）， `file_path`， `generated_at`， `checksum`。
+  - `statement_line_item`: `id`， `statement_id`（外键）， `line_data`（JSON，存储明细字段如交易流水号、金额、时间、对手方等）， `source_system`（数据来源系统）。
+  - `reconciliation_log`: `log_id`， `reconciliation_date`， `statement_type`， `institution_id`， `source_total_amount`， `statement_total_amount`， `difference`， `status`（一致、不一致）， `detail`。
+- **与其他模块的关系**: 本模块依赖**业务核心**获取交易数据，依赖**清结算**获取结算与动账数据，依赖**账户系统**获取账户信息，依赖**计费中台**获取计费流水。数据通过事件或API异步获取。
 
 ## 4. 业务逻辑
 - **核心工作流/算法**:
-    1.  **对账单生成流程（定时任务）**:
-        - 在每日固定时间（如T+1日凌晨）触发对账单生成任务。
-        - 根据配置，为每个机构、账户、对账单类型（如账户动账明细）拉取指定对账日期范围内的源数据。
-            - **账户动账明细**: 通过消费 `AccountingEntryCompletedEvent` 或查询账务核心API获取会计分录。
-            - **结算明细**: 通过消费 `SettlementCompletedEvent` 或查询清结算API获取结算记录。
-            - **交易明细**: 通过消费 `TransactionDataEvent` 或查询业务核心API获取交易数据。
-        - 将源数据按标准格式（如CSV）进行清洗、转换、汇总，生成对账单文件。
-        - **数据完整性校验**: 生成过程中，统计记录总数，计算数据哈希，并与源数据总量或上游系统提供的汇总信息进行比对。
-        - 将文件上传至持久化存储（如对象存储OSS），记录文件元数据。
-        - 更新 `statement_index` 表状态为"已生成"，记录 `total_records` 和 `file_hash`，并发布 `StatementGeneratedEvent`。
-    2.  **对账单查询与下载流程**:
-        - 接收来自天财或商户的查询请求，根据机构号、账户号、日期等条件从 `statement_index` 表检索。
-        - 返回对账单列表信息。
-        - 接收下载请求，校验请求方权限（如机构号匹配），从文件存储中获取文件流或预签名下载URL返回。
-    3.  **补单机制**:
-        - 当源数据延迟或缺失导致定时任务生成失败或数据不完整时，触发补单。
-        - 支持手动通过API (`POST /api/v1/statements/regenerate`) 触发对指定机构、账户、日期、类型的对账单重新生成。
-        - 补单流程与定时任务流程基本一致，但会基于 `data_source_checkpoint` 表记录的上次处理进度，拉取增量或缺失的数据，确保最终数据完整。
-        - 补单生成的文件将覆盖（或标记为补单版本）原对账单文件。
-    4.  **文件生命周期管理**:
-        - **保留策略**: 对账单文件默认保留180天。超过180天的文件将被标记为待归档。
-        - **归档策略**: 每季度初，将超过180天的对账单文件从主存储（如标准OSS）迁移至低频访问存储或归档存储。
-        - **清理策略**: 超过2年的对账单文件，在归档存储中自动删除。清理任务每月执行一次。
-        - 文件状态（如是否已归档）在 `statement_file` 表中维护。
-- **业务规则与验证**:
-    - 对账单生成需保证数据完整性，确保对账日期内的所有相关交易记录均已纳入。
-    - 文件生成过程需具备幂等性，避免同一日期同一类型的对账单重复生成。
-    - 下载接口需进行身份与权限校验，确保机构只能下载其自身或下属账户的对账单。
-    - 补单操作需有权限控制，通常仅限运营人员或系统自动触发。
-- **关键边界情况处理**:
-    - 源数据延迟或缺失：通过 `data_source_checkpoint` 监控源数据就绪状态。若在生成时点数据不完整，则延迟生成任务或生成部分对账单并标记为"待补全"，后续通过补单机制处理。
-    - 文件生成失败：记录失败日志并告警，支持手动触发重试。
-    - 海量数据生成性能：采用分片生成（按机构、账户分片）、异步处理、增量计算等技术优化。
-    - 数据一致性校验失败：如记录数或哈希值不匹配，则中止生成流程，记录告警并通知相关人员。
+  1.  **触发与调度**: 主要采用“按日”批量生成模式。通过定时任务（如每日凌晨01:00）扫描待生成账单日期，或监听上游系统（如清结算）发布的日终完成事件自动触发。支持“按需”通过管理API手动触发指定日期和类型的账单生成，并确保幂等性（基于`机构号+账单类型+账单日期`校验是否已存在成功账单）。
+  2.  **数据获取与加工**: 根据账单类型，调用相应上游系统的数据接口或消费其事件消息，获取原始明细数据。对于分账、提款账单，需关联**业务核心**的交易数据、**清结算**的结算流水、**计费中台**的手续费流水以及**账户系统**的账户信息。进行必要的字段映射、格式转换与金额汇总（如按商户汇总交易总额、手续费总额、净结算额）。
+  3.  **文件生成与存储**: 将加工后的数据按预设格式生成文件。格式包括CSV和Excel，字段模板根据账单类型预定义（例如，交易结算账单包含字段：交易日期、交易流水号、商户号、交易金额、手续费、结算金额、结算状态、结算时间）。文件生成后上传至对象存储服务，并记录元数据。
+  4.  **数据核对**: 账单生成后，执行核对逻辑。将账单中的关键汇总数据（如总交易笔数、总金额）与从上游系统直接查询的原始汇总数据进行比对。若不一致，则记录差异详情至`reconciliation_log`表，并触发告警通知运营人员，账单状态标记为“待核查”。
+- **业务规则与验证**: 账单数据需与上游系统源数据核对，确保金额、笔数一致。账单生成需遵循固定的时间窗口和频率。不同机构号的数据隔离。
+- **关键边界情况处理**: 处理上游数据延迟或缺失的情况，采用指数退避策略进行重试，并支持次日的补单机制。账单生成失败时记录错误日志，发出告警，并提供手动重试界面。
 
 ## 5. 时序图
 
+### 5.1 批量生成流程（定时/事件触发）
 ```mermaid
 sequenceDiagram
-    participant 定时任务 as 定时任务
-    participant 对账单系统 as 对账单系统
-    participant 账务核心 as 账务核心
-    participant 清结算 as 清结算
-    participant 业务核心 as 业务核心
-    participant 对象存储 as 对象存储
-    participant 天财 as 天财
+    participant Scheduler as 定时任务/事件
+    participant Statement as 对账单系统
+    participant BizCore as 业务核心
+    participant Clearing as 清结算
+    participant Account as 账户系统
+    participant Billing as 计费中台
+    participant Storage as 存储服务
 
-    定时任务->>对账单系统: 触发T+1对账单生成
-    对账单系统->>账务核心: 查询对账日期会计分录
-    账务核心-->>对账单系统: 返回动账明细数据
-    对账单系统->>清结算: 查询对账日期结算记录
-    清结算-->>对账单系统: 返回结算明细数据
-    对账单系统->>业务核心: 查询对账日期交易数据
-    业务核心-->>对账单系统: 返回交易明细数据
-    对账单系统->>对账单系统: 数据清洗、汇总、格式化，计算记录数与哈希
-    对账单系统->>对象存储: 上传对账单文件
-    对象存储-->>对账单系统: 返回文件存储路径
-    对账单系统->>对账单系统: 更新对账单索引状态为"已生成"
-    对账单系统->>天财: 发布StatementGeneratedEvent
+    Scheduler->>Statement: 触发生成(日期，类型)
+    Statement->>BizCore: 批量查询交易数据
+    BizCore-->>Statement: 返回交易数据
+    Statement->>Clearing: 批量查询结算/动账数据
+    Clearing-->>Statement: 返回结算数据
+    Statement->>Account: 查询账户信息
+    Account-->>Statement: 返回账户信息
+    Statement->>Billing: 查询计费流水
+    Billing-->>Statement: 返回计费数据
+    Statement->>Statement: 数据关联、计算、格式化
+    Statement->>Statement: 数据一致性核对
+    Statement->>Storage: 上传账单文件
+    Storage-->>Statement: 返回文件地址
+    Statement->>Statement: 更新元数据状态为成功
+```
 
-    天财->>对账单系统: 查询对账单列表(机构号，日期)
-    对账单系统-->>天财: 返回对账单列表
-    天财->>对账单系统: 请求下载对账单文件
-    对账单系统->>对账单系统: 校验机构权限
-    对账单系统->>对象存储: 生成预签名下载URL
-    对象存储-->>对账单系统: 返回下载URL
-    对账单系统-->>天财: 返回对账单下载URL
+### 5.2 账单下载流程（用户请求）
+```mermaid
+sequenceDiagram
+    participant User as 天财/商户
+    participant Statement as 对账单系统
+    participant Storage as 存储服务
+
+    User->>Statement: 请求账单列表/下载
+    Statement->>Statement: 查询元数据库
+    Statement-->>User: 返回账单列表信息
+    User->>Statement: 请求下载(账单ID)
+    Statement->>Statement: 校验权限与状态
+    Statement->>Storage: 获取预签名下载URL
+    Storage-->>Statement: 返回临时URL
+    Statement-->>User: 返回账单下载链接
 ```
 
 ## 6. 错误处理
-- **预期错误情况**: 源数据服务（账务核心、清结算等）查询超时或失败；数据格式异常；数据完整性校验失败（记录数/哈希不匹配）；文件生成过程中发生IO错误；文件上传至对象存储失败；数据库操作失败；权限校验失败；补单任务冲突。
-- **处理策略**:
-    - 对依赖服务查询失败进行有限次重试并记录告警，重试失败后标记任务为"数据源异常"。
-    - 对数据格式异常进行清洗或标记为异常记录，生成异常报告。
-    - 对数据完整性校验失败，中止流程，记录详细日志并告警，需人工介入核查。
-    - 对文件生成和上传失败，记录详细日志并告警，支持手动重试。
-    - 对权限校验失败，直接返回无权限错误。
-    - 对补单任务冲突（同一任务正在执行），返回"任务执行中"状态。
-    - 所有关键流程需记录操作日志，便于问题追踪。
+- **预期错误情况**: 上游数据源（业务核心、清结算等）服务不可用或超时；查询到的数据不一致；文件生成过程中发生IO错误；存储服务上传失败；核对结果不一致。
+- **处理策略**: 
+  - 对依赖服务调用设置合理超时，并实现带熔断机制的客户端重试。
+  - 数据不一致时，记录详细差异至`reconciliation_log`，并触发高级别告警，通知相关人员介入处理。账单状态标记为异常，阻止自动推送。
+  - 文件生成或上传失败时，任务状态标记为失败，记录错误信息。系统提供管理界面供运营手动查看失败任务并触发重试。
+  - 所有未捕获异常均记录详细日志并触发系统告警。
 
 ## 7. 依赖关系
-- **上游模块**:
-    - **账务核心**: 提供账户动账的会计分录明细数据。
-    - **清结算**: 提供结算订单与明细数据。
-    - **业务核心**: 提供原始交易数据。(需确认 `TransactionDataEvent` 事件定义)
-- **下游模块**:
-    - **天财**: 消费对账单生成事件，并调用本模块接口查询和下载对账单。
+- **上游模块**: 
+  - **业务核心**: 作为交易数据的权威来源，提供分账、提款等业务的原始交易记录。
+  - **清结算**: 提供交易结算结果、资金动账明细的权威数据。
+  - **账户系统**: 提供账户基础信息（如账户号、账户类型）。
+  - **计费中台**: 提供与交易相关的计费流水，用于计算手续费并纳入账单。
+- **下游模块**: 
+  - **天财平台**: 主要账单消费方，下载对账文件进行资金核对。
+  - **商户后台**: 商户查看和下载自身相关的对账单。
+  - **内部运营系统**: 运营人员管理账单生成任务、查看核对异常。

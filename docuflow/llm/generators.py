@@ -2,28 +2,22 @@
 LLM 生成器
 
 提供各种生成器用于创建术语表、DAG、模块设计等。
+使用 Azure OpenAI Structured Outputs 功能，简化 JSON 解析逻辑。
 """
-import json
-import re
 import time
 from typing import Optional
 
 import networkx as nx
-
-# 尝试导入 json5 作为备选解析器（更宽松的 JSON 解析）
-try:
-    import json5
-    HAS_JSON5 = True
-except ImportError:
-    HAS_JSON5 = False
+from pydantic import BaseModel
 
 from docuflow.core.models import (
-    AppConfig, ArchitectureDAG, Glossary, GlossaryEntry, LLMContext
+    AppConfig, ArchitectureDAG, Glossary, GlossaryEntry, LLMContext,
+    ModuleSummaryResponse, CritiqueResult,
 )
 from docuflow.llm.client import AzureOpenAIClient
 from docuflow.llm.prompts import (
     MAX_DOCUMENT_SIZE, MAX_MODULE_SIZE,
-    JSON_SYSTEM_PROMPT, MARKDOWN_SYSTEM_PROMPT,
+    MARKDOWN_SYSTEM_PROMPT,
     GLOSSARY_PROMPT, DAG_PROMPT, MODULE_DESIGN_PROMPT,
     MODULE_SUMMARY_PROMPT, SYSTEM_DESIGN_PROMPT,
     INTERFACE_PROMPT, DATABASE_PROMPT,
@@ -48,148 +42,10 @@ class BaseGenerator:
         self.client = AzureOpenAIClient(temperature=config.llm_temperature)
         self.logger = get_logger()
 
-    def _extract_json(self, response: str) -> dict:
-        """从响应中提取 JSON，支持多种容错处理"""
-        normalized = self._normalize_output(response)
-        json_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", normalized, flags=re.IGNORECASE)
-        json_str = (json_match.group(1) if json_match else normalized).strip()
-
-        # Best-effort: if there's leading/trailing prose, keep the first JSON object.
-        # 使用更智能的正则来找到完整的 JSON 对象
-        if not json_str.startswith("{"):
-            # 尝试匹配从第一个 { 到最后一个 } 的完整 JSON 对象
-            brace_count = 0
-            start_idx = -1
-            end_idx = -1
-            in_string = False
-            escape_next = False
-
-            for i, char in enumerate(json_str):
-                if escape_next:
-                    escape_next = False
-                elif char == '\\':
-                    escape_next = True
-                elif char == '"' and not escape_next:
-                    in_string = not in_string
-                elif not in_string:
-                    if char == '{' and start_idx == -1:
-                        start_idx = i
-                        brace_count = 1
-                    elif char == '{':
-                        brace_count += 1
-                    elif char == '}' and start_idx != -1:
-                        brace_count -= 1
-                        if brace_count == 0:
-                            end_idx = i + 1
-                            break
-
-            if start_idx != -1 and end_idx != -1:
-                json_str = json_str[start_idx:end_idx].strip()
-
-        # 验证提取的内容看起来像 JSON
-        if not json_str or (not json_str.startswith('{') and not json_str.startswith('[')):
-            raise LLMGenerationError(f"响应不包含有效的 JSON 对象。提取的内容: {json_str[:200]}", retryable=True)
-
-        # 尝试多种解析策略
-        strategies = [
-            ("标准 JSON 解析", lambda s: json.loads(s)),
-            ("json5 宽松解析", lambda s: json5.loads(s) if HAS_JSON5 else None),
-            ("清理后解析", self._parse_with_cleanup),
-        ]
-
-        last_error = None
-        for strategy_name, parser in strategies:
-            try:
-                if parser is None:
-                    continue
-                result = parser(json_str)
-                if result is not None:
-                    self.logger.debug(f"使用 {strategy_name} 成功解析 JSON")
-                    return result
-            except Exception as e:
-                last_error = e
-                self.logger.debug(f"{strategy_name} 失败: {e}")
-                continue
-
-        # 所有策略都失败，记录错误并抛出异常
-        self.logger.error(f"JSON 解析失败。原始响应（前500字符）: {response}")
-        # self.logger.error(f"提取的 JSON 字符串（前500字符）: {json_str[:500]}")
-        raise LLMGenerationError(f"无法解析 JSON: {last_error}", retryable=True) from last_error
-
-    def _parse_with_cleanup(self, json_str: str) -> dict:
-        """尝试清理常见的 JSON 格式问题后解析"""
-        import re
-
-        # 使用更强大的正则来修复 JSON
-        # 主要问题：字符串内部包含未转义的换行符
-
-        # 策略：逐字符处理，修复字符串内的换行
-        result = []
-        in_string = False
-        escape_next = False
-        i = 0
-
-        while i < len(json_str):
-            char = json_str[i]
-
-            if escape_next:
-                # 转义序列的一部分，直接添加
-                result.append(char)
-                escape_next = False
-            elif char == '\\':
-                # 转义字符开始
-                result.append(char)
-                escape_next = True
-            elif char == '"':
-                # 引号
-                result.append(char)
-                in_string = not in_string
-            elif char in '\n\r':
-                # 换行符
-                if in_string:
-                    # 在字符串内部，转义换行符
-                    result.append('\\n' if char == '\n' else '\\r')
-                else:
-                    # 在字符串外部，保留（虽然是非法的，但可能是格式问题）
-                    # 我们选择移除它
-                    pass
-            else:
-                # 其他字符
-                result.append(char)
-
-            i += 1
-
-        cleaned = ''.join(result)
-
-        # 移除尾随逗号
-        cleaned = re.sub(r',(\s*[}\]])', r'\1', cleaned)
-
-        return json.loads(cleaned)
-
-    def _normalize_output(self, text: str) -> str:
-        """Normalize common LLM output issues (quotes/whitespace) to improve parsing/rendering."""
-        if not text:
-            return ""
-        table = str.maketrans({
-            "“": '"',
-            "”": '"',
-            "„": '"',
-            "«": '"',
-            "»": '"',
-            "‘": "'",
-            "’": "'",
-            "‚": "'",
-            "‛": "'",
-            "\u00a0": " ",
-            "\u200b": "",
-            "\ufeff": "",
-            "\u200e": "",
-            "\u200f": "",
-        })
-        return text.translate(table)
-
     def _unwrap_single_code_fence(self, text: str) -> str:
         """Unwrap a single outer ```markdown fence when the model wraps the whole answer."""
+        import re
+
         stripped = (text or "").strip()
         match = re.match(r"^```(?:markdown|md)?\s*([\s\S]*?)\s*```$", stripped, flags=re.IGNORECASE)
         if not match:
@@ -226,49 +82,48 @@ class BaseGenerator:
     def _generate_with_validation(
         self,
         prompt: str,
-        parse_json: bool = False,
         min_length: int = 0,
         error_msg: str = "生成内容过短",
         system_prompt: Optional[str] = None,
     ):
-        """通用生成方法"""
-        system_prompt = system_prompt or (JSON_SYSTEM_PROMPT if parse_json else MARKDOWN_SYSTEM_PROMPT)
+        """通用生成方法（文本输出）"""
+        system_prompt = system_prompt or MARKDOWN_SYSTEM_PROMPT
 
         def _generate():
             response = self.client.generate(prompt, system_prompt=system_prompt)
-            response = self._normalize_output(response or "")
-            if not parse_json:
-                response = self._unwrap_single_code_fence(response)
+            response = self._unwrap_single_code_fence(response or "")
 
             if min_length > 0 and (not response or len(response.strip()) < min_length):
                 raise LLMGenerationError(error_msg, retryable=True)
-            return self._extract_json(response) if parse_json else response
+            return response
 
         return self._retry_with_backoff(_generate)
 
 
 class GlossaryGenerator(BaseGenerator):
-    """术语表生成器"""
+    """术语表生成器（使用结构化输出）"""
+
+    # 术语表响应模型
+    class GlossaryResponse(BaseModel):
+        """术语表响应（用于结构化输出）"""
+        entries: list[GlossaryEntry] = []
 
     def generate(self, document_content: str) -> Glossary:
         self.logger.info("正在生成术语表...")
         prompt = GLOSSARY_PROMPT.format(document_content=document_content[:MAX_DOCUMENT_SIZE])
-        data = self._generate_with_validation(prompt, parse_json=True)
 
-        entries = [
-            GlossaryEntry(
-                term=e["term"],
-                definition=e["definition"],
-                category=e.get("category"),
-                aliases=e.get("aliases", [])
+        def _generate():
+            response = self.client.generate_structured(
+                prompt,
+                response_model=self.GlossaryResponse,
             )
-            for e in data.get("entries", [])
-        ]
-        return Glossary(entries=entries)
+            return Glossary(entries=response.entries)
+
+        return self._retry_with_backoff(_generate)
 
 
 class DAGGenerator(BaseGenerator):
-    """架构 DAG 生成器"""
+    """架构 DAG 生成器（使用结构化输出）"""
 
     def generate(self, document_content: str, glossary_content: str) -> ArchitectureDAG:
         self.logger.info("正在生成架构 DAG...")
@@ -278,9 +133,10 @@ class DAGGenerator(BaseGenerator):
                 glossary=glossary_content,
                 document_content=document_content[:MAX_DOCUMENT_SIZE]
             )
-            response = self.client.generate(prompt)
-            data = self._extract_json(response)
-            dag = ArchitectureDAG.model_validate(data)
+            dag = self.client.generate_structured(
+                prompt,
+                response_model=ArchitectureDAG,
+            )
             self._validate_dag(dag)
             return dag
 
@@ -333,7 +189,7 @@ class ModuleDesignGenerator(BaseGenerator):
 
 
 class ModuleSummaryGenerator(BaseGenerator):
-    """模块摘要生成器"""
+    """模块摘要生成器（使用结构化输出）"""
 
     def generate(self, module_name: str, module_content: str) -> dict:
         self.logger.info(f"正在提取模块摘要: {module_name}")
@@ -341,7 +197,15 @@ class ModuleSummaryGenerator(BaseGenerator):
             module_name=module_name,
             module_content=module_content[:MAX_MODULE_SIZE],
         )
-        return self._generate_with_validation(prompt, parse_json=True)
+
+        def _generate():
+            response = self.client.generate_structured(
+                prompt,
+                response_model=ModuleSummaryResponse,
+            )
+            return response.model_dump()
+
+        return self._retry_with_backoff(_generate)
 
 
 class SystemDesignGenerator(BaseGenerator):
@@ -400,7 +264,7 @@ class SystemDesignGenerator(BaseGenerator):
 
 
 class ModuleCritiqueGenerator(BaseGenerator):
-    """模块设计批判生成器"""
+    """模块设计批判生成器（使用结构化输出）"""
 
     def __init__(self, config: AppConfig):
         super().__init__(config)
@@ -415,7 +279,7 @@ class ModuleCritiqueGenerator(BaseGenerator):
     def critique(self, module_name: str, module_design: str,
                  context: LLMContext, threshold: float) -> dict:
         """
-        批判评估模块设计
+        批判评估模块设计（使用结构化输出）
 
         Args:
             module_name: 模块名称
@@ -433,14 +297,27 @@ class ModuleCritiqueGenerator(BaseGenerator):
             context=context.to_context_string(),
             threshold=threshold
         )
-        result = self._generate_with_validation(prompt, parse_json=True)
 
-        # 强制校验 passed 与 score 的一致性
-        score = result.get("score", 0)
-        result["passed"] = score >= threshold
+        def _generate():
+            result = self.client.generate_structured(
+                prompt,
+                response_model=CritiqueResult,
+            )
 
-        self.logger.info(
-            f"模块 '{module_name}' 批判结果: "
-            f"{'通过' if result['passed'] else '未通过'} (分数: {score:.2f})"
-        )
-        return result
+            # 强制校验 passed 与 score 的一致性
+            score = result.score
+            if score >= threshold:
+                result.passed = True
+
+            self.logger.info(
+                f"模块 '{module_name}' 批判结果: "
+                f"{'通过' if result.passed else '未通过'} (分数: {score:.2f})"
+            )
+            return {
+                "passed": result.passed,
+                "score": score,
+                "issues": result.issues,
+                "suggestions": result.suggestions,
+            }
+
+        return self._retry_with_backoff(_generate)

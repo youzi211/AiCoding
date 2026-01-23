@@ -1,47 +1,38 @@
 project_name: DocuFlow-AI Project
-created_at: '2026-01-22T16:10:33.421140'
+created_at: '2026-01-22T17:46:17.877185'
 last_run: null
 current_phase: completed
 modules:
 - name: 三代
   status: completed
   file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_三代.md
-  dependencies:
-  - 行业钱包
-  - 清结算
+  dependencies: []
   started_at: null
-  completed_at: '2026-01-22T16:17:56.286833'
+  completed_at: '2026-01-22T17:48:05.078281'
   error_message: null
   retry_count: 0
 - name: 行业钱包
   status: completed
   file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_行业钱包.md
-  dependencies:
-  - 账户系统
-  - 电子签约平台
-  - 业务核心
+  dependencies: []
   started_at: null
-  completed_at: '2026-01-22T16:17:56.286833'
+  completed_at: '2026-01-22T17:48:05.078281'
   error_message: null
   retry_count: 0
 - name: 清结算
   status: completed
   file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_清结算.md
-  dependencies:
-  - 账户系统
-  - 账务核心
-  - 计费中台
+  dependencies: []
   started_at: null
-  completed_at: '2026-01-22T16:17:56.286833'
+  completed_at: '2026-01-22T17:48:05.078281'
   error_message: null
   retry_count: 0
 - name: 账户系统
   status: completed
   file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_账户系统.md
-  dependencies:
-  - 账务核心
+  dependencies: []
   started_at: null
-  completed_at: '2026-01-22T16:17:56.286833'
+  completed_at: '2026-01-22T17:48:05.078281'
   error_message: null
   retry_count: 0
 - name: 账务核心
@@ -49,53 +40,15 @@ modules:
   file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_账务核心.md
   dependencies: []
   started_at: null
-  completed_at: '2026-01-22T16:17:56.285695'
+  completed_at: '2026-01-22T17:48:05.078281'
   error_message: null
   retry_count: 0
 - name: 电子签约平台
   status: completed
   file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_电子签约平台.md
-  dependencies:
-  - 认证系统
-  started_at: null
-  completed_at: '2026-01-22T16:17:56.286833'
-  error_message: null
-  retry_count: 0
-- name: 计费中台
-  status: completed
-  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_计费中台.md
   dependencies: []
   started_at: null
-  completed_at: '2026-01-22T16:17:56.285695'
-  error_message: null
-  retry_count: 0
-- name: 对账单系统
-  status: completed
-  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_对账单系统.md
-  dependencies:
-  - 业务核心
-  - 账户系统
-  - 清结算
-  - 行业钱包
-  started_at: null
-  completed_at: '2026-01-22T16:17:56.286833'
-  error_message: null
-  retry_count: 0
-- name: 业务核心
-  status: completed
-  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_业务核心.md
-  dependencies: []
-  started_at: null
-  completed_at: '2026-01-22T16:17:56.285695'
-  error_message: null
-  retry_count: 0
-- name: 风控
-  status: completed
-  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_风控.md
-  dependencies:
-  - 清结算
-  started_at: null
-  completed_at: '2026-01-22T16:17:56.286833'
+  completed_at: '2026-01-22T17:48:05.079527'
   error_message: null
   retry_count: 0
 - name: 认证系统
@@ -103,6 +56,70 @@ modules:
   file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_认证系统.md
   dependencies: []
   started_at: null
-  completed_at: '2026-01-22T16:17:56.285695'
+  completed_at: '2026-01-22T17:48:05.079527'
+  error_message: null
+  retry_count: 0
+- name: 计费中台
+  status: completed
+  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_计费中台.md
+  dependencies: []
+  started_at: null
+  completed_at: '2026-01-22T17:48:05.079527'
+  error_message: null
+  retry_count: 0
+- name: 业务核心
+  status: completed
+  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_业务核心.md
+  dependencies: []
+  started_at: null
+  completed_at: '2026-01-22T17:48:05.079527'
+  error_message: null
+  retry_count: 0
+- name: 对账单系统
+  status: completed
+  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_对账单系统.md
+  dependencies: []
+  started_at: null
+  completed_at: '2026-01-22T17:48:05.079527'
+  error_message: null
+  retry_count: 0
+- name: 风控
+  status: completed
+  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_风控.md
+  dependencies: []
+  started_at: null
+  completed_at: '2026-01-22T17:48:05.079527'
+  error_message: null
+  retry_count: 0
+- name: 用户中心
+  status: completed
+  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_用户中心.md
+  dependencies: []
+  started_at: null
+  completed_at: '2026-01-22T17:48:05.079527'
+  error_message: null
+  retry_count: 0
+- name: 代付系统
+  status: completed
+  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_代付系统.md
+  dependencies: []
+  started_at: null
+  completed_at: '2026-01-22T17:48:05.080548'
+  error_message: null
+  retry_count: 0
+- name: 交易系统
+  status: completed
+  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_交易系统.md
+  dependencies: []
+  started_at: null
+  completed_at: '2026-01-22T17:48:05.080548'
+  error_message: null
+  retry_count: 0
+- name: 钱包APP/商服平台
+  status: completed
+  file_path: data\天财分账需求\gpt-5.2\workspace\02_modules\module_钱包APP_商服平台.md
+  dependencies: []
+  started_at: null
+  completed_at: '2026-01-22T17:48:05.080548'
   error_message: null
   retry_count: 0
