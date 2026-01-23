@@ -39,7 +39,12 @@ class BaseGenerator:
 
     def __init__(self, config: AppConfig):
         self.config = config
-        self.client = AzureOpenAIClient(temperature=config.llm_temperature)
+        self.client = AzureOpenAIClient(
+            temperature=config.llm_temperature,
+            timeout=config.llm_timeout,
+            max_retries=config.llm_max_retries_sdk,
+            max_concurrent=config.llm_max_concurrent,
+        )
         self.logger = get_logger()
 
     def _unwrap_single_code_fence(self, text: str) -> str:
@@ -272,7 +277,10 @@ class ModuleCritiqueGenerator(BaseGenerator):
         if config.critique_model:
             self.client = AzureOpenAIClient(
                 temperature=config.llm_temperature,
-                model_name=config.critique_model
+                model_name=config.critique_model,
+                timeout=config.llm_timeout,
+                max_retries=config.llm_max_retries_sdk,
+                max_concurrent=config.llm_max_concurrent,
             )
             self.logger.info(f"批判使用独立模型: {config.critique_model}")
 

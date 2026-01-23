@@ -224,6 +224,11 @@ class AppConfig(BaseModel):
     critique_max_iterations: int = Field(default=2, ge=1)
     critique_model: Optional[str] = Field(default=None)  # 批判使用的模型
 
+    # LLM 并发控制
+    llm_timeout: int = Field(default=120)  # LLM请求超时秒数
+    llm_max_concurrent: int = Field(default=3)  # 最大并发LLM请求数
+    llm_max_retries_sdk: int = Field(default=3)  # OpenAI SDK内部重试次数
+
     # 图片提取配置
     extract_images: bool = Field(default=False)  # 是否提取文档中的图片
     vision_model: Optional[str] = Field(default=None)  # 用于生成图片描述的视觉模型

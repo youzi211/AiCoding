@@ -21,17 +21,28 @@ class VisionClient:
 
         请用简洁、专业的中文描述，保留所有重要的技术细节。"""
 
-    def __init__(self, model_name: Optional[str] = None, temperature: float = 0.3):
+    def __init__(self, model_name: Optional[str] = None, temperature: float = 0.3,
+                 timeout: int = 120, max_retries: int = 3):
         """
         初始化视觉模型客户端
 
         Args:
             model_name: 视觉模型名称（如 "gpt-5.2"），None 表示使用默认模型
             temperature: 生成温度
+            timeout: 请求超时秒数
+            max_retries: SDK 内部重试次数
         """
         from openai import AzureOpenAI
+        import httpx
 
         config = get_azure_config()
+
+        client_timeout = httpx.Timeout(
+            connect=30.0,
+            read=float(timeout),
+            write=30.0,
+            pool=30.0,
+        )
 
         # 如果指定了模型，使用该模型的配置
         if model_name:
@@ -39,7 +50,9 @@ class VisionClient:
             self.client = AzureOpenAI(
                 api_key=config["api_key"],
                 api_version=model_config["api_version"],
-                azure_endpoint=model_config["endpoint"]
+                azure_endpoint=model_config["endpoint"],
+                timeout=client_timeout,
+                max_retries=max_retries,
             )
             self.deployment = model_config["deployment"]
         else:
@@ -47,7 +60,9 @@ class VisionClient:
             self.client = AzureOpenAI(
                 api_key=config["api_key"],
                 api_version=config["api_version"],
-                azure_endpoint=config["azure_endpoint"]
+                azure_endpoint=config["azure_endpoint"],
+                timeout=client_timeout,
+                max_retries=max_retries,
             )
             self.deployment = config["azure_deployment"]
 

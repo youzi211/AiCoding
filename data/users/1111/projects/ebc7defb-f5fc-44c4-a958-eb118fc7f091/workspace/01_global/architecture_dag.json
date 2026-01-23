@@ -1,0 +1,96 @@
+{
+  "modules": [
+    {
+      "name": "天财",
+      "dependencies": [],
+      "description": "提出分账、会员结算、批量付款等资金管理需求的业务方或系统，发起开户、关系绑定、分账、提现等指令。"
+    },
+    {
+      "name": "三代",
+      "dependencies": [],
+      "description": "运营机构系统，负责商户入网审核、业务开通、接口调用、机构号与计费配置管理、关系绑定等运营管理职能。"
+    },
+    {
+      "name": "行业钱包",
+      "dependencies": [],
+      "description": "负责处理天财专用账户开户、关系绑定校验、分账请求处理、数据同步等核心业务逻辑的系统。"
+    },
+    {
+      "name": "清结算",
+      "dependencies": [],
+      "description": "负责交易清分、结算、资金冻结/解冻编排、退货前置查询、结算账户配置同步等资金清算与结算处理的系统。"
+    },
+    {
+      "name": "账户系统",
+      "dependencies": [],
+      "description": "负责各类账户（天财收款账户、天财接收方账户、待结算账户、退货账户等）的开立、升级、资金扣减/增加、余额管理等底层账户操作。"
+    },
+    {
+      "name": "账务核心",
+      "dependencies": [],
+      "description": "负责记录所有资金变动流水，进行会计分录记账的系统。"
+    },
+    {
+      "name": "风控",
+      "dependencies": [],
+      "description": "负责识别交易或商户风险，并触发冻结等管控措施的系统。"
+    },
+    {
+      "name": "代付系统",
+      "dependencies": [],
+      "description": "负责处理向外部银行账户进行代付出款的系统。"
+    },
+    {
+      "name": "认证系统",
+      "dependencies": [],
+      "description": "负责执行打款验证、人脸验证等身份核验功能的系统。"
+    },
+    {
+      "name": "电子签章系统",
+      "dependencies": [],
+      "description": "负责生成电子协议、发送签约短信、封装H5页面、管理签约证据链的系统。"
+    },
+    {
+      "name": "计费中台",
+      "dependencies": [],
+      "description": "负责根据配置的费率规则，计算并生成转账、分账等业务手续费的计费系统。"
+    },
+    {
+      "name": "对账单系统",
+      "dependencies": [],
+      "description": "负责按机构或账户维度生成并提供各类交易、结算、动账明细对账单的系统。"
+    },
+    {
+      "name": "业务核心",
+      "dependencies": [],
+      "description": "负责接收并处理天财分账等交易数据的系统。"
+    },
+    {
+      "name": "钱包APP",
+      "dependencies": [],
+      "description": "面向商户的移动端应用，需对天财新机构号关闭提现等入口。"
+    },
+    {
+      "name": "商服平台",
+      "dependencies": [],
+      "description": "面向商户的服务平台，需对天财新机构号关闭提现等入口。"
+    },
+    {
+      "name": "交易系统",
+      "dependencies": [],
+      "description": "负责处理收单交易支付的系统。"
+    },
+    {
+      "name": "用户中心",
+      "dependencies": [],
+      "description": "负责生成用户ID的系统。"
+    },
+    {
+      "name": "代付通道",
+      "dependencies": [],
+      "description": "负责实际执行银行出款的通道系统。"
+    }
+  ],
+  "version": "1.0",
+  "generated_at": null
+}

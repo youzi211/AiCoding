@@ -1,6 +1,7 @@
 """任务执行服务"""
 
 import asyncio
+import contextvars
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
@@ -15,6 +16,7 @@ from docuflow.core.config import create_app_config
 from docuflow.core.models import AppConfig
 from docuflow.graph.orchestrator import WorkflowOrchestrator
 from docuflow.utils import get_logger
+from docuflow.utils.logging import set_task_context
 
 
 class TaskManager:
@@ -34,7 +36,7 @@ class TaskManager:
         self.lock = threading.RLock()  # 可重入锁，保护并发访问
         self.logger = get_logger()
 
-    def _create_app_config(self, user_id: str, project_id: str) -> AppConfig:
+    def _create_app_config(self, user_id: str, project_id: str, model_name: str) -> AppConfig:
         """为项目创建 AppConfig"""
         from docuflow.core.config import get_settings
 
@@ -46,7 +48,7 @@ class TaskManager:
             input_dir=project_dir / "input",
             workspace_dir=project_dir / "workspace",
             output_dir=project_dir / "output",
-            model_name=settings.model_name,  # 使用全局配置
+            model_name=model_name,
             # 从环境变量读取的配置
             llm_temperature=settings.llm_temperature,
             chunk_size=settings.chunk_size,
@@ -59,6 +61,9 @@ class TaskManager:
             critique_threshold=settings.critique_threshold,
             critique_max_iterations=settings.critique_max_iterations,
             critique_model=settings.critique_model,
+            llm_timeout=settings.llm_timeout,
+            llm_max_concurrent=settings.llm_max_concurrent,
+            llm_max_retries_sdk=settings.llm_max_retries_sdk,
             extract_images=settings.extract_images,
             vision_model=settings.vision_model,
             vision_max_tokens=settings.vision_max_tokens,
@@ -84,10 +89,12 @@ class TaskManager:
             self.tasks[task.id] = task
             self.cancel_flags[task.id] = False
 
-        # 在线程池中执行
+        # 复制当前上下文并提交到线程池执行（确保上下文传播）
         loop = asyncio.get_event_loop()
+        ctx = contextvars.copy_context()
         loop.run_in_executor(
             self.executor,
+            ctx.run,
             self._run_task,
             task,
             model_name,
@@ -105,13 +112,20 @@ class TaskManager:
         loop: asyncio.AbstractEventLoop,
     ):
         """在线程中执行任务"""
+        # 设置任务上下文（线程安全）
+        set_task_context(
+            task_id=task.id,
+            user_id=task.user_id,
+            project_id=task.project_id
+        )
+        
         # 更新状态时加锁
         with self.lock:
             task.status = TaskStatus.RUNNING
             task.started_at = datetime.now()
 
         try:
-            config = self._create_app_config(task.user_id, task.project_id)
+            config = self._create_app_config(task.user_id, task.project_id, model_name)
             orchestrator = WorkflowOrchestrator(config)
 
             # 设置进度回调

@@ -73,6 +73,11 @@ class Settings(BaseSettings):
     critique_max_iterations: int = 2       # 最大迭代次数
     critique_model: Optional[str] = None   # 批判使用的模型（None 表示使用主模型）
 
+    # LLM 并发控制
+    llm_timeout: int = 120                 # LLM请求超时秒数
+    llm_max_concurrent: int = 3            # 最大并发LLM请求数
+    llm_max_retries_sdk: int = 3           # OpenAI SDK内部重试次数
+
     # 图片提取配置
     extract_images: bool = False           # 是否提取文档中的图片
     vision_model: Optional[str] = None     # 用于生成图片描述的视觉模型
@@ -177,6 +182,9 @@ def create_app_config(
         critique_threshold=settings.critique_threshold,
         critique_max_iterations=settings.critique_max_iterations,
         critique_model=settings.critique_model,
+        llm_timeout=settings.llm_timeout,
+        llm_max_concurrent=settings.llm_max_concurrent,
+        llm_max_retries_sdk=settings.llm_max_retries_sdk,
         extract_images=settings.extract_images,
         vision_model=settings.vision_model,
         vision_max_tokens=settings.vision_max_tokens,

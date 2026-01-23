@@ -1,21 +1,44 @@
 """FastAPI 应用主入口"""
 
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from docuflow.api.routers import projects, tasks, modules  # , websocket
 from docuflow.api.services.project_service import ProjectService
 from docuflow.api.services.task_service import TaskManager
 from docuflow.api.services.notification_service import NotificationService
-from docuflow.core.config import get_api_settings
+from docuflow.core.config import get_api_settings, get_settings
 from docuflow.utils import setup_logging
+from docuflow.utils.logging import set_request_context
 
 # 配置日志
 setup_logging(level=20)  # INFO 级别
+
+
+class RequestContextMiddleware(BaseHTTPMiddleware):
+    """请求上下文中间件 - 为每个 API 请求设置上下文"""
+    
+    async def dispatch(self, request: Request, call_next):
+        # 生成请求ID，用于追踪API请求日志
+        request_id = str(uuid.uuid4())[:8]
+        
+        # 从请求头或查询参数中尝试获取user_id (可选)
+        user_id = request.headers.get('X-User-ID') or request.query_params.get('user_id')
+        
+        # 设置请求上下文
+        set_request_context(request_id=request_id, user_id=user_id)
+        
+        response = await call_next(request)
+        
+        # 在响应头中返回request_id方便调试
+        response.headers["X-Request-ID"] = request_id
+        return response
 
 
 @asynccontextmanager
@@ -26,6 +49,11 @@ async def lifespan(app: FastAPI):
     # 确保数据目录存在
     data_dir = Path(settings.data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
+
+    # 初始化 LLM 并发控制信号量
+    from docuflow.llm.client import reset_semaphore
+    app_settings = get_settings()
+    reset_semaphore(app_settings.llm_max_concurrent)
 
     # 初始化服务
     notification_service = NotificationService()
@@ -53,6 +81,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# 添加请求上下文中间件
+app.add_middleware(RequestContextMiddleware)
 
 # CORS 中间件
 app.add_middleware(

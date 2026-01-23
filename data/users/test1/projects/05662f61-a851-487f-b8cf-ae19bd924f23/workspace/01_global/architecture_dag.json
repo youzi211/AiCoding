@@ -1,0 +1,86 @@
+{
+  "modules": [
+    {
+      "name": "天财",
+      "dependencies": [],
+      "description": "发起分账、开户等业务请求的平台方，与ISV/开放平台关联。是业务请求的发起端。"
+    },
+    {
+      "name": "三代",
+      "dependencies": [],
+      "description": "运营系统，负责分配机构号、审核商户、调用接口开通账户及配置业务规则（如计费、结算模式）。"
+    },
+    {
+      "name": "行业钱包",
+      "dependencies": [],
+      "description": "核心业务系统，处理用户中心生成、账户开户、关系绑定校验、分账请求处理及数据同步。"
+    },
+    {
+      "name": "清结算",
+      "dependencies": [],
+      "description": "负责交易清分、结算、计费、账户信息同步及冻结申请处理的系统。"
+    },
+    {
+      "name": "账户系统",
+      "dependencies": [],
+      "description": "底层负责账户开户、冻结、资金扣减/增加、余额管理等功能的系统。"
+    },
+    {
+      "name": "账务核心",
+      "dependencies": [],
+      "description": "负责执行记账、生成凭证、更新账务的系统。"
+    },
+    {
+      "name": "对账单系统",
+      "dependencies": [],
+      "description": "生成并提供各类账户动账明细、交易明细等对账文件的系统。"
+    },
+    {
+      "name": "计费中台",
+      "dependencies": [],
+      "description": "提供转账、分账等业务手续费计算与清分能力的系统。"
+    },
+    {
+      "name": "认证系统",
+      "dependencies": [],
+      "description": "提供打款验证、人脸验证等身份核验能力的系统。"
+    },
+    {
+      "name": "电子签章系统",
+      "dependencies": [],
+      "description": "负责协议模板管理、短信H5封装、调起认证及签署流程的系统。"
+    },
+    {
+      "name": "业务核心",
+      "dependencies": [],
+      "description": "接收并处理天财分账等交易数据的系统。"
+    },
+    {
+      "name": "交易系统",
+      "dependencies": [],
+      "description": "处理收单交易支付成功的系统。"
+    },
+    {
+      "name": "代付系统",
+      "dependencies": [],
+      "description": "处理代付出款的系统。"
+    },
+    {
+      "name": "用户中心",
+      "dependencies": [],
+      "description": "生成用户ID的系统。"
+    },
+    {
+      "name": "风控",
+      "dependencies": [],
+      "description": "判定商户或交易风险，发起冻结的系统。"
+    },
+    {
+      "name": "钱包APP/商服平台",
+      "dependencies": [],
+      "description": "面向商户的客户端应用，需对天财新机构号关闭特定入口。"
+    }
+  ],
+  "version": "1.0",
+  "generated_at": null
+}

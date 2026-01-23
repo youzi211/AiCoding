@@ -3,32 +3,78 @@ Azure OpenAI 客户端
 
 简化的 LLM 客户端，仅支持 Azure OpenAI。
 支持结构化输出（Structured Outputs）功能。
+带有全局并发控制（Semaphore）和请求超时。
 """
 import json
+import threading
 from typing import Optional, TypeVar, Type
 
 from pydantic import BaseModel
 
 from docuflow.core.config import get_azure_config, get_model_config, get_settings
+from docuflow.utils import get_logger
 
 T = TypeVar('T', bound=BaseModel)
 
+logger = get_logger()
+
+# 全局并发信号量 —— 限制同时进行的 LLM API 请求数
+# 防止多用户/多任务同时打满 Azure 的 RPM/TPM 配额
+_semaphore: Optional[threading.Semaphore] = None
+_semaphore_lock = threading.Lock()
+
+
+def _get_semaphore(max_concurrent: int = 3) -> threading.Semaphore:
+    """获取或创建全局信号量（线程安全的懒初始化）"""
+    global _semaphore
+    if _semaphore is None:
+        with _semaphore_lock:
+            if _semaphore is None:
+                _semaphore = threading.Semaphore(max_concurrent)
+    return _semaphore
+
+
+def reset_semaphore(max_concurrent: int = 3) -> None:
+    """重置信号量（用于配置变更时）"""
+    global _semaphore
+    with _semaphore_lock:
+        _semaphore = threading.Semaphore(max_concurrent)
+
 
 class AzureOpenAIClient:
-    """Azure OpenAI LLM 客户端"""
+    """Azure OpenAI LLM 客户端（带超时和并发控制）"""
 
-    def __init__(self, temperature: float = 0.3, model_name: Optional[str] = None):
+    def __init__(
+        self,
+        temperature: float = 0.3,
+        model_name: Optional[str] = None,
+        timeout: int = 120,
+        max_retries: int = 3,
+        max_concurrent: int = 3,
+    ):
         """
         初始化客户端
 
         Args:
             temperature: 生成温度
             model_name: 指定模型名称（可选，默认使用配置中的主模型）
+            timeout: 请求超时秒数（默认120秒）
+            max_retries: SDK 内部重试次数（默认3次，处理429等瞬态错误）
+            max_concurrent: 最大并发请求数（全局共享信号量）
         """
         from openai import AzureOpenAI
+        import httpx
 
         config = get_azure_config()
         settings = get_settings()
+
+        # 配置超时：连接超时30秒，读取超时由参数控制
+        client_timeout = httpx.Timeout(
+            connect=30.0,
+            read=float(timeout),
+            write=30.0,
+            pool=30.0,
+        )
 
         # 如果指定了不同的模型，使用该模型的配置
         if model_name and model_name != settings.model_name:
@@ -36,32 +82,45 @@ class AzureOpenAIClient:
             self.client = AzureOpenAI(
                 api_key=config["api_key"],
                 api_version=model_config["api_version"],
-                azure_endpoint=model_config["endpoint"]
+                azure_endpoint=model_config["endpoint"],
+                timeout=client_timeout,
+                max_retries=max_retries,
             )
             self.deployment = model_config["deployment"]
         else:
             self.client = AzureOpenAI(
                 api_key=config["api_key"],
                 api_version=config["api_version"],
-                azure_endpoint=config["azure_endpoint"]
+                azure_endpoint=config["azure_endpoint"],
+                timeout=client_timeout,
+                max_retries=max_retries,
             )
             self.deployment = config["azure_deployment"]
 
         self.temperature = temperature
+        self._semaphore = _get_semaphore(max_concurrent)
 
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        """生成 LLM 响应（文本）"""
+        """生成 LLM 响应（文本），带并发控制"""
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        response = self.client.chat.completions.create(
-            model=self.deployment,
-            messages=messages,
-            temperature=self.temperature
-        )
-        return response.choices[0].message.content
+        # 通过信号量控制并发，防止超出 Azure 速率限制
+        self._semaphore.acquire()
+        try:
+            logger.debug(f"LLM 请求开始 (deployment={self.deployment})")
+            response = self.client.chat.completions.create(
+                model=self.deployment,
+                messages=messages,
+                temperature=self.temperature
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            self._handle_api_error(e)
+        finally:
+            self._semaphore.release()
 
     def generate_structured(
         self,
@@ -70,7 +129,7 @@ class AzureOpenAIClient:
         system_prompt: Optional[str] = None,
     ) -> T:
         """
-        生成结构化输出（使用 Azure OpenAI Structured Outputs）
+        生成结构化输出（使用 Azure OpenAI Structured Outputs），带并发控制
 
         Args:
             prompt: 用户提示词
@@ -85,19 +144,55 @@ class AzureOpenAIClient:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        response = self.client.chat.completions.create(
-            model=self.deployment,
-            messages=messages,
-            temperature=self.temperature,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": response_model.__name__.lower(),
-                    "strict": True,
-                    "schema": response_model.model_json_schema()
+        # 通过信号量控制并发
+        self._semaphore.acquire()
+        try:
+            logger.debug(f"LLM 结构化请求开始 (deployment={self.deployment}, model={response_model.__name__})")
+            response = self.client.chat.completions.create(
+                model=self.deployment,
+                messages=messages,
+                temperature=self.temperature,
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": response_model.__name__.lower(),
+                        "strict": True,
+                        "schema": response_model.model_json_schema()
+                    }
                 }
-            }
-        )
+            )
 
-        data = json.loads(response.choices[0].message.content)
-        return response_model.model_validate(data)
+            data = json.loads(response.choices[0].message.content)
+            return response_model.model_validate(data)
+        except Exception as e:
+            self._handle_api_error(e)
+        finally:
+            self._semaphore.release()
+
+    def _handle_api_error(self, e: Exception) -> None:
+        """统一处理 API 错误，转换为 LLMGenerationError"""
+        from docuflow.llm import LLMGenerationError
+        from openai import RateLimitError, APITimeoutError, APIConnectionError
+
+        if isinstance(e, RateLimitError):
+            logger.warning(f"Azure API 速率限制: {e}")
+            raise LLMGenerationError(
+                f"Azure API 速率限制，请稍后重试: {e}", retryable=True
+            ) from e
+        elif isinstance(e, APITimeoutError):
+            logger.warning(f"Azure API 请求超时: {e}")
+            raise LLMGenerationError(
+                f"LLM 请求超时: {e}", retryable=True
+            ) from e
+        elif isinstance(e, APIConnectionError):
+            logger.warning(f"Azure API 连接错误: {e}")
+            raise LLMGenerationError(
+                f"LLM 连接失败: {e}", retryable=True
+            ) from e
+        elif isinstance(e, LLMGenerationError):
+            raise
+        else:
+            logger.error(f"LLM 调用未知错误: {e}")
+            raise LLMGenerationError(
+                f"LLM 调用失败: {e}", retryable=False
+            ) from e

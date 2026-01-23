@@ -1,0 +1,76 @@
+{
+  "modules": [
+    {
+      "name": "三代",
+      "dependencies": [],
+      "description": "拉卡拉内部系统，负责机构号分配、开户审核、关系绑定、接口调用控制和计费配置。是天财与内部系统交互的主要入口。"
+    },
+    {
+      "name": "行业钱包",
+      "dependencies": [],
+      "description": "负责天财专用账户的开户请求处理、用户ID生成、关系绑定校验、分账请求接收与处理、计费校验，以及数据同步。"
+    },
+    {
+      "name": "账户系统",
+      "dependencies": [],
+      "description": "底层系统，负责天财收款账户和天财接收方账户的开立、升级、余额管理、转账执行、账户状态管理和特殊标记。"
+    },
+    {
+      "name": "清结算",
+      "dependencies": [],
+      "description": "负责交易清分、结算、账户冻结、退货扣款、生成结算单，并管理结算账户配置和退货账户查询。"
+    },
+    {
+      "name": "账务核心",
+      "dependencies": [],
+      "description": "负责记账分录生成和账务处理，包括转账、分账、打款验证等业务的记账。"
+    },
+    {
+      "name": "电子签约平台",
+      "dependencies": [],
+      "description": "负责协议模板管理、短信推送、H5页面封装、调用打款验证和人脸验证，并留存协议与认证的全证据链数据。"
+    },
+    {
+      "name": "认证系统",
+      "dependencies": [],
+      "description": "提供打款验证和人脸验证的接口，用于身份和账户有效性认证。"
+    },
+    {
+      "name": "计费中台",
+      "dependencies": [],
+      "description": "负责计费流水生成、手续费计算和费率信息同步，为转账/分账提供计费能力。"
+    },
+    {
+      "name": "对账单系统",
+      "dependencies": [],
+      "description": "负责生成和提供各类账户和交易维度的对账单，包括天财分账、提款、交易结算等机构层账单。"
+    },
+    {
+      "name": "业务核心",
+      "dependencies": [],
+      "description": "负责接收和处理天财分账交易数据，并从行业钱包同步数据。"
+    },
+    {
+      "name": "风控",
+      "dependencies": [],
+      "description": "负责风险判定，可发起商户冻结和交易冻结。"
+    },
+    {
+      "name": "交易系统",
+      "dependencies": [],
+      "description": "处理收单交易支付，并将支付成功结果传递给清结算。"
+    },
+    {
+      "name": "代付系统",
+      "dependencies": [],
+      "description": "处理提现请求的代付出款，调用代付通道并返回结果。"
+    },
+    {
+      "name": "钱包APP/商服平台",
+      "dependencies": [],
+      "description": "面向商户的前端应用，对于新天财机构号需关闭提现和结算模式切换入口。"
+    }
+  ],
+  "version": "1.0",
+  "generated_at": null
+}
