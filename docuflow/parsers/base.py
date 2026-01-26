@@ -105,10 +105,9 @@ class DocxParser(DocumentParser):
         return file_path.suffix.lower() in ['.docx', '.doc']
 
     def parse(self, file_path: Path) -> str:
-        from langchain_community.document_loaders import Docx2txtLoader
-        loader = Docx2txtLoader(str(file_path))
-        documents = loader.load()
-        return "\n\n".join(doc.page_content for doc in documents)
+        from docx2python import docx2python
+        with docx2python(str(file_path)) as docx_content:
+            return docx_content.text
 
     def parse_with_images(
         self,
@@ -121,6 +120,8 @@ class DocxParser(DocumentParser):
         """
         解析 DOCX，可选提取图片并生成描述
 
+        使用 docx2python 库，自动在图片位置插入占位符 ----image1.jpg----
+
         Args:
             file_path: DOCX 文件路径
             extract_images: 是否提取图片
@@ -131,31 +132,49 @@ class DocxParser(DocumentParser):
         Returns:
             包含文本和图片描述的内容
         """
-        from docuflow.parsers.image_extractor import (
-            ImageExtractor,
-            TextWithImagesRebuilder,
-        )
+        from docx2python import docx2python
+        from docuflow.parsers.image_extractor import ImageExtractor, ImageInfo
 
-        # 先获取纯文本
-        text = self.parse(file_path)
+        with docx2python(str(file_path)) as docx_content:
+            text = docx_content.text  # 已含 ----image1.jpg---- 占位符
+            images_dict = docx_content.images  # {filename: bytes}
 
-        if not extract_images:
+        if not extract_images or not images_dict:
             return text
 
-        # 提取图片（传入缓存配置）
+        # 转换为 ImageInfo 列表（保持 docx2python 的顺序）
+        images = []
+        for i, (name, img_bytes) in enumerate(images_dict.items()):
+            img_format = name.split('.')[-1] if '.' in name else 'png'
+            images.append(ImageInfo(
+                image_data=img_bytes,
+                page=None,
+                index=i,
+                format=img_format,
+                position_hint=name,
+            ))
+
+        # 生成图片描述
         cache_path = Path(cache_dir) if cache_dir else None
         extractor = ImageExtractor(use_cache=cache_enabled, cache_dir=cache_path)
-        images = extractor.extract_from_file(file_path)
-
-        if not images:
-            return text
-
-        # 生成图片描述（显示进度）
         if describe_func:
             extractor.generate_descriptions(images, describe_func, show_progress=True)
 
-        # 将图片描述插入到文本的相应位置
-        return TextWithImagesRebuilder.rebuild(file_path, text, images)
+        # 替换占位符为图片描述
+        # docx2python 占位符格式: ----media/image1.jpeg----
+        result = text
+        for img in images:
+            # position_hint 就是文件名（如 image1.jpeg）
+            placeholder = f"----media/{img.position_hint}----"
+            if img.description:
+                result = result.replace(
+                    placeholder,
+                    f"\n\n[图片描述: {img.description}]\n\n"
+                )
+            else:
+                result = result.replace(placeholder, "")
+
+        return result
 
 
 class MarkdownParser(DocumentParser):
