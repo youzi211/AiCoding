@@ -1,0 +1,76 @@
+{
+  "modules": [
+    {
+      "name": "三代",
+      "dependencies": [],
+      "description": "负责商户入网审核、开户接口调用、计费配置等核心业务处理，校验机构号，管理天财专用账户的开通与标记。是业务处理的入口和核心协调方。"
+    },
+    {
+      "name": "行业钱包",
+      "dependencies": [],
+      "description": "负责天财专用账户的开户管理、关系绑定校验、分账请求处理、数据同步等业务逻辑。是分账业务的核心处理系统。"
+    },
+    {
+      "name": "账户系统",
+      "dependencies": [],
+      "description": "底层账户管理系统，负责天财专用账户的开立、升级、余额变动、权限控制及特殊标记。"
+    },
+    {
+      "name": "清结算",
+      "dependencies": [],
+      "description": "负责资金清算、结算处理、手续费清分、退货账户查询、代付及账户冻结解冻等资金处理功能。"
+    },
+    {
+      "name": "电子签约平台",
+      "dependencies": [],
+      "description": "负责协议模板管理、短信推送、H5页面封装以及打款验证、人脸验证等签约认证流程。"
+    },
+    {
+      "name": "计费中台",
+      "dependencies": [],
+      "description": "提供转账计费能力，生成计费流水并同步费率信息。"
+    },
+    {
+      "name": "对账单系统",
+      "dependencies": [],
+      "description": "生成并提供机构层各类账户动账明细、交易明细及分账指令账单。"
+    },
+    {
+      "name": "业务核心",
+      "dependencies": [],
+      "description": "接收并处理天财分账交易数据，接收清结算的结算结果。"
+    },
+    {
+      "name": "账务核心",
+      "dependencies": [],
+      "description": "负责各类记账处理，包括分账、手续费、打款验证、冻结等业务的会计分录。"
+    },
+    {
+      "name": "认证系统",
+      "dependencies": [],
+      "description": "提供打款验证和人脸验证的底层核验能力。"
+    },
+    {
+      "name": "交易系统",
+      "dependencies": [],
+      "description": "处理收单交易支付，是资金流入的起点。"
+    },
+    {
+      "name": "代付系统",
+      "dependencies": [],
+      "description": "处理提现资金的代付出款，调用外部代付通道。"
+    },
+    {
+      "name": "风控",
+      "dependencies": [],
+      "description": "发起商户冻结和交易冻结指令。"
+    },
+    {
+      "name": "用户中心",
+      "dependencies": [],
+      "description": "生成用户ID，用于开户流程。"
+    }
+  ],
+  "version": "1.0",
+  "generated_at": null
+}

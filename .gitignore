@@ -25,3 +25,4 @@ frontend/
 testurl.py
 AGENTS.md
 CLAUDE.md
+.data/

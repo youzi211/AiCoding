@@ -8,6 +8,22 @@ from docuflow.parsers.base import (
 )
 
 
+def clean_text(text: str) -> str:
+    """
+    清理解析后的文本，移除多余的空行和空格
+
+    使用 textacy 库的预处理功能
+
+    Args:
+        text: 原始文本
+
+    Returns:
+        清理后的文本
+    """
+    from textacy import preprocessing
+    return preprocessing.normalize.whitespace(text)
+
+
 class DocumentParserFactory:
     """文档解析器工厂"""
 
@@ -73,7 +89,8 @@ class DocumentParserFactory:
         parser = self.get_parser(file_path)
         if not parser:
             raise ValueError(f"不支持的文件类型: {file_path.suffix}")
-        return parser.parse(file_path)
+        text = parser.parse(file_path)
+        return clean_text(text)
 
     def parse_with_images(self, file_path: Path) -> str:
         """
@@ -92,13 +109,15 @@ class DocumentParserFactory:
         # 如果解析器支持 parse_with_images 方法
         if hasattr(parser, 'parse_with_images'):
             describe_func = self._get_describe_func()
-            return parser.parse_with_images(
+            text = parser.parse_with_images(
                 file_path,
                 extract_images=self.extract_images,
                 describe_func=describe_func,
                 cache_enabled=self.vision_cache_enabled,
                 cache_dir=self.vision_cache_dir
             )
+            return clean_text(text)
 
         # 默认回退到普通解析
-        return parser.parse(file_path)
+        text = parser.parse(file_path)
+        return clean_text(text)

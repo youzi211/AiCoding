@@ -4,12 +4,14 @@ Azure OpenAI 客户端
 简化的 LLM 客户端，仅支持 Azure OpenAI。
 支持结构化输出（Structured Outputs）功能。
 带有全局并发控制（Semaphore）和请求超时。
+
+阶段1迁移：使用 LangChain 的 .with_structured_output() 简化结构化输出
 """
-import json
 import threading
 from typing import Optional, TypeVar, Type
 
 from pydantic import BaseModel
+from langchain_openai import AzureChatOpenAI
 
 from docuflow.core.config import get_azure_config, get_model_config, get_settings
 from docuflow.utils import get_logger
@@ -42,7 +44,13 @@ def reset_semaphore(max_concurrent: int = 3) -> None:
 
 
 class AzureOpenAIClient:
-    """Azure OpenAI LLM 客户端（带超时和并发控制）"""
+    """Azure OpenAI LLM 客户端（带超时和并发控制）
+
+    阶段1迁移说明：
+    - 保留原有的 OpenAI 客户端用于 generate() 文本生成
+    - 新增 LangChain 客户端用于 generate_structured() 结构化输出
+    - 保留全局 Semaphore 并发控制
+    """
 
     def __init__(
         self,
@@ -79,6 +87,7 @@ class AzureOpenAIClient:
         # 如果指定了不同的模型，使用该模型的配置
         if model_name and model_name != settings.model_name:
             model_config = get_model_config(model_name)
+            # 原有 OpenAI 客户端（用于文本生成）
             self.client = AzureOpenAI(
                 api_key=config["api_key"],
                 api_version=model_config["api_version"],
@@ -87,7 +96,19 @@ class AzureOpenAIClient:
                 max_retries=max_retries,
             )
             self.deployment = model_config["deployment"]
+
+            # LangChain 客户端（用于结构化输出）
+            self.llm = AzureChatOpenAI(
+                deployment_name=model_config["deployment"],
+                api_key=config["api_key"],
+                api_version=model_config["api_version"],
+                azure_endpoint=model_config["endpoint"],
+                temperature=temperature,
+                timeout=timeout,
+                max_retries=max_retries,
+            )
         else:
+            # 原有 OpenAI 客户端
             self.client = AzureOpenAI(
                 api_key=config["api_key"],
                 api_version=config["api_version"],
@@ -96,6 +117,17 @@ class AzureOpenAIClient:
                 max_retries=max_retries,
             )
             self.deployment = config["azure_deployment"]
+
+            # LangChain 客户端
+            self.llm = AzureChatOpenAI(
+                deployment_name=config["azure_deployment"],
+                api_key=config["api_key"],
+                api_version=config["api_version"],
+                azure_endpoint=config["azure_endpoint"],
+                temperature=temperature,
+                timeout=timeout,
+                max_retries=max_retries,
+            )
 
         self.temperature = temperature
         self._semaphore = _get_semaphore(max_concurrent)
@@ -129,7 +161,7 @@ class AzureOpenAIClient:
         system_prompt: Optional[str] = None,
     ) -> T:
         """
-        生成结构化输出（使用 Azure OpenAI Structured Outputs），带并发控制
+        生成结构化输出（使用 LangChain 的 with_structured_output），带并发控制
 
         Args:
             prompt: 用户提示词
@@ -139,31 +171,23 @@ class AzureOpenAIClient:
         Returns:
             符合 response_model 的实例
         """
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
         # 通过信号量控制并发
         self._semaphore.acquire()
         try:
             logger.debug(f"LLM 结构化请求开始 (deployment={self.deployment}, model={response_model.__name__})")
-            response = self.client.chat.completions.create(
-                model=self.deployment,
-                messages=messages,
-                temperature=self.temperature,
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": response_model.__name__.lower(),
-                        "strict": True,
-                        "schema": response_model.model_json_schema()
-                    }
-                }
-            )
 
-            data = json.loads(response.choices[0].message.content)
-            return response_model.model_validate(data)
+            # 使用 LangChain 的 with_structured_output 自动处理结构化输出
+            structured_llm = self.llm.with_structured_output(response_model)
+
+            # 构建消息
+            messages = []
+            if system_prompt:
+                messages.append(("system", system_prompt))
+            messages.append(("human", prompt))
+
+            # 调用 LangChain，自动返回 Pydantic 实例
+            result = structured_llm.invoke(messages)
+            return result
         except Exception as e:
             self._handle_api_error(e)
         finally:

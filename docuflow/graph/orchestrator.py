@@ -26,6 +26,18 @@ class WorkflowOrchestrator:
         self.logger = get_logger()
         self.checkpointer = MemorySaver()
         self._progress_callback: Optional[Callable[[dict], None]] = None
+        # 使用项目路径生成唯一 thread_id，确保多用户/多项目隔离
+        # 从 project_root 中提取关键部分（避免路径过长）
+        # 例如: data/users/1234/projects/abc123 → docuflow-1234-abc123
+        parts = config.project_root.parts
+        if len(parts) >= 4 and parts[-4] == "users" and parts[-2] == "projects":
+            # API 模式: data/users/{user_id}/projects/{project_id}
+            user_id = parts[-3]
+            project_id = parts[-1]
+            self.thread_id = f"docuflow-{user_id}-{project_id}"
+        else:
+            # CLI 模式: 使用项目名称
+            self.thread_id = f"docuflow-{config.project_root.name}"
 
     def set_progress_callback(self, callback: Callable[[dict], None]):
         """设置进度回调函数
@@ -75,7 +87,27 @@ class WorkflowOrchestrator:
         }
 
     def _load_existing_state(self) -> DocuFlowState:
-        """加载现有状态"""
+        """加载现有状态，优先从 checkpointer 恢复"""
+        # 尝试从 MemorySaver 获取最新状态（用于 full 流程的阶段间传递）
+        try:
+            if hasattr(self.checkpointer, 'storage') and self.checkpointer.storage:
+                # MemorySaver.storage 是 dict[(thread_id, checkpoint_ns), checkpoint]
+                for (tid, _), checkpoint in self.checkpointer.storage.items():
+                    if tid == self.thread_id:
+                        # 尝试获取状态值
+                        values = checkpoint.get("channel_values") or checkpoint.get("values")
+                        if values:
+                            # 检查是否包含关键字段（说明是完整的 Phase 1 状态）
+                            if values.get("full_document") and values.get("chunks"):
+                                self.logger.info(f"✅ 从 checkpointer 恢复状态 (thread_id={self.thread_id})")
+                                self.logger.debug(f"   - full_document: {len(values['full_document'])} 字符")
+                                self.logger.debug(f"   - chunks: {len(values['chunks'])} 个")
+                                return values
+        except Exception as e:
+            self.logger.warning(f"无法从 checkpointer 恢复状态: {e}")
+
+        # 回退到文件加载（用于分阶段执行）
+        self.logger.info("从文件恢复状态")
         state = self._build_initial_state()
 
         # 加载状态文件
@@ -112,7 +144,7 @@ class WorkflowOrchestrator:
         app = graph.compile(checkpointer=self.checkpointer)
 
         initial_state = self._build_initial_state()
-        config = {"configurable": {"thread_id": "init"}}
+        config = {"configurable": {"thread_id": self.thread_id}}
 
         try:
             result = app.invoke(initial_state, config)
@@ -158,7 +190,7 @@ class WorkflowOrchestrator:
 
         graph = build_generation_graph()
         app = graph.compile(checkpointer=self.checkpointer)
-        config = {"configurable": {"thread_id": "generation"}}
+        config = {"configurable": {"thread_id": self.thread_id}}
 
         try:
             # 使用 stream 模式来获取中间状态，便于发送批判事件
@@ -259,7 +291,7 @@ class WorkflowOrchestrator:
 
         graph = build_overview_graph()
         app = graph.compile(checkpointer=self.checkpointer)
-        config = {"configurable": {"thread_id": "overview"}}
+        config = {"configurable": {"thread_id": self.thread_id}}
 
         try:
             result = app.invoke(state, config)
@@ -294,7 +326,7 @@ class WorkflowOrchestrator:
 
         graph = build_assembly_graph()
         app = graph.compile(checkpointer=self.checkpointer)
-        config = {"configurable": {"thread_id": "assembly"}}
+        config = {"configurable": {"thread_id": self.thread_id}}
 
         try:
             result = app.invoke(state, config)
