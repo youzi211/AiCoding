@@ -16,27 +16,32 @@ from docuflow.core.models import AppConfig
 load_dotenv()
 
 
-# 支持的模型配置
-MODEL_CONFIGS = {
-    "gpt-5.2": {
-        "prefix": "GPT5.2",
-        "env_endpoint": "GPT5.2_AZURE_OPENAI_ENDPOINT",
-        "env_deployment": "GPT5.2_AZURE_OPENAI_DEPLOYMENT",
-        "env_api_version": "GPT5.2_AZURE_OPENAI_API_VERSION",
-    },
-    "gpt-5.1": {
-        "prefix": "GPT5.1",
-        "env_endpoint": "GPT5.1_AZURE_OPENAI_ENDPOINT",
-        "env_deployment": "GPT5.1_AZURE_OPENAI_DEPLOYMENT",
-        "env_api_version": "GPT5.1_AZURE_OPENAI_API_VERSION",
-    },
-    "deepseek-v3.2": {
-        "prefix": "DeepSeek-V3.2",
-        "env_endpoint": "DeepSeek-V3.2_AZURE_OPENAI_ENDPOINT",
-        "env_deployment": "DeepSeek-V3.2_AZURE_OPENAI_DEPLOYMENT",
-        "env_api_version": "DeepSeek-V3.2_AZURE_OPENAI_API_VERSION",
-    },
-}
+def _discover_models() -> dict:
+    """
+    从环境变量自动发现模型配置
+
+    约定：环境变量命名为 {PREFIX}_AZURE_OPENAI_ENDPOINT
+    例如：GPT5.2_AZURE_OPENAI_ENDPOINT -> 模型名 gpt5.2
+    """
+    models = {}
+    suffix = "_AZURE_OPENAI_ENDPOINT"
+
+    for key in os.environ:
+        if key.endswith(suffix):
+            prefix = key[:-len(suffix)]
+            # 模型名：前缀转小写
+            model_name = prefix.lower()
+            models[model_name] = {
+                "prefix": prefix,
+                "env_endpoint": f"{prefix}_AZURE_OPENAI_ENDPOINT",
+                "env_deployment": f"{prefix}_AZURE_OPENAI_DEPLOYMENT",
+                "env_api_version": f"{prefix}_AZURE_OPENAI_API_VERSION",
+            }
+    return models
+
+
+# 支持的模型配置（从环境变量自动发现）
+MODEL_CONFIGS = _discover_models()
 
 
 class Settings(BaseSettings):
@@ -58,7 +63,7 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.3
 
     # 处理配置
-    chunk_size: int = 20000
+    chunk_size: int =5000
     chunk_overlap: int = 200
     max_retries: int = 3
     step_by_step: bool = False
@@ -75,7 +80,7 @@ class Settings(BaseSettings):
 
     # LLM 并发控制
     llm_timeout: int = 120                 # LLM请求超时秒数
-    llm_max_concurrent: int = 3            # 最大并发LLM请求数
+    llm_max_concurrent: int = 2            # 最大并发LLM请求数
     llm_max_retries_sdk: int = 3           # OpenAI SDK内部重试次数
 
     # 图片提取配置
