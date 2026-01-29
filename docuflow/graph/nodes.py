@@ -96,12 +96,17 @@ def load_documents_node(state: DocuFlowState) -> dict[str, Any]:
 
         full_document = "\n\n---\n\n".join(combined_content)
         chunks = chunker.chunk_with_metadata(full_document, "requirements")
+        chunks_data = [{"content": c.page_content, "metadata": c.metadata} for c in chunks]
+
+        # 保存解析结果到文件（供后续阶段使用）
+        safe_write_text(config.parsed_document_file, full_document)
+        safe_write_text(config.chunks_file, json.dumps(chunks_data, ensure_ascii=False, indent=2))
 
         logger.info(f"文档解析完成，总长度: {len(full_document)} 字符，分块数: {len(chunks)}")
 
         return {
             "full_document": full_document,
-            "chunks": [{"content": c.page_content, "metadata": c.metadata} for c in chunks],
+            "chunks": chunks_data,
             "error": None,
             "current_phase": "init"
         }

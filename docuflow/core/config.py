@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     azure_openai_api_key: Optional[str] = None
 
     # 默认模型
-    model_name: str = "gpt-5.2"
+    model_name: str = "gpt5.2"
 
     # LLM 配置
     llm_temperature: float = 0.3

@@ -1,0 +1,134 @@
+project_name: DocuFlow-AI Project
+created_at: '2026-01-29T16:53:28.060900'
+last_run: null
+current_phase: generation
+modules:
+- name: 天财/开放平台
+  status: pending
+  file_path: null
+  dependencies: []
+  started_at: null
+  completed_at: null
+  error_message: null
+  retry_count: 0
+- name: 三代
+  status: pending
+  file_path: null
+  dependencies:
+  - 天财/开放平台
+  started_at: null
+  completed_at: null
+  error_message: null
+  retry_count: 0
+- name: 行业钱包
+  status: pending
+  file_path: null
+  dependencies:
+  - 天财/开放平台
+  - 三代
+  started_at: null
+  completed_at: null
+  error_message: null
+  retry_count: 0
+- name: 认证系统
+  status: pending
+  file_path: null
+  dependencies: []
+  started_at: null
+  completed_at: null
+  error_message: null
+  retry_count: 0
+- name: 电子签章系统
+  status: pending
+  file_path: null
+  dependencies:
+  - 认证系统
+  started_at: null
+  completed_at: null
+  error_message: null
+  retry_count: 0
+- name: 电子签约平台
+  status: pending
+  file_path: null
+  dependencies:
+  - 电子签章系统
+  started_at: null
+  completed_at: null
+  error_message: null
+  retry_count: 0
+- name: 计费中台
+  status: pending
+  file_path: null
+  dependencies: []
+  started_at: null
+  completed_at: null
+  error_message: null
+  retry_count: 0
+- name: 清结算
+  status: pending
+  file_path: null
+  dependencies:
+  - 三代
+  - 计费中台
+  started_at: null
+  completed_at: null
+  error_message: null
+  retry_count: 0
+- name: 账户系统
+  status: pending
+  file_path: null
+  dependencies:
+  - 行业钱包
+  - 清结算
+  started_at: null
+  completed_at: null
+  error_message: null
+  retry_count: 0
+- name: 账务核心
+  status: pending
+  file_path: null
+  dependencies:
+  - 账户系统
+  started_at: null
+  completed_at: null
+  error_message: null
+  retry_count: 0
+- name: 业务核心
+  status: pending
+  file_path: null
+  dependencies:
+  - 行业钱包
+  - 清结算
+  started_at: null
+  completed_at: null
+  error_message: null
+  retry_count: 0
+- name: 对账单系统
+  status: pending
+  file_path: null
+  dependencies:
+  - 账户系统
+  - 业务核心
+  - 行业钱包
+  - 清结算
+  - 三代
+  started_at: null
+  completed_at: null
+  error_message: null
+  retry_count: 0
+- name: 钱包APP
+  status: pending
+  file_path: null
+  dependencies: []
+  started_at: null
+  completed_at: null
+  error_message: null
+  retry_count: 0
+- name: 商服平台
+  status: pending
+  file_path: null
+  dependencies: []
+  started_at: null
+  completed_at: null
+  error_message: null
+  retry_count: 0

@@ -101,7 +101,7 @@ class VisionClient:
         # 调用 LangChain 的 invoke 方法
         response = self.llm.invoke(
             [message],
-            max_tokens=max_tokens,
+            max_completion_tokens=max_tokens,
         )
 
         # 安全地获取内容，处理可能的 None 响应

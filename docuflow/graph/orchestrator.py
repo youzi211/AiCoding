@@ -1,4 +1,5 @@
 """LangGraph 编排器"""
+import json
 from typing import Optional, Callable
 
 import networkx as nx
@@ -132,6 +133,20 @@ class WorkflowOrchestrator:
         glossary = safe_read_text(self.config.glossary_file)
         if glossary:
             state["glossary_content"] = glossary
+
+        # 从缓存文件加载解析结果
+        full_doc = safe_read_text(self.config.parsed_document_file)
+        if full_doc:
+            state["full_document"] = full_doc
+
+        chunks_file = self.config.chunks_file
+        if chunks_file.exists():
+            try:
+                chunks = json.loads(chunks_file.read_text(encoding='utf-8'))
+                state["chunks"] = chunks
+                self.logger.info(f"从缓存加载文档: {len(chunks)} 个块")
+            except Exception as e:
+                self.logger.warning(f"加载 chunks 缓存失败: {e}")
 
         return state
 

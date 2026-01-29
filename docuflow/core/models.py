@@ -165,6 +165,10 @@ class LLMContext(BaseModel):
 
     def to_context_string(self) -> str:
         parts = []
+        if self.module_definition:
+            md = self.module_definition
+            deps = ", ".join(md.dependencies) if md.dependencies else "无"
+            parts.append(f"=== 当前模块定义 ===\n模块名: {md.name}\n描述: {md.description or '无'}\n依赖: {deps}")
         if self.glossary_content:
             parts.append("=== 全局术语表 ===\n" + self.glossary_content)
         if self.upstream_modules:
@@ -254,6 +258,16 @@ class AppConfig(BaseModel):
     @property
     def glossary_file(self) -> Path:
         return self.global_dir / "glossary.md"
+
+    @property
+    def parsed_document_file(self) -> Path:
+        """解析后的完整文档缓存"""
+        return self.global_dir / "parsed_document.txt"
+
+    @property
+    def chunks_file(self) -> Path:
+        """文档分块缓存"""
+        return self.global_dir / "chunks.json"
 
     @property
     def critique_logs_dir(self) -> Path:

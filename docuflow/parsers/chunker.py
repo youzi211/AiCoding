@@ -49,7 +49,11 @@ class ChunkRetriever:
                 scored_chunks.append((score, chunk.page_content))
 
         scored_chunks.sort(key=lambda x: x[0], reverse=True)
-        return [content for _, content in scored_chunks[:top_k]]
+        results = [content for _, content in scored_chunks[:top_k]]
+        # 兜底：检索为空时返回前 top_k 个块
+        if not results:
+            results = [c.page_content for c in self.chunks[:top_k]]
+        return results
 
     def retrieve_vector(self, query: str, top_k: int = 5) -> list[str]:
         """基于向量检索"""
