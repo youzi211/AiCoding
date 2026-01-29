@@ -2,10 +2,14 @@
 视觉模型客户端
 
 支持使用 Azure OpenAI GPT-4 Vision 或其他视觉模型生成图片描述。
+使用 LangChain 的 AzureChatOpenAI 实现。
 """
 from typing import Optional
 
-from docuflow.core.config import get_azure_config, get_model_config
+from langchain_openai import AzureChatOpenAI
+from langchain_core.messages import HumanMessage
+
+from docuflow.core.config import get_azure_config, get_model_config, get_settings
 
 
 class VisionClient:
@@ -32,39 +36,32 @@ class VisionClient:
             timeout: 请求超时秒数
             max_retries: SDK 内部重试次数
         """
-        from openai import AzureOpenAI
-        import httpx
-
         config = get_azure_config()
-
-        client_timeout = httpx.Timeout(
-            connect=30.0,
-            read=float(timeout),
-            write=30.0,
-            pool=30.0,
-        )
+        settings = get_settings()
 
         # 如果指定了模型，使用该模型的配置
-        if model_name:
+        if model_name and model_name != settings.model_name:
             model_config = get_model_config(model_name)
-            self.client = AzureOpenAI(
+            self.llm = AzureChatOpenAI(
+                deployment_name=model_config["deployment"],
                 api_key=config["api_key"],
                 api_version=model_config["api_version"],
                 azure_endpoint=model_config["endpoint"],
-                timeout=client_timeout,
+                temperature=temperature,
+                timeout=timeout,
                 max_retries=max_retries,
             )
-            self.deployment = model_config["deployment"]
         else:
             # 使用默认配置
-            self.client = AzureOpenAI(
+            self.llm = AzureChatOpenAI(
+                deployment_name=config["azure_deployment"],
                 api_key=config["api_key"],
                 api_version=config["api_version"],
                 azure_endpoint=config["azure_endpoint"],
-                timeout=client_timeout,
+                temperature=temperature,
+                timeout=timeout,
                 max_retries=max_retries,
             )
-            self.deployment = config["azure_deployment"]
 
         self.temperature = temperature
 
@@ -90,31 +87,29 @@ class VisionClient:
         base64_image = base64.b64encode(image_bytes).decode("utf-8")
         user_prompt = prompt or self.DEFAULT_PROMPT
 
-        response = self.client.chat.completions.create(
-            model=self.deployment,
-            messages=[
+        # 使用 LangChain 的 HumanMessage 构建包含图片和文本的消息
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": user_prompt},
                 {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": user_prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/png;base64,{base64_image}"},
-                        },
-                    ],
-                }
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{base64_image}"},
+                },
             ],
-            temperature=self.temperature,
-            max_completion_tokens=max_tokens,
+        )
+
+        # 调用 LangChain 的 invoke 方法
+        response = self.llm.invoke(
+            [message],
+            max_tokens=max_tokens,
         )
 
         # 安全地获取内容，处理可能的 None 响应
-        if response.choices and len(response.choices) > 0:
-            content = response.choices[0].message.content
-            if content:
-                #打印调试信息
-                print("图片描述生成成功。token数量：", len(content))
-                return content
+        if response and response.content:
+            content = response.content
+            # 打印调试信息
+            print("图片描述生成成功。token数量：", len(content))
+            return content
 
         # 如果响应为空，返回默认消息
         return "[图片描述生成失败：模型返回空响应]"

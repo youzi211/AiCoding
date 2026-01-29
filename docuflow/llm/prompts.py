@@ -448,18 +448,29 @@ You MUST output Markdown only (Mermaid code blocks allowed).
 STRICT OUTPUT RULES (MUST FOLLOW)
 =====================
 1) Output Markdown only. No JSON. No extra explanations outside Markdown.
-2) Do NOT invent APIs, fields, tables, events, modules, or dependencies.
-   - If information is missing, write "TBD".
+
+2) MANDATORY INFERENCE (CRITICAL - READ CAREFULLY):
+   You are a SENIOR SOFTWARE ARCHITECT. Your job is to DESIGN, not just transcribe.
+   - You MUST infer and design: API endpoints, request/response structures, database tables, fields, business logic, error handling, workflows.
+   - Base your inference on: requirements context, industry best practices, standard architecture patterns, upstream module designs.
+   - "TBD" is STRICTLY FORBIDDEN for any designable content.
+   - "TBD" is ONLY allowed for: deployment-specific info (IP addresses, server hostnames, port numbers, credentials, environment-specific configs).
+   - If you use "TBD" for APIs, fields, tables, logic, or workflows, the output is INVALID and will be rejected.
+   - When inferring, use common naming conventions (e.g., RESTful paths, standard HTTP methods, typical field names like id, created_at, updated_at).
+
 3) Mermaid diagrams must render:
    - Must be inside ```mermaid code blocks
    - Must NOT contain any comments (%% or //)
    - Use valid Mermaid syntax
-   - Use ASCII quotes (" or ') only (never Chinese quotes “ ” ‘ ’)
+   - Use ASCII quotes (" or ') only (never Chinese quotes " " ' ')
+
 4) Keep terminology consistent with the glossary and upstream modules.
+
 5) Self-check before output:
    - No contradictions
    - No duplicate/empty sections
    - No unrelated content
+   - No lazy "TBD" for designable content
 
 If any rule is violated, the output is INVALID.
 """
@@ -569,14 +580,22 @@ MODULE_DESIGN_PROMPT = """You are a senior software architect.
 STRICT OUTPUT RULES (MUST FOLLOW)
 =====================
 1) Output Markdown only.
-2) Do NOT invent APIs/fields/tables/dependencies/events.
-   - If information is missing, write "TBD".
+
+2) MANDATORY DESIGN (NO "TBD" ALLOWED):
+   - You MUST design complete APIs, data models, and business logic based on the requirements.
+   - Infer technical details using: industry best practices, RESTful conventions, standard patterns.
+   - "TBD" is FORBIDDEN. If you write "TBD" for any API, field, table, or logic, the output is INVALID.
+   - Use standard naming: RESTful paths (/api/v1/resource), common fields (id, created_at, updated_at, status).
+
 3) Mermaid diagrams:
    - Must be inside ```mermaid code blocks
    - Must NOT include comments (%% or //)
    - Must render correctly
+
 4) Keep terminology consistent with the provided context.
+
 5) ALL section titles MUST be in Chinese. Do NOT use English section titles.
+
 If any rule is violated, the output is INVALID.
 
 =====================
@@ -587,7 +606,9 @@ CONTEXT
 =====================
 TASK
 =====================
-为模块 "{module_name}" 编写设计文档。
+为模块 "{module_name}" 编写完整的设计文档。
+
+你必须根据需求上下文推断并设计所有技术细节，包括但不限于：API路径、请求响应结构、数据库表字段、业务规则。
 
 文档必须包含以下章节（保持顺序，章节标题必须使用中文）：
 
@@ -595,30 +616,30 @@ TASK
 - **目的与范围**: 描述本模块的核心职责和边界
 
 ## 2. 接口设计
-- **API端点 (REST/GraphQL)**: 如适用
-- **请求/响应结构**: 如已知
-- **发布/消费的事件**: 如有
+- **API端点**: 必须设计具体的 RESTful API（方法、路径、描述）
+- **请求/响应结构**: 必须定义 JSON 结构（字段名、类型、是否必填）
+- **发布/消费的事件**: 如有异步通信需求
 
 ## 3. 数据模型
-- **表/集合**: 数据库表设计
-- **关键字段**: 仅限上下文中存在的信息，否则写 TBD
-- **与其他模块的关系**: 数据关联
+- **表/集合**: 必须设计具体的数据库表
+- **关键字段**: 必须列出字段名、类型、约束（主键、外键、索引等）
+- **与其他模块的关系**: 数据关联（一对多、多对多等）
 
 ## 4. 业务逻辑
-- **核心工作流/算法**: 主要业务流程
-- **业务规则与验证**: 校验逻辑
-- **关键边界情况处理**: 异常场景
+- **核心工作流/算法**: 主要业务流程的详细步骤
+- **业务规则与验证**: 具体的校验规则（如：密码长度>=8）
+- **关键边界情况处理**: 异常场景及处理方式
 
 ## 5. 时序图
 - 至少包含一个关键工作流的 Mermaid sequenceDiagram
 
 ## 6. 错误处理
-- **预期错误情况**: 可能的错误类型
-- **处理策略**: 如何应对
+- **预期错误情况**: 具体的错误类型和错误码
+- **处理策略**: 返回什么响应、是否重试、是否告警
 
 ## 7. 依赖关系
-- **上游模块**: 本模块依赖的模块
-- **下游模块**: 依赖本模块的模块
+- **上游模块**: 本模块调用哪些模块的接口
+- **下游模块**: 哪些模块会调用本模块
 
 输出完整的 Markdown 模块设计文档。
 """
@@ -677,8 +698,11 @@ STRICT OUTPUT RULES (MUST FOLLOW)
 1) Output Markdown only.
 2) Do NOT output any top-level title (no '# ...').
    - Start directly from '## 2.1 ...'
-3) Do NOT invent APIs/fields/tables/dependencies.
-   - If missing, write "TBD".
+3) MANDATORY DESIGN - "TBD" IS FORBIDDEN:
+   - You MUST synthesize and design system architecture based on the module summaries.
+   - Infer system structure, data flows, and interactions from the provided information.
+   - "TBD" is ONLY allowed for deployment-specific info (network topology IPs, server names).
+   - For architecture, data flow, module interactions: you MUST design them, not write "TBD".
 4) Mermaid diagrams:
    - Must be inside ```mermaid code blocks
    - Must NOT include comments (%% or //)
@@ -710,21 +734,23 @@ Required sections (keep the exact numbering and headings):
 ## 2.1 系统结构
 - 描述整体系统架构
 - 包含系统架构图（Mermaid C4 或 flowchart）
+- 必须基于模块摘要绘制完整的架构图
 
 ## 2.2 功能结构
 - 描述系统功能模块划分
 - 包含功能结构图
+- 必须展示所有模块及其层级关系
 
 ## 2.3 网络拓扑图
-- 如适用：描述系统部署网络拓扑（否则写 TBD）
+- 如有具体部署信息则绘制，否则绘制典型的三层架构拓扑（客户端-应用服务器-数据库）
 
 ## 2.4 数据流转
 - 描述系统数据在各模块间流转
-- 包含数据流图（flowchart）
+- 必须包含数据流图（flowchart），展示主要业务数据的流向
 
 ## 2.5 系统模块交互关系
 - 描述模块之间的调用/依赖关系
-- 包含模块交互图
+- 必须包含模块交互图，展示 API 调用关系
 
 Write in a clear and professional style.
 """
@@ -742,8 +768,11 @@ STRICT OUTPUT RULES (MUST FOLLOW)
 1) Output Markdown only.
 2) Do NOT output any top-level title (no '# ...').
    - Start directly from '## 4.1 ...'
-3) Do NOT invent interface paths/fields/dependencies.
-   - If missing, write "TBD".
+3) MANDATORY DESIGN - "TBD" IS FORBIDDEN:
+   - You MUST design complete interface specifications based on the module summaries.
+   - For each interface: define method, path, request/response structure.
+   - If module summaries lack detail, infer standard RESTful APIs based on module purpose.
+   - Use common patterns: GET for retrieval, POST for creation, PUT/PATCH for update, DELETE for removal.
 4) Use Markdown tables for interfaces.
 If any rule is violated, the output is INVALID.
 
@@ -771,18 +800,20 @@ Required sections:
 
 ## 4.1 对外接口
 - 列出系统对外暴露的所有 API 接口，按功能分类
+- 必须为每个模块设计至少一个核心 API
 - Use a Markdown table with columns:
-  - Method
-  - Path
+  - Method (GET/POST/PUT/DELETE)
+  - Path (/api/v1/...)
   - Module
   - Description
-  - Request/Response (if known)
+  - Request/Response (JSON 结构简述)
 
 ## 4.2 模块间接口
 - 列出模块之间的内部调用接口
+- 基于 DAG 依赖关系推断模块间调用
 - Use a Markdown table with the same columns.
 
-If any field is unknown, write TBD.
+所有接口必须有具体设计，禁止使用 TBD。
 """
 
 # ============================================================
@@ -797,8 +828,11 @@ STRICT OUTPUT RULES (MUST FOLLOW)
 1) Output Markdown only.
 2) Do NOT output any top-level title (no '# ...').
    - Start directly from '## 5.1 ...'
-3) Do NOT invent tables/fields/relationships.
-   - If missing, write "TBD".
+3) MANDATORY DESIGN - "TBD" IS FORBIDDEN:
+   - You MUST design complete database schemas based on the module summaries.
+   - For each table: define table name, fields (name, type, constraints), relationships.
+   - If module summaries lack detail, infer standard fields: id (PK), created_at, updated_at, status, etc.
+   - Design proper relationships: foreign keys, junction tables for many-to-many.
 4) Mermaid diagrams:
    - Must be inside ```mermaid code blocks
    - Must NOT include comments (%% or //)
@@ -830,15 +864,20 @@ Generate the unified database design chapter in Markdown with Mermaid diagrams.
 Required sections:
 
 ## 5.1 ER图
-- Use Mermaid erDiagram to draw entity relationships (only based on known info; otherwise provide partial + TBD notes)
+- 使用 Mermaid erDiagram 绘制完整的实体关系图
+- 必须包含所有模块涉及的数据表
+- 必须标注表之间的关系（一对一、一对多、多对多）
 
 ## 5.2 表结构
-- List all database tables using a Markdown table including:
-  - Table name
-  - Module
-  - Main fields (brief)
-  - Relationships (brief)
-If unknown, write TBD.
+- 列出所有数据库表，使用 Markdown 表格
+- 必须包含以下列：
+  - 表名
+  - 所属模块
+  - 主要字段（字段名、类型、说明）
+  - 关系（外键关联）
+- 每张表至少包含：主键、业务字段、时间戳字段
+
+所有表结构必须有具体设计，禁止使用 TBD。
 """
 
 # ============================================================
@@ -877,6 +916,7 @@ Deduct points based on:
    - Must include: Overview, Interface Design, Data Model, Business Logic, Error Handling
    - Missing a required section: -0.2
    - Hollow content (title only, no substance): -0.1 each
+   - Using "TBD" for designable content (APIs, fields, tables, logic): -0.15 each occurrence
 
 2) Consistency (20%)
    - Must align with upstream modules and the glossary
@@ -900,7 +940,7 @@ Scoring:
 - Start from 1.0
 - Final score = 1.0 - total deductions (min 0.0)
 - 0.9+ excellent, 0.8 good
-- Below {threshold:.0f} is unacceptable
+- Below {threshold} is unacceptable
 
 Pass rule:
 - score >= {threshold} => passed = true
@@ -929,8 +969,10 @@ STRICT OUTPUT RULES (MUST FOLLOW)
 =====================
 1) Output Markdown only.
 2) You MUST address every issue from the critique.
-3) Do NOT invent APIs/fields/tables/dependencies.
-   - If missing, write "TBD".
+3) MANDATORY DESIGN - "TBD" IS FORBIDDEN:
+   - You MUST design complete APIs, data models, and business logic.
+   - Do NOT use "TBD" as an excuse to avoid designing.
+   - If the previous version had "TBD", you MUST replace it with actual designs.
 4) Mermaid diagrams:
    - Must be inside ```mermaid code blocks
    - Must NOT include comments (%% or //)
@@ -963,18 +1005,19 @@ TASK
 1) 逐一解决反馈中列出的每个问题
 2) 确保包含所有必需章节，且每个章节都有实质内容：
    - 概述
-   - 接口设计
-   - 数据模型
-   - 业务逻辑
+   - 接口设计（必须有具体 API 定义）
+   - 数据模型（必须有具体表结构）
+   - 业务逻辑（必须有具体规则）
    - 时序图
-   - 错误处理
+   - 错误处理（必须有具体错误码）
    - 依赖关系
 3) 确保 Mermaid 图表符合规范且可渲染
 4) 保持与术语表和上游模块的一致性
+5) 将所有 "TBD" 替换为实际设计内容
 
 输出前请确认：
 - [ ] 所有反馈问题都已解决
 - [ ] 所有 Mermaid 图表规范且无注释
 - [ ] 所有必需章节完整且有实质内容
-- [ ] 未编造任何 API/字段/表/依赖
+- [ ] 无任何 "TBD" 占位符
 """

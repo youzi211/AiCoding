@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Request
 
 from docuflow.api.schemas.task import TaskCreateRequest, TaskResponse, TaskStatus
-from docuflow.core.config import get_settings
+from docuflow.core.config import get_settings, get_available_models
 from docuflow.utils import validate_user_id
 
 router = APIRouter()
@@ -52,11 +52,21 @@ async def create_task(
 
     # 提交任务
     settings = get_settings()
+
+    # 确定使用的模型
+    model_name = task_request.model_name or settings.model_name
+    available_models = get_available_models()
+    if model_name not in available_models:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的模型: {model_name}。可用模型: {', '.join(available_models)}",
+        )
+
     task = await task_manager.submit_task(
         user_id=user_id,
         project_id=project_id,
         task_type=task_request.task_type,
-        model_name=settings.model_name,
+        model_name=model_name,
         step_by_step=task_request.step_by_step,
     )
 

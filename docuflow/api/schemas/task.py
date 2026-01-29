@@ -30,6 +30,7 @@ class TaskCreateRequest(BaseModel):
     """创建任务请求"""
     task_type: TaskType = TaskType.FULL
     step_by_step: bool = False
+    model_name: Optional[str] = None  # 指定模型，为 None 时使用默认模型
 
 
 class TaskProgress(BaseModel):
