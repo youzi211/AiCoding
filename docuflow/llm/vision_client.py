@@ -2,7 +2,7 @@
 视觉模型客户端
 
 支持使用 Azure OpenAI GPT-4 Vision 或其他视觉模型生成图片描述。
-使用 LangChain 的 AzureChatOpenAI 实现。
+完全基于 LangChain 的 AzureChatOpenAI 实现。
 """
 from typing import Optional
 
@@ -10,6 +10,9 @@ from langchain_openai import AzureChatOpenAI
 from langchain_core.messages import HumanMessage
 
 from docuflow.core.config import get_azure_config, get_model_config, get_settings
+from docuflow.utils import get_logger
+
+logger = get_logger()
 
 
 class VisionClient:
@@ -65,6 +68,42 @@ class VisionClient:
 
         self.temperature = temperature
 
+    def _handle_api_error(self, e: Exception) -> None:
+        """统一处理 API 错误，转换为 LLMGenerationError
+
+        与 AzureOpenAIClient 保持一致的错误处理机制。
+        """
+        from docuflow.llm import LLMGenerationError
+        from openai import RateLimitError, APITimeoutError, APIConnectionError
+
+        if isinstance(e, RateLimitError):
+            logger.warning(f"Azure API 速率限制: {e}")
+            raise LLMGenerationError(
+                f"Azure API 速率限制，请稍后重试: {e}", retryable=True
+            ) from e
+        elif isinstance(e, APITimeoutError):
+            logger.warning(f"Azure API 请求超时: {e}")
+            raise LLMGenerationError(
+                f"LLM 请求超时: {e}", retryable=True
+            ) from e
+        elif isinstance(e, APIConnectionError):
+            logger.warning(f"Azure API 连接错误: {e}")
+            raise LLMGenerationError(
+                f"LLM 连接失败: {e}", retryable=True
+            ) from e
+        elif isinstance(e, LLMGenerationError):
+            raise
+        else:
+            # LangChain 可能会包装异常，尝试提取原始 OpenAI 异常
+            if hasattr(e, '__cause__') and e.__cause__:
+                # 递归处理原始异常
+                self._handle_api_error(e.__cause__)
+            else:
+                logger.error(f"视觉模型调用未知错误: {e}")
+                raise LLMGenerationError(
+                    f"视觉模型调用失败: {e}", retryable=False
+                ) from e
+
     def describe_image(
         self,
         image_bytes: bytes,
@@ -84,35 +123,39 @@ class VisionClient:
         """
         import base64
 
-        base64_image = base64.b64encode(image_bytes).decode("utf-8")
-        user_prompt = prompt or self.DEFAULT_PROMPT
+        try:
+            base64_image = base64.b64encode(image_bytes).decode("utf-8")
+            user_prompt = prompt or self.DEFAULT_PROMPT
 
-        # 使用 LangChain 的 HumanMessage 构建包含图片和文本的消息
-        message = HumanMessage(
-            content=[
-                {"type": "text", "text": user_prompt},
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{base64_image}"},
-                },
-            ],
-        )
+            # 使用 LangChain 的 HumanMessage 构建包含图片和文本的消息
+            message = HumanMessage(
+                content=[
+                    {"type": "text", "text": user_prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{base64_image}"},
+                    },
+                ],
+            )
 
-        # 调用 LangChain 的 invoke 方法
-        response = self.llm.invoke(
-            [message],
-            max_completion_tokens=max_tokens,
-        )
+            # 调用 LangChain 的 invoke 方法
+            response = self.llm.invoke(
+                [message],
+                max_completion_tokens=max_tokens,
+            )
 
-        # 安全地获取内容，处理可能的 None 响应
-        if response and response.content:
-            content = response.content
-            # 打印调试信息
-            print("图片描述生成成功。token数量：", len(content))
-            return content
+            # 安全地获取内容，处理可能的 None 响应
+            if response and response.content:
+                content = response.content
+                # 打印调试信息
+                logger.debug(f"图片描述生成成功，长度: {len(content)} 字符")
+                return content
 
-        # 如果响应为空，返回默认消息
-        return "[图片描述生成失败：模型返回空响应]"
+            # 如果响应为空，返回默认消息
+            logger.warning("图片描述生成失败：模型返回空响应")
+            return "[图片描述生成失败：模型返回空响应]"
+        except Exception as e:
+            self._handle_api_error(e)
 
     def describe_images_batch(
         self,
@@ -130,17 +173,22 @@ class VisionClient:
         Returns:
             图片描述列表
         """
+        from docuflow.llm import LLMGenerationError
+
         descriptions = []
         length = len(images)
-        for i ,img in enumerate(images):
+        for i, img in enumerate(images):
             if show_progress:
-                print(f"正在处理图片 {i + 1}/{length}...")
+                logger.info(f"正在处理图片 {i + 1}/{length}...")
             try:
-                description=self.describe_image(img,prompt)
+                description = self.describe_image(img, prompt)
                 descriptions.append(description)
+            except LLMGenerationError as e:
+                logger.error(f"图片 {i + 1} 描述生成失败: {e}")
+                descriptions.append(f"[图片描述生成失败: {e}]")
             except Exception as e:
-                print(f"图片 {i + 1} 描述生成失败: {e}")
-                descriptions.append("[图片描述生成失败]")
+                logger.error(f"图片 {i + 1} 处理出现未知错误: {e}")
+                descriptions.append("[图片描述生成失败: 未知错误]")
 
         return descriptions
 

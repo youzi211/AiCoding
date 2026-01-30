@@ -1,17 +1,21 @@
 """
 Azure OpenAI 客户端
 
-简化的 LLM 客户端，仅支持 Azure OpenAI。
+完全基于 LangChain 框架的 LLM 客户端，仅支持 Azure OpenAI。
 支持结构化输出（Structured Outputs）功能。
-带有全局并发控制（Semaphore）和请求超时。
+带有全局并发控制（Semaphore）、请求超时和 LangChain 速率限制。
 
-阶段1迁移：使用 LangChain 的 .with_structured_output() 简化结构化输出
+已完全迁移到 LangChain：
+- 使用 AzureChatOpenAI.invoke() 进行文本生成
+- 使用 .with_structured_output() 进行结构化输出
+- 统一错误处理和速率限制
 """
 import threading
 from typing import Optional, TypeVar, Type
 
 from pydantic import BaseModel
 from langchain_openai import AzureChatOpenAI
+from langchain_core.rate_limiters import InMemoryRateLimiter
 
 from docuflow.core.config import get_azure_config, get_model_config, get_settings
 from docuflow.utils import get_logger
@@ -44,12 +48,14 @@ def reset_semaphore(max_concurrent: int = 3) -> None:
 
 
 class AzureOpenAIClient:
-    """Azure OpenAI LLM 客户端（带超时和并发控制）
+    """Azure OpenAI LLM 客户端（带超时、并发控制和速率限制）
 
-    阶段1迁移说明：
-    - 保留原有的 OpenAI 客户端用于 generate() 文本生成
-    - 新增 LangChain 客户端用于 generate_structured() 结构化输出
-    - 保留全局 Semaphore 并发控制
+    完全基于 LangChain 实现：
+    - 使用 LangChain AzureChatOpenAI 客户端处理所有请求
+    - generate() 使用 invoke() 进行文本生成
+    - generate_structured() 使用 with_structured_output() 进行结构化输出
+    - 全局 Semaphore 并发控制（限制同时进行的请求数）
+    - LangChain InMemoryRateLimiter 速率限制（限制每秒请求数）
     """
 
     def __init__(
@@ -59,6 +65,7 @@ class AzureOpenAIClient:
         timeout: int = 120,
         max_retries: int = 3,
         max_concurrent: int = 3,
+        rate_limiter: Optional[InMemoryRateLimiter] = None,
     ):
         """
         初始化客户端
@@ -69,35 +76,27 @@ class AzureOpenAIClient:
             timeout: 请求超时秒数（默认120秒）
             max_retries: SDK 内部重试次数（默认3次，处理429等瞬态错误）
             max_concurrent: 最大并发请求数（全局共享信号量）
+            rate_limiter: 可选的自定义速率限制器，未指定时根据配置自动创建
         """
-        from openai import AzureOpenAI
-        import httpx
-
         config = get_azure_config()
         settings = get_settings()
 
-        # 配置超时：连接超时30秒，读取超时由参数控制
-        client_timeout = httpx.Timeout(
-            connect=30.0,
-            read=float(timeout),
-            write=30.0,
-            pool=30.0,
-        )
+        # 创建或使用传入的速率限制器
+        if rate_limiter is None and settings.llm_rate_limit_enabled:
+            rate_limiter = InMemoryRateLimiter(
+                requests_per_second=settings.llm_rate_limit_requests_per_second,
+                check_every_n_seconds=settings.llm_rate_limit_check_every_n_seconds,
+                max_bucket_size=settings.llm_rate_limit_max_bucket_size,
+            )
+            logger.debug(
+                f"已启用速率限制: {settings.llm_rate_limit_requests_per_second} req/s, "
+                f"max_bucket={settings.llm_rate_limit_max_bucket_size}"
+            )
 
         # 如果指定了不同的模型，使用该模型的配置
         if model_name and model_name != settings.model_name:
             model_config = get_model_config(model_name)
-            # 原有 OpenAI 客户端（用于文本生成）
-            self.client = AzureOpenAI(
-                api_key=config["api_key"],
-                api_version=model_config["api_version"],
-                azure_endpoint=model_config["endpoint"],
-                timeout=client_timeout,
-                max_retries=max_retries,
-            )
-            self.deployment = model_config["deployment"]
-
-            # LangChain 客户端（用于结构化输出）
+            # LangChain 客户端（用于所有 LLM 调用）
             self.llm = AzureChatOpenAI(
                 deployment_name=model_config["deployment"],
                 api_key=config["api_key"],
@@ -106,19 +105,11 @@ class AzureOpenAIClient:
                 temperature=temperature,
                 timeout=timeout,
                 max_retries=max_retries,
+                rate_limiter=rate_limiter,
             )
+            self.deployment = model_config["deployment"]
         else:
-            # 原有 OpenAI 客户端
-            self.client = AzureOpenAI(
-                api_key=config["api_key"],
-                api_version=config["api_version"],
-                azure_endpoint=config["azure_endpoint"],
-                timeout=client_timeout,
-                max_retries=max_retries,
-            )
-            self.deployment = config["azure_deployment"]
-
-            # LangChain 客户端
+            # LangChain 客户端（用于所有 LLM 调用）
             self.llm = AzureChatOpenAI(
                 deployment_name=config["azure_deployment"],
                 api_key=config["api_key"],
@@ -127,28 +118,34 @@ class AzureOpenAIClient:
                 temperature=temperature,
                 timeout=timeout,
                 max_retries=max_retries,
+                rate_limiter=rate_limiter,
             )
+            self.deployment = config["azure_deployment"]
 
         self.temperature = temperature
         self._semaphore = _get_semaphore(max_concurrent)
 
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        """生成 LLM 响应（文本），带并发控制"""
+        """生成 LLM 响应（文本），带并发控制
+
+        使用 LangChain 的 invoke() 方法进行文本生成。
+        """
+        # 构建消息
         messages = []
         if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+            messages.append(("system", system_prompt))
+        messages.append(("human", prompt))
 
         # 通过信号量控制并发，防止超出 Azure 速率限制
         self._semaphore.acquire()
         try:
             logger.debug(f"LLM 请求开始 (deployment={self.deployment})")
-            response = self.client.chat.completions.create(
-                model=self.deployment,
-                messages=messages,
-                temperature=self.temperature
-            )
-            return response.choices[0].message.content
+            # 使用 LangChain 的 invoke 方法
+            response = self.llm.invoke(messages)
+            # 安全地获取内容
+            if response and response.content:
+                return response.content
+            return ""
         except Exception as e:
             self._handle_api_error(e)
         finally:
@@ -194,7 +191,10 @@ class AzureOpenAIClient:
             self._semaphore.release()
 
     def _handle_api_error(self, e: Exception) -> None:
-        """统一处理 API 错误，转换为 LLMGenerationError"""
+        """统一处理 API 错误，转换为 LLMGenerationError
+
+        支持 OpenAI 原生异常和 LangChain 异常处理。
+        """
         from docuflow.llm import LLMGenerationError
         from openai import RateLimitError, APITimeoutError, APIConnectionError
 
@@ -216,7 +216,12 @@ class AzureOpenAIClient:
         elif isinstance(e, LLMGenerationError):
             raise
         else:
-            logger.error(f"LLM 调用未知错误: {e}")
-            raise LLMGenerationError(
-                f"LLM 调用失败: {e}", retryable=False
-            ) from e
+            # LangChain 可能会包装异常，尝试提取原始 OpenAI 异常
+            if hasattr(e, '__cause__') and e.__cause__:
+                # 递归处理原始异常
+                self._handle_api_error(e.__cause__)
+            else:
+                logger.error(f"LLM 调用未知错误: {e}")
+                raise LLMGenerationError(
+                    f"LLM 调用失败: {e}", retryable=False
+                ) from e

@@ -39,6 +39,27 @@ DOCUFLOW_CRITIQUE_THRESHOLD=0.7
 DOCUFLOW_CRITIQUE_MAX_ITERATIONS=2
 DOCUFLOW_CRITIQUE_MODEL=             # 批判使用的模型（可选，留空则使用主模型）
                                      # 可选值: gpt-5.2, gpt-5.1, deepseek-v3.2
+
+# 并发控制（重要！需根据 Azure 配额调整）
+DOCUFLOW_LLM_TIMEOUT=180             # LLM请求超时秒数
+DOCUFLOW_LLM_MAX_CONCURRENT=5        # 最大并发请求数
+DOCUFLOW_LLM_RATE_LIMIT_REQUESTS_PER_SECOND=0.9  # 每秒请求数
+# 详细配置说明请参考: CONCURRENCY_TUNING.md
+```
+
+## 性能调优
+
+如果遇到 `Request timed out` 错误，请参考 [CONCURRENCY_TUNING.md](CONCURRENCY_TUNING.md) 进行并发控制调优。
+
+关键配置参数：
+- `DOCUFLOW_LLM_TIMEOUT`: 单个请求超时时间（建议 180-300 秒）
+- `DOCUFLOW_LLM_MAX_CONCURRENT`: 最大并发请求数（建议 5-10）
+- `DOCUFLOW_LLM_RATE_LIMIT_REQUESTS_PER_SECOND`: 速率限制（根据 Azure RPM 配额设置）
+
+**快速诊断**：
+1. 检查 Azure Portal 的 API 配额（RPM）
+2. 速率限制应设为配额的 90%
+3. 并发数应适中，避免触发限流
 ```
 
 ## CLI 使用

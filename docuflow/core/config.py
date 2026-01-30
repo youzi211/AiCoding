@@ -79,9 +79,17 @@ class Settings(BaseSettings):
     critique_model: Optional[str] = None   # 批判使用的模型（None 表示使用主模型）
 
     # LLM 并发控制
-    llm_timeout: int = 120                 # LLM请求超时秒数
-    llm_max_concurrent: int = 2            # 最大并发LLM请求数
+    llm_timeout: int = 180                 # LLM请求超时秒数（增加到180秒）
+    llm_max_concurrent: int = 5            # 最大并发LLM请求数（从2增加到5）
     llm_max_retries_sdk: int = 3           # OpenAI SDK内部重试次数
+
+    # LLM 速率限制 (使用 LangChain InMemoryRateLimiter)
+    # 注意：速率限制应根据 Azure OpenAI 配额设置
+    # 例如：60 RPM 配额 -> 设置为 0.9 req/s (54 req/min，留10%余量)
+    llm_rate_limit_enabled: bool = True    # 是否启用速率限制
+    llm_rate_limit_requests_per_second: float = 0.9  # 每秒请求数（从0.5提高到0.9）
+    llm_rate_limit_check_every_n_seconds: float = 0.1  # 检查间隔秒数
+    llm_rate_limit_max_bucket_size: int = 10  # 最大突发请求数（从5增加到10）
 
     # 图片提取配置
     extract_images: bool = False           # 是否提取文档中的图片
